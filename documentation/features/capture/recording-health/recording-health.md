@@ -1,0 +1,82 @@
+# Recording Health and Source Timing
+
+The desktop core publishes disk-health and timing provenance with each snapshot. Recording checks available space before starting the helper, periodically during capture and before publishing each buffered chunk. Notes, bookmarks and elapsed durations use the capture source timeline, including an explicit fallback for older helpers. These controls preserve the full M0 roadmap; they do not establish long-call drift or a universal crash-loss bound.
+
+## User flow
+
+1. Start recording with the existing consent/input flow. The core checks available space before creating the recording or opening the helper; unverified availability or less than 100 MB prevents startup.
+2. During recording, health reports available bytes, check time, severity, inference suspension and whether saved processing is allowed. Below 2 GB, a warning is available. Below 500 MB, live partials, STT, speaker inference and echo inference stop while raw capture continues.
+3. Below 100 MB, the helper receives Stop; accepted audio is drained, buffered chunks are saved and the live run seals normally. The meeting retains an explicit low-space warning. Encoding/publication errors still follow the recorder's existing failure/recovery rules.
+4. Add a live note/bookmark. A valid shared clock gives its exact source-time position. An old helper without the anchor uses the latest observed audio position with approximate provenance; before either source evidence exists, timestamped notes reject with a clear error.
+5. A saved-meeting bookmark uses that meeting's current paused/playing playback cursor. An ordinary saved text note without matching playback is explicitly untimed at zero. Bookmarking never starts output.
+6. Saved processing requires a fresh availability check of at least 500 MB. Automatic postprocessing waits when space is insufficient. Restored space permits saved processing; live inference stays suspended for the remainder of an already-shed recording.
+
+## Technical flow
+
+`AppService::with_resources` creates the normal service with an injectable `ResourceProbe`; production `SystemResources` uses safe `nix` wrappers. Available bytes are unprivileged available blocks times filesystem fragment size. `HealthMonitor` polls at most 30 seconds apart while recording, including pause/driver waits. Each nonempty `TrackBuffer::flush` additionally refreshes availability and checks the buffered chunk's PCM24 upper bound plus metadata margin before a pending reservation. Thus native 192 kHz/eight-channel audio cannot write thirty seconds of data unchecked. At 90 MB, the maximum two-second chunk still fits while shutdown is requested; tests simulate pressure rather than filling disks.
+
+Thresholds are decimal bytes: warning `<2_000_000_000`, inference suspension `<500_000_000`, clean stop `<100_000_000`. Unknown availability blocks new recording/saved-processing preflight; during capture it is explicit and suspends inference. If known available bytes cannot fit the next bounded chunk plus 2 MB, publication fails before a pending reservation rather than attempting an unsafe write.
+
+`inference_suspended` is sticky for one recording. Session consumers check it before further model work, drop partials and avoid model initialization under low-space preflight. The DSP worker also drops its queued work. Raw capture owns a separate worker/queue and continues until the critical stop. Finishing capture freezes duration at the last observed source endpoint, excluding model-finalization latency. The source-clock epoch and raw `mHostTime`/frame positions are never replaced with callback-arrival times.
+
+The helper's protocol-3 `source_clock` event carries `clock=uptime_raw`, `origin_ns` and `observed_ns` before microphone permission waits. The origin is the helper startup Mach timestamp converted to nanoseconds. Rust reads the same raw-uptime clock, validates the anchor and subtracts that origin for current source time. Apple documents `CLOCK_UPTIME_RAW` as equivalent to `mach_absolute_time` in nanoseconds; the native self-test brackets converted Mach reads with raw-uptime reads. Unknown/future clocks, malformed/future anchors, changed origins or unavailable platform support stay explicitly unsynchronized. Older helpers still record; their notes use observed-audio fallback metadata. The shared clock preserves the native clock's sleep behavior and existing gap semantics. Existing device drift observations remain in `app_audio_clock`; long-call drift remains a measured roadmap gate.
+
+`relay_capture_event` splits valid native audio messages into at most 20 ms slices before bounded queues, retaining exact PCM, epoch/frame index and the original host-time origin plus sample offset. This bounds aggregate queued audio to 2.56 seconds in the 128-slot capture queue and 12 seconds in the 600-slot DSP queue. AEC emits at most 10 ms packets, bounding each 600-slot STT/speaker queue to six seconds. Invalid/oversized native packets retain the existing rejection path. The live inference controller compares each observed track's raw source endpoint against completed-input endpoints for DSP, STT and configured speaker workers. The largest same-track lag is the global lag; it never subtracts microphone time from system time. Completion is acknowledged after actual input consumption/publication, including silent/VAD-suppressed input. Absent workers do not participate. Source origins and model startup do not masquerade as speech-event timestamps.
+
+A lag strictly greater than ten seconds must persist for two monotonic seconds while source input remains fresh (last delivery within two seconds). The controller disables partial publication first, live speaker work next, then live STT; successive stages require at least five further monotonic seconds and continued overload. Unconfigured stages are skipped. Final speech segments continue after the partial-only stage. Raw PCM is accepted and durably buffered before inference gates, and inference enqueue never blocks raw capture. Disabled stages remain disabled until the next recording. Disk suspension is stronger and composes with every stage.
+
+Pause, explicit gaps, source epoch/format changes and observed discontinuities reset the lag basis and advance a generation token. Old queued work cannot advance new completion watermarks or publish across that source reset. A resumed generation resets STT/speaker/AEC state before accepting new input; pending inference coverage is recorded separately from raw capture gaps. No input freshness means no stage escalation. Failed worker startup is an inference warning and does not abort otherwise valid raw capture.
+
+An asynchronous audit writer snapshots bounded per-run stage/gap evidence once per second and joins before the live run seals. Periodic reports carry `complete=false`; stopping always writes a final `complete=true` report even if its revision has not changed. This flag seals the audit ledger only and makes no claim that speech recognition or speaker labeling is complete. A sealed live run with an unsealed old ledger is explicitly incomplete on readback. New live provenance marks whether inference evidence is expected; if such a sealed run has no ledger, readback returns an unavailable/incomplete report with no invented source gaps. Unmarked legacy runs retain null metadata. Gap ranges distinguish queue overflow, source reset, disk suspension, failed workers and sustained-backlog deferral. At most 128 coalesced ranges and twelve distinct warnings are retained; exhaustion is explicitly marked `truncated`, so coverage is never presented as complete. A successful later refinement has its own run and does not inherit live-backlog metadata. If final ledger persistence fails, a distinct warning is appended without replacing existing saved or in-memory capture warnings. When that warning also cannot be saved, a ready in-memory recording and its warning remain visible and automatic processing is skipped; starting a new recording is still allowed.
+
+## Key types and entry points
+
+| Type/function | Source | Responsibility |
+|---|---|---|
+| `ResourceProbe`, `SystemResources`, `HealthMonitor`, `HealthSnapshot`, `DiskState` | `crates/vt-session/src/health.rs` | Injected readings, thresholds, cadence and persisted evidence |
+| `Controller`, `BacklogSnapshot`, `BacklogReport`, `AuditWriter` | `crates/vt-session/src/backlog.rs` | Track-aware source/completion watermarks, ordered sticky shedding and bounded asynchronous run audit |
+| `SourceTimeline`, `SourceTiming`, `TimingProvenance` | `crates/vt-session/src/source_timing.rs` | Shared clock validation, observed fallback, duration and note provenance |
+| `AppService::refresh_health`, `ensure_processing_space`, `recording_budget`, `save_note` | `crates/vt-session/src/lib.rs` | Preflight/runtime controls and atomic note-timing attachment |
+| `record_session`, `TrackBuffer::flush`, `relay_capture_event` | `crates/vt-session/src/session.rs` | Raw capture protection, clean stop and time-bounded relay |
+| `CaptureEvent::SourceClock`, `CaptureClock` | `crates/vt-capture/src/lib.rs` | Forward-compatible typed native clock transport |
+| `runCapture`, `testSourceClock` | `native/macos/CaptureHelper.swift` | Native origin announcement and no-audio clock proof |
+
+## Integration points and API
+
+`Snapshot.source_timing` is optional and contains `synchronized`, `provenance`, `elapsed_ms`, `latest_audio_ms` and `warning`. `Snapshot.health` contains `free_bytes`, `checked_at`, `disk_state`, `inference_suspended`, `automatic_processing_allowed` and `warning`. The session adapter owns presentation of these fields. `Snapshot.live_processing.backlog` adds `stage` (`normal`, `partials_disabled`, `speakers_disabled`, `stt_disabled`), `lag_ms`, actual `partials_enabled`/`speakers_enabled`/`stt_enabled` flags and an optional user-facing `warning`. `MeetingDetail.inference_health` is optional, belongs to the selected historical run and contains stage transitions, source ranges, warnings, maximum measured lag and an explicit truncation flag. Legacy store-only fixtures without the additive table return null.
+
+Meeting detail exposes authoritative `audio_available` and per-note optional `timing_provenance`/`timing_synchronized`. Store-only legacy databases without the timing table return null provenance rather than guessing accuracy. Markdown and TXT note exports label untimed notes `Untimed`, observed fallback stamps with `~`, and legacy/unverified stamps with `?`; verified source/playback stamps remain exact.
+
+Startup runs confirmed retention recovery after schemas initialize and before interrupted staging/audio recovery. Pending intents preserve their DB fingerprint; pending/purged sources cannot reach recorder recovery, playback, waveform or saved inference. Text and exports hold the runtime maintenance reservation through commit. Waveform scans instead hold a saved-reader RAII lease while releasing the runtime mutex, so snapshots remain responsive and maintenance cannot move their files. Error/panic releases the lease. See [Retention](../../storage/retention/retention.md).
+
+The store's `save_note_with_metadata` attachment runs note insertion, timing metadata and FTS publication in one SQLite transaction. Timing failure therefore rolls back the note and its searchable text together. Processing reserves call `ensure_processing_space` before taking runtime locks. The capture adapter's read-only inventory is documented in [macOS Capture](../macos-capture/macos-capture.md); durable publication remains owned by [Durable Recording](../../recording/durable-recording/durable-recording.md).
+
+## Routes and access control
+
+There is no network route or account service. These controls run locally under the existing recording-consent, playback/capture exclusion and filesystem ownership rules. Device enumeration does not record. No probe starts capture or playback, and no disk test consumes real free space. Health evidence contains no app/process names, device identifiers or audio samples.
+
+## Database schema
+
+| Table | Columns and ownership |
+|---|---|
+| `app_resource_health` | Singleton `id=1`, serialized `snapshot_json`, UTC `checked_at`; latest resource evidence without meeting content |
+| `app_source_timing` | `meeting_id` primary key/FK, serialized `timing_json`, nullable checked `origin_ns`; cascades with meeting deletion |
+| `app_note_timing` | `note_id` primary key/FK, `provenance`, boolean `synchronized`; atomic with note/FTS transaction and cascades with the note |
+| `app_run_inference_health` | `run_id` primary key/FK, meeting FK and serialized `info_json`; matching ownership enforced, updates/inserts require a running run, immutable once complete; run/meeting retention owns deletion |
+| `app_meeting_health` | `id`, meeting FK, source position `source_ms`, nullable `free_bytes`, `disk_state`, `inference_suspended`, UTC `created_at`; periodic/transition history, indexed by meeting/time |
+
+SQL artifacts: [001-resource-health.sql](sql/001-resource-health.sql) and [002-inference-health.sql](sql/002-inference-health.sql). Initialization is additive and does not alter earlier audio/transcript rows. Retention includes these FK descendants when removing their owning records.
+
+## Verification
+
+Injected resource tests cover exact threshold boundaries, a 30-second cadence without waiting, critical preflight with zero helper startup, sticky suspension with continued raw audio, recovery/critical transitions, complete raw-frame draining on low-space stop, skipped model setup and automatic-processing gates. Clock tests cover common-origin notes, explicit legacy fallback, pre-source note rejection, atomic note/FTS rollback and paused bookmark position with a factory that prohibits output. Queue tests reconstruct every original scalar/frame/host offset from valid two-second native packets, including an unusual native rate. Existing pause/AEC and 105-packet clock regressions remain.
+
+Backlog tests inject both timing and deliberately blocked model consumers into the actual AppService → native-protocol relay → DSP → consumer graph. They observe every ordered stage, then decode both saved FLAC tracks with manifest SHA verification and assert every native frame/scalar remains exact with no raw gaps. Additional tests cover completed quiet input, unequal track origins, absent stages, generation rejection, stale input/pause reset, sticky disk composition, bounded evidence, partial-only suppression with final publication, sealed audit rows and obsolete-run retention. These tests use no audio device or network.
+
+Primary sources: [Apple Mach time](https://developer.apple.com/documentation/kernel/1462446-mach_absolute_time), [Rust Instant clocks](https://doc.rust-lang.org/stable/std/time/struct.Instant.html), [nix clock_gettime](https://docs.rs/nix/0.31.3/nix/time/fn.clock_gettime.html), [POSIX statvfs](https://pubs.opengroup.org/onlinepubs/9699919799/functions/fstatvfs.html).
+
+The audit expectation marker also respects the initial disk-inference gate: intentionally suspended inference records `capture_inference_suspended_at_start=true` and does not claim a missing ledger is a failed audit. A normal pause reset uses pause-specific wording; native discontinuities retain their distinct source warning.
+
+## Separate observation freshness clock
+
+`ResourceProbe::observation_ns` supplies suspend-aware freshness to [meeting detection](../meeting-detection/meeting-detection.md). On macOS it reads `CLOCK_MONOTONIC_RAW`; failures return unavailable. It is separate from `uptime_ns`/`CLOCK_UPTIME_RAW`, which continue to match hardware/source epochs, and from the existing `tick_ns` cadence. This prevents stale detector authorization across sleep without changing recording offsets, elapsed source time, note timing or disk/retention schedules. Test probes may inject their own observation clock. Other production platforms remain unavailable until their detection/continuous-clock backends exist.

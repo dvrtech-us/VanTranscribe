@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-07T12:55:47.179987+00:00",
+  "research_only": true,
+  "production_eligible": false,
+  "runtime_pin_generated": false,
+  "acceptance": "not_claimed",
+  "protocol_id": "vantranscribe-ami-open-set-in-person-v3",
+  "partition_sha256": "90b40f63eea00a794e8cb0e3805e24ec211100a18824a42191882d23d9ac8454",
+  "annotation_sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+  "identical_calibration_query_ids_and_truth_across_all_runs": true,
+  "calibration_trials": 192,
+  "algorithm_frozen_in_source": "fixed-grid-v1: tau_auto=-1.00..1.00 step0.01; margin=0.01..2.00 step0.01; known-wrong/known<=0.02 and unknown-false/unknown<=0.02; maximize known-correct/all-known; ties higher tau then higher margin",
+  "held_out_identity_scoring_invocations": 0,
+  "runs": [
+    {
+      "profile": "eres2net-v1",
+      "report_sha256": "ed567ad6d624c9e42f72b0095748c6a8b6c4d416bf2262b5b7619af6ffd92a12",
+      "source_report": "eres2net-research-run-v1/report.json",
+      "manifest_sha256": "b94125faf45b8cbc72bf8afdce2680b3d282a57723a04954a648572d82c39339",
+      "model_pack_manifest_sha256": "92c0135169b0a5c39f4563c0b0868a70fdb4595fb301b06669e7906210d18e2e",
+      "raw_contract_sha256": "d0e9574d06f367f35d6ad1ab4e8b2a6c13c2e586ed56ff159c95f1ceb6925928",
+      "selected_mode": "full",
+      "policy": {
+        "margin": 0.13,
+        "tau_auto": 0.53
+      },
+      "calibration": {
+        "interval_caveat": "Binomial trial intervals are descriptive only: repeated meetings/trials from the same people/projects are correlated, so these bounds do not establish statistical acceptance or independence.",
+        "known_wrong_rate": 0.006666666666666667,
+        "metrics": {
+          "channel": "in_person",
+          "correct_suggestions": 0,
+          "correctly_recognized": 113,
+          "embedding_version": "d0e9574d06f367f35d6ad1ab4e8b2a6c13c2e586ed56ff159c95f1ceb6925928",
+          "false_identification_rate": 0.005208333333333333,
+          "falsely_recognized_unknown": 0,
+          "gallery_is_50": true,
+          "gallery_people": 50,
+          "known_abstentions": 36,
+          "known_trials": 150,
+          "protocol_id": "vantranscribe-ami-open-set-in-person-v3",
+          "recognition_rate": 0.7533333333333333,
+          "unavailable_trials": 0,
+          "unknown_abstentions": 42,
+          "unknown_false_identification_rate": 0.0,
+          "unknown_trials": 42,
+          "wrong_suggestions": 0,
+          "wrongly_recognized_known": 1
+        },
+        "observed_targets": {
+          "known_wrong_le_0_02": true,
+          "recognition_ge_0_90": false,
+          "unknown_false_le_0_02": true
+        },
+        "wilson_95": {
+          "known_wrong": [
+            0.0011778013350174366,
+            0.03679283977481815
+          ],
+          "recognition": [
+            0.6785967057397266,
+            0.8154183704471145
+          ],
+          "unknown_false": [
+            0.0,
+            0.08379879086570391
+          ]
+        }
+      },
+      "unthresholded_top1_known": 141,
+      "actual_native_inference": true,
+      "held_out_trials": 0,
+      "duration_seconds": 143.131068167,
+      "compiled_source_pins": {
+        "cargo_lock_sha256": "172c64cde3359dce3d7c160df47f9bf54053bf1ecb3851b0218d3a92871d0ef1",
+        "embedding_adapter_sha256": "fff21476f3ac31a148bccb5437a7d9bb310cfb31408c481e918e1b6d67dac803",
+        "matching_core_sha256": "92000b6b0cdd2aa1d86711e7963bec9e8e840d82f92277992eb33235e86990b1",
+        "research_runner_sha256": "56f8bb7b90be6769ef4790b339dc0403295ce2bf1d2afb0dc5a73d764c59a6c2"
+      }
+    },
+    {
+      "profile": "wespeaker-resnet34-v1",
+      "report_sha256": "3c1288ad04d7530a1ebc53b87ece0ee1ca35b0526414e33209d09ffcbd7d74b4",
+      "source_report": "wespeaker-resnet34-calibration-run-v1/report.json",
+      "manifest_sha256": "262b11f5f54fe705b80d21532088a1b49c5e5b7946274f872825cae7e68d57cd",
+      "model_pack_manifest_sha256": "62eadc0d1536da1cef775dc227bd60a838e12d466c8ed33b49d1fc9c096301f6",
+      "raw_contract_sha256": "638b9f488bb743fb3c09eac905d8e9711469f129e88f57ffcfa19c9abdae1094",
+      "selected_mode": "calibration_only",
+      "policy": {
+        "margin": 0.08,
+        "tau_auto": 0.82
+      },
+      "calibration": {
+        "interval_caveat": "Binomial trial intervals are descriptive only: repeated meetings/trials from the same people/projects are correlated, so these bounds do not establish statistical acceptance or independence.",
+        "known_wrong_rate": 0.0,
+        "metrics": {
+          "channel": "in_person",
+          "correct_suggestions": 0,
+          "correctly_recognized": 13,
+          "embedding_version": "638b9f488bb743fb3c09eac905d8e9711469f129e88f57ffcfa19c9abdae1094",
+          "false_identification_rate": 0.0,
+          "falsely_recognized_unknown": 0,
+          "gallery_is_50": true,
+          "gallery_people": 50,
+          "known_abstentions": 137,
+          "known_trials": 150,
+          "protocol_id": "vantranscribe-ami-open-set-in-person-v3",
+          "recognition_rate": 0.08666666666666667,
+          "unavailable_trials": 0,
+          "unknown_abstentions": 42,
+          "unknown_false_identification_rate": 0.0,
+          "unknown_trials": 42,
+          "wrong_suggestions": 0,
+          "wrongly_recognized_known": 0
+        },
+        "observed_targets": {
+          "known_wrong_le_0_02": true,
+          "recognition_ge_0_90": false,
+          "unknown_false_le_0_02": true
+        },
+        "wilson_95": {
+          "known_wrong": [
+            0.0,
+            0.0249702443680766
+          ],
+          "recognition": [
+            0.051347178274724174,
+            0.14262822373621914
+          ],
+          "unknown_false": [
+            0.0,
+            0.08379879086570391
+          ]
+        }
+      },
+      "unthresholded_top1_known": 71,
+      "actual_native_inference": true,
+      "held_out_trials": 0,
+      "duration_seconds": 180.112040375,
+      "compiled_source_pins": {
+        "cargo_lock_sha256": "172c64cde3359dce3d7c160df47f9bf54053bf1ecb3851b0218d3a92871d0ef1",
+        "embedding_adapter_sha256": "ea9f68f2c34cd6b6e190dc2763ce5dd0a80c7b616bad93bcc4f8558e3e191550",
+        "embedding_profile_sha256": "e6ff72210db8182caaf7194db16a683cb9b63c7525f00866caf0b07f3c204d38",
+        "matching_core_sha256": "92000b6b0cdd2aa1d86711e7963bec9e8e840d82f92277992eb33235e86990b1",
+        "research_runner_sha256": "67dc67bfd26dfbf54cb88feb985d5505ee185b1823fc110c152201342f0aaeb6"
+      }
+    },
+    {
+      "profile": "wespeaker-resnet34-cmn-v1",
+      "report_sha256": "9042188a218e8f2132de3494ef23d91a8936cf9809a776b7a4c123d2db94f5ad",
+      "source_report": "wespeaker-resnet34-cmn-calibration-run-v1/report.json",
+      "manifest_sha256": "a8a50d56872c9df5933093e12b004cefb0a3d8da8eaa6a2c011a328a54950e5c",
+      "model_pack_manifest_sha256": "f49feb87f2ef5e8963f818d204585b06535dae67f99034e4714d1e0fa71b86e7",
+      "raw_contract_sha256": "1f1d6fbd14574251738805424bcd3f94c66c41f08ab23ef72d3d83e89fe32ba0",
+      "selected_mode": "calibration_only",
+      "policy": {
+        "margin": 0.04,
+        "tau_auto": 0.65
+      },
+      "calibration": {
+        "interval_caveat": "Binomial trial intervals are descriptive only: repeated meetings/trials from the same people/projects are correlated, so these bounds do not establish statistical acceptance or independence.",
+        "known_wrong_rate": 0.02,
+        "metrics": {
+          "channel": "in_person",
+          "correct_suggestions": 0,
+          "correctly_recognized": 130,
+          "embedding_version": "1f1d6fbd14574251738805424bcd3f94c66c41f08ab23ef72d3d83e89fe32ba0",
+          "false_identification_rate": 0.015625,
+          "falsely_recognized_unknown": 0,
+          "gallery_is_50": true,
+          "gallery_people": 50,
+          "known_abstentions": 17,
+          "known_trials": 150,
+          "protocol_id": "vantranscribe-ami-open-set-in-person-v3",
+          "recognition_rate": 0.8666666666666667,
+          "unavailable_trials": 0,
+          "unknown_abstentions": 42,
+          "unknown_false_identification_rate": 0.0,
+          "unknown_trials": 42,
+          "wrong_suggestions": 0,
+          "wrongly_recognized_known": 3
+        },
+        "observed_targets": {
+          "known_wrong_le_0_02": true,
+          "recognition_ge_0_90": false,
+          "unknown_false_le_0_02": true
+        },
+        "wilson_95": {
+          "known_wrong": [
+            0.006824751322967455,
+            0.057146683270386085
+          ],
+          "recognition": [
+            0.803019825502258,
+            0.9120019952944858
+          ],
+          "unknown_false": [
+            0.0,
+            0.08379879086570391
+          ]
+        }
+      },
+      "unthresholded_top1_known": 141,
+      "actual_native_inference": true,
+      "held_out_trials": 0,
+      "duration_seconds": 191.810772125,
+      "compiled_source_pins": {
+        "cargo_lock_sha256": "172c64cde3359dce3d7c160df47f9bf54053bf1ecb3851b0218d3a92871d0ef1",
+        "embedding_adapter_sha256": "ea9f68f2c34cd6b6e190dc2763ce5dd0a80c7b616bad93bcc4f8558e3e191550",
+        "embedding_profile_sha256": "c7207ac92c7f67de483cd4865b3e34944fc448090dfbc088fd71c2d781629de8",
+        "matching_core_sha256": "92000b6b0cdd2aa1d86711e7963bec9e8e840d82f92277992eb33235e86990b1",
+        "research_runner_sha256": "67dc67bfd26dfbf54cb88feb985d5505ee185b1823fc110c152201342f0aaeb6"
+      }
+    }
+  ],
+  "limitations": [
+    "Calibration/model-selection results only; no held-out identity scoring.",
+    "Repeated people/projects are correlated; trial intervals do not establish acceptance.",
+    "Public staged same-project room sessions, oracle clean masks, single in_person channel and fixed fifty-person gallery only.",
+    "CMN restores one documented missing operation; other native/reference feature differences remain.",
+    "No installed app defaults, retained voiceprints or matching availability changed."
+  ]
+}

@@ -1,0 +1,963 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-07",
+  "acceptance": "not_claimed",
+  "scope": "One public AMI far-field 300s window; no in-house, gallery50, hardware, UI latency or corpus-general acceptance.",
+  "corpus": {
+    "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+    "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+    "id": "ami-manual-1.6.2-ES2002a-array1-01-0-300",
+    "license": "CC-BY-4.0",
+    "recording_id": "ES2002a-array1-01-0-300",
+    "source_urls": [
+      "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+      "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+      "https://groups.inf.ed.ac.uk/ami/download/"
+    ]
+  },
+  "audio": {
+    "duration_ms": 300000.0,
+    "frames": 4800000,
+    "meeting_mode": "in_person",
+    "rate": 16000,
+    "track": "mic"
+  },
+  "runner": {
+    "binary": {
+      "bytes": 28445840,
+      "path": "/Volumes/dev/repos/personal/VanTranscribe/target/release/xtask",
+      "sha256": "a8b48040c1fd84671d151ac8ec64d2430b537db66d3649e2ef92a71eb1a78678"
+    },
+    "version": "0.1.0"
+  },
+  "source_files": [
+    {
+      "bytes": 4432,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/inference-diagnostics.json",
+      "sha256": "fee06cb6796434fd85428e681d0546418b161e72ccf6dff157f359ddeb18a62a"
+    },
+    {
+      "bytes": 9600044,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/audio.wav",
+      "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+    },
+    {
+      "bytes": 2422,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.txt",
+      "sha256": "dee0878f7abb9936396cedffc52232809a6e57b2d93402cd444c91511766f8de"
+    },
+    {
+      "bytes": 4022,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.rttm",
+      "sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468"
+    },
+    {
+      "bytes": 46,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/regions.uem",
+      "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+    },
+    {
+      "bytes": 40727594,
+      "path": "/private/tmp/vantranscribe-ami-eval/ES2002a.Array1-01.wav",
+      "sha256": "38887e3bf7b597fe348f3818e9fc9844d7a1e15382aab52e5316dc3228fb6c1d"
+    },
+    {
+      "bytes": 22887865,
+      "path": "/private/tmp/vantranscribe-ami-eval/ami_public_manual_1.6.2.zip",
+      "sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d"
+    },
+    {
+      "bytes": 44831,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/reference-words.json",
+      "sha256": "0994ef8367e61461d88cc75723dc197eed4a3c4a93e1b7d631477c909bf7a709"
+    },
+    {
+      "bytes": 25103,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.A.words.xml",
+      "sha256": "03e7f37c4b3519ee78396779bbc90e2778b7b7ccd7a7388f7fa3a22cb31f7044"
+    },
+    {
+      "bytes": 7202,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.A.segments.xml",
+      "sha256": "c8d26cf329af8c8917c07f4725a02c362d2471f01ea735d9016a89fccb847c02"
+    },
+    {
+      "bytes": 130553,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.B.words.xml",
+      "sha256": "a51156e0b3f1b05d9d1a631206d523c5247d2d6fd851ecfe826317ab261cc17a"
+    },
+    {
+      "bytes": 23321,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.B.segments.xml",
+      "sha256": "ff370c9b7968ee5cf76357eda8447c63f3af664c482a71843dc0fb4bd5d445c9"
+    },
+    {
+      "bytes": 8896,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.C.words.xml",
+      "sha256": "c539fca7b7183a2b56be43f2362432a91a4552512ed03df8c4ce96aee75f3330"
+    },
+    {
+      "bytes": 3918,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.C.segments.xml",
+      "sha256": "6b3667b7c49ea81902a19593b21c7c74568da73f9e33dd0062a9f238a0e50f68"
+    },
+    {
+      "bytes": 100864,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.D.words.xml",
+      "sha256": "d4f8b66e53de583c839424323f0e05d038a1426e5628042d03dcd2ee72e68b05"
+    },
+    {
+      "bytes": 24307,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.D.segments.xml",
+      "sha256": "655286757eab17d36aa2ff1fada19742ce1b131be94fcc655c492790aed3797e"
+    },
+    {
+      "bytes": 212044,
+      "path": "/private/tmp/vantranscribe-stt-fixture.wav",
+      "sha256": "6bc58a4efdf20daac252b6b1502632601a71efe0308f6757dc1eda34891a7e4f"
+    }
+  ],
+  "models": {
+    "diarization": {
+      "manifest_id": "pyannote3-eres2net-2024-v1",
+      "manifest_sha256": "92c0135169b0a5c39f4563c0b0868a70fdb4595fb301b06669e7906210d18e2e",
+      "files": [
+        {
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "bytes": 11358,
+          "filename": "3D-Speaker-Apache-2.0.txt"
+        },
+        {
+          "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+          "bytes": 39593761,
+          "filename": "embedding.onnx"
+        },
+        {
+          "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba",
+          "bytes": 1061,
+          "filename": "pyannote-MIT.txt"
+        },
+        {
+          "sha256": "d582f4b4c6b48205de7e0643c57df0df5615a3c176189be3fc461e9d18827b5d",
+          "bytes": 1540506,
+          "filename": "segmentation.int8.onnx"
+        }
+      ]
+    },
+    "refinement": {
+      "manifest_id": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+      "manifest_sha256": "4cb87e7f6e5b7e0a7e0879ace78ab02e4e048e134aa9a19b58933276d5004b2d",
+      "files": [
+        {
+          "sha256": "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e",
+          "bytes": 11845275,
+          "filename": "decoder.int8.onnx"
+        },
+        {
+          "sha256": "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247",
+          "bytes": 652184281,
+          "filename": "encoder.int8.onnx"
+        },
+        {
+          "sha256": "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3",
+          "bytes": 6355277,
+          "filename": "joiner.int8.onnx"
+        },
+        {
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+          "bytes": 643854,
+          "filename": "silero_vad.onnx"
+        },
+        {
+          "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d",
+          "bytes": 93939,
+          "filename": "tokens.txt"
+        }
+      ]
+    },
+    "streaming": {
+      "manifest_id": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+      "manifest_sha256": "2f90df8b3d5e124bd135d41a3dc39cb5b296a2e4fc4853bc65916b859369076f",
+      "files": [
+        {
+          "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591",
+          "bytes": 2093080,
+          "filename": "decoder-epoch-99-avg-1-chunk-16-left-128.onnx"
+        },
+        {
+          "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87",
+          "bytes": 70108816,
+          "filename": "encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx"
+        },
+        {
+          "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d",
+          "bytes": 259416,
+          "filename": "joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx"
+        },
+        {
+          "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb",
+          "bytes": 5048,
+          "filename": "tokens.txt"
+        }
+      ]
+    }
+  },
+  "baseline": {
+    "live_diarization": {
+      "reference_speaker_seconds": 195.14099999999988,
+      "hypothesis_speaker_seconds": 87.33800000000002,
+      "missed_speaker_seconds": 108.13699999999986,
+      "false_alarm_speaker_seconds": 0.3340000000000103,
+      "confused_speaker_seconds": 2.2519999999999527,
+      "scored_uem_seconds": 275.3759999999999,
+      "reference_speakers": 4,
+      "hypothesis_speakers": 4,
+      "jer_speaker_error_sum": 2.90202655560734,
+      "der": 0.5673999825767003,
+      "jer": 0.725506638901835,
+      "mapping": {}
+    },
+    "refined_diarization": {
+      "reference_speaker_seconds": 195.14099999999988,
+      "hypothesis_speaker_seconds": 93.70400000000001,
+      "missed_speaker_seconds": 102.40599999999986,
+      "false_alarm_speaker_seconds": 0.9690000000000083,
+      "confused_speaker_seconds": 3.05199999999995,
+      "scored_uem_seconds": 275.3759999999999,
+      "reference_speakers": 4,
+      "hypothesis_speakers": 4,
+      "jer_speaker_error_sum": 2.7233954404661316,
+      "der": 0.5453851317765097,
+      "jer": 0.6808488601165329,
+      "mapping": {}
+    },
+    "wer": {
+      "batch": {
+        "reference_words": 514,
+        "hypothesis_words": 278,
+        "substitutions": 40,
+        "deletions": 237,
+        "insertions": 1,
+        "wer": 0.5408560311284046
+      },
+      "live": {
+        "reference_words": 514,
+        "hypothesis_words": 0,
+        "substitutions": 0,
+        "deletions": 514,
+        "insertions": 0,
+        "wer": 1.0
+      }
+    },
+    "paired_live_batch_wer": {
+      "units": 1,
+      "live": {
+        "reference_words": 514,
+        "hypothesis_words": 0,
+        "substitutions": 0,
+        "deletions": 514,
+        "insertions": 0,
+        "wer": 1.0
+      },
+      "batch": {
+        "reference_words": 514,
+        "hypothesis_words": 278,
+        "substitutions": 40,
+        "deletions": 237,
+        "insertions": 1,
+        "wer": 0.5408560311284046
+      },
+      "live_to_batch_wer_ratio": 1.8489208633093526
+    },
+    "measurements": {
+      "partial_ms": null,
+      "final_text_ms": null,
+      "speaker_label_ms": null,
+      "cpu_total_percent": {
+        "count": 38,
+        "p50": 7.142857142857143,
+        "p95": 20.364285714285717,
+        "p99": 20.442857142857143,
+        "max": 20.442857142857143
+      },
+      "cpu_sample_mean_percent": 10.193421052631587,
+      "rss_bytes": {
+        "count": 38,
+        "p50": 707854336.0,
+        "p95": 1368801280.0,
+        "p99": 1373274112.0,
+        "max": 1373274112.0
+      },
+      "metadata": [
+        {
+          "machine": "Mac16,7",
+          "source": "actual sequential production core inference runner",
+          "os": "Darwin 27.2.0 arm64",
+          "profile": "release",
+          "provider": "cpu",
+          "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false"
+        }
+      ]
+    },
+    "phases": [
+      {
+        "audio_ms": 300000.0,
+        "constructor_load_ms": 864.835959,
+        "extra": {
+          "paced": false,
+          "thread_budget": 2,
+          "vad_threads": 1
+        },
+        "name": "streaming_zipformer_vad",
+        "native_accept_call_ms": {
+          "count": 15000,
+          "max": 15.308375000000002,
+          "p50": 0.058208,
+          "p95": 0.1035,
+          "p99": 7.8307910000000005
+        },
+        "processing_wall_ms": 4467.78225,
+        "real_time_factor": 0.0148926075
+      },
+      {
+        "audio_ms": 300000.0,
+        "constructor_load_ms": 1911.916667,
+        "extra": {
+          "thread_budget": 2,
+          "vad_threads": 1
+        },
+        "name": "batch_parakeet_vad",
+        "native_accept_call_ms": {
+          "count": 15000,
+          "max": 1656.2048750000001,
+          "p50": 0.057042,
+          "p95": 0.063584,
+          "p99": 0.06825
+        },
+        "processing_wall_ms": 13129.488042,
+        "real_time_factor": 0.04376496014
+      },
+      {
+        "audio_ms": 300000.0,
+        "constructor_load_ms": 173.12662500000002,
+        "extra": {
+          "calibrated": false,
+          "embedding_threads": 1,
+          "live_uses_emitted_updates": true,
+          "paced": false,
+          "segmentation_threads": 1,
+          "turns": 94,
+          "unknown_or_uncertain": 52
+        },
+        "name": "live_diarization",
+        "native_accept_call_ms": {
+          "count": 15000,
+          "max": 225.043459,
+          "p50": 0.000125,
+          "p95": 0.000167,
+          "p99": 0.000875
+        },
+        "processing_wall_ms": 11546.811749999999,
+        "real_time_factor": 0.038489372499999994
+      },
+      {
+        "audio_ms": 300000.0,
+        "constructor_load_ms": 170.88370899999998,
+        "extra": {
+          "calibrated": false,
+          "embedding_threads": 1,
+          "live_uses_emitted_updates": false,
+          "paced": false,
+          "segmentation_threads": 1,
+          "turns": 94,
+          "unknown_or_uncertain": 48
+        },
+        "name": "refined_diarization",
+        "native_accept_call_ms": {
+          "count": 15000,
+          "max": 230.333125,
+          "p50": 0.000125,
+          "p95": 0.000167,
+          "p99": 0.000833
+        },
+        "processing_wall_ms": 11678.829458999999,
+        "real_time_factor": 0.038929431529999996
+      }
+    ]
+  },
+  "diagnostics": {
+    "raw_acoustics": {
+      "peak": 0.304473876953125,
+      "rms": 0.004633829023672433
+    },
+    "raw_native_vad": {
+      "detected_speech_windows": 3282,
+      "discarded_partial_samples": 0,
+      "settings": "same native detector fields/reset/clear sequence as production LiveVad; does not measure ASR gate-open windows",
+      "window_ms": 32,
+      "windows": 9375
+    },
+    "raw_ungated": {
+      "events": 5,
+      "phase": {
+        "audio_ms": 300000.0,
+        "constructor_load_ms": 821.1645,
+        "extra": {
+          "paced": false,
+          "thread_budget": 2,
+          "vad_threads": 1
+        },
+        "name": "streaming_zipformer_vad",
+        "native_accept_call_ms": {
+          "count": 15000,
+          "max": 9.538916,
+          "p50": 0.008083,
+          "p95": 7.339499999999999,
+          "p99": 7.482958
+        },
+        "processing_wall_ms": 7092.402375,
+        "real_time_factor": 0.02364134125
+      },
+      "wer": {
+        "deletions": 512,
+        "hypothesis_words": 2,
+        "insertions": 0,
+        "reference_words": 514,
+        "substitutions": 0,
+        "wer": 0.9961089494163424
+      }
+    },
+    "control": {
+      "source": {
+        "path": "/private/tmp/vantranscribe-stt-fixture.wav",
+        "sha256": "6bc58a4efdf20daac252b6b1502632601a71efe0308f6757dc1eda34891a7e4f"
+      },
+      "native_vad": {
+        "detected_speech_windows": 185,
+        "discarded_partial_samples": 16,
+        "settings": "same native detector fields/reset/clear sequence as production LiveVad; does not measure ASR gate-open windows",
+        "window_ms": 32,
+        "windows": 207
+      },
+      "acoustics": {
+        "peak": 0.534942626953125,
+        "rms": 0.0470912322338609
+      },
+      "runs": [
+        {
+          "vad": true,
+          "events": 18,
+          "phase": {
+            "audio_ms": 6625.0,
+            "constructor_load_ms": 822.745083,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 332,
+              "max": 9.552083,
+              "p50": 0.076375,
+              "p95": 7.52175,
+              "p99": 7.637084
+            },
+            "processing_wall_ms": 172.43008300000002,
+            "real_time_factor": 0.026027182339622645
+          }
+        },
+        {
+          "vad": false,
+          "events": 17,
+          "phase": {
+            "audio_ms": 6625.0,
+            "constructor_load_ms": 805.469792,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 332,
+              "max": 9.498875,
+              "p50": 0.016291,
+              "p95": 7.46475,
+              "p99": 7.618207999999999
+            },
+            "processing_wall_ms": 166.99675,
+            "real_time_factor": 0.025207056603773585
+          }
+        }
+      ],
+      "reference_scoring": "No control transcript reference was supplied; no WER invented.",
+      "provenance": "Previously downloaded official public sherpa Zipformer test_wavs/0.wav from pinned model archive; control only, no standalone waveform licence claim and no WER supplied."
+    },
+    "gains": [
+      {
+        "acoustics": {
+          "peak": 0.60894775390625,
+          "rms": 0.009267658047344866
+        },
+        "batch_wer": {
+          "deletions": 203,
+          "hypothesis_words": 315,
+          "insertions": 4,
+          "reference_words": 514,
+          "substitutions": 60,
+          "wer": 0.519455252918288
+        },
+        "clipped_samples": 0,
+        "gain": 2,
+        "live_wer": {
+          "deletions": 452,
+          "hypothesis_words": 62,
+          "insertions": 0,
+          "reference_words": 514,
+          "substitutions": 33,
+          "wer": 0.943579766536965
+        },
+        "native_vad": {
+          "detected_speech_windows": 4273,
+          "discarded_partial_samples": 0,
+          "settings": "same native detector fields/reset/clear sequence as production LiveVad; does not measure ASR gate-open windows",
+          "window_ms": 32,
+          "windows": 9375
+        },
+        "phases": [
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 857.921333,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 15.941625,
+              "p50": 0.06075,
+              "p95": 0.127333,
+              "p99": 8.244792
+            },
+            "processing_wall_ms": 5438.678167,
+            "real_time_factor": 0.018128927223333334
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 2002.3968750000001,
+            "extra": {
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "batch_parakeet_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 1980.2738749999999,
+              "p50": 0.057541999999999996,
+              "p95": 0.064708,
+              "p99": 0.070292
+            },
+            "processing_wall_ms": 17254.553874999998,
+            "real_time_factor": 0.057515179583333326
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 170.84508300000002,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": false,
+              "paced": false,
+              "segmentation_threads": 1,
+              "turns": 94,
+              "unknown_or_uncertain": 48
+            },
+            "name": "refined_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 225.029416,
+              "p50": 0.000125,
+              "p95": 0.000167,
+              "p99": 0.000875
+            },
+            "processing_wall_ms": 11892.221875000001,
+            "real_time_factor": 0.039640739583333334
+          }
+        ],
+        "refined_diarization": {
+          "confused_speaker_seconds": 3.0689999999999458,
+          "der": 0.5402862545543985,
+          "false_alarm_speaker_seconds": 0.9690000000000083,
+          "hypothesis_speaker_seconds": 94.71600000000001,
+          "hypothesis_speakers": 4,
+          "jer": 0.6809582767370794,
+          "jer_speaker_error_sum": 2.7238331069483177,
+          "mapping": {
+            "A": "mic:speaker-6",
+            "B": "mic:speaker-5",
+            "D": "mic:speaker-15"
+          },
+          "missed_speaker_seconds": 101.39399999999986,
+          "reference_speaker_seconds": 195.14099999999988,
+          "reference_speakers": 4,
+          "scored_uem_seconds": 275.3759999999999
+        },
+        "samples": 4800000
+      },
+      {
+        "acoustics": {
+          "peak": 1.0,
+          "rms": 0.0185325999684585
+        },
+        "batch_wer": {
+          "deletions": 153,
+          "hypothesis_words": 371,
+          "insertions": 10,
+          "reference_words": 514,
+          "substitutions": 61,
+          "wer": 0.4357976653696498
+        },
+        "clipped_samples": 1,
+        "gain": 4,
+        "live_wer": {
+          "deletions": 308,
+          "hypothesis_words": 208,
+          "insertions": 2,
+          "reference_words": 514,
+          "substitutions": 99,
+          "wer": 0.7957198443579766
+        },
+        "native_vad": {
+          "detected_speech_windows": 5070,
+          "discarded_partial_samples": 0,
+          "settings": "same native detector fields/reset/clear sequence as production LiveVad; does not measure ASR gate-open windows",
+          "window_ms": 32,
+          "windows": 9375
+        },
+        "phases": [
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 883.216291,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 15.314292,
+              "p50": 0.060375,
+              "p95": 0.14595799999999998,
+              "p99": 8.235667000000001
+            },
+            "processing_wall_ms": 6147.356084,
+            "real_time_factor": 0.020491186946666667
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 1919.4199589999998,
+            "extra": {
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "batch_parakeet_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 2181.388375,
+              "p50": 0.058125,
+              "p95": 0.06791699999999999,
+              "p99": 0.077
+            },
+            "processing_wall_ms": 20529.724958,
+            "real_time_factor": 0.06843241652666666
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 172.464208,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": false,
+              "paced": false,
+              "segmentation_threads": 1,
+              "turns": 94,
+              "unknown_or_uncertain": 44
+            },
+            "name": "refined_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 219.8835,
+              "p50": 0.000125,
+              "p95": 0.00020800000000000001,
+              "p99": 0.002209
+            },
+            "processing_wall_ms": 11915.5725,
+            "real_time_factor": 0.039718575
+          }
+        ],
+        "refined_diarization": {
+          "confused_speaker_seconds": 3.0849999999999653,
+          "der": 0.5425512834309545,
+          "false_alarm_speaker_seconds": 4.874000000000009,
+          "hypothesis_speaker_seconds": 102.10000000000002,
+          "hypothesis_speakers": 5,
+          "jer": 0.6666805941151458,
+          "jer_speaker_error_sum": 2.666722376460583,
+          "mapping": {
+            "A": "mic:speaker-5",
+            "B": "mic:speaker-4",
+            "D": "mic:speaker-13"
+          },
+          "missed_speaker_seconds": 97.91499999999985,
+          "reference_speaker_seconds": 195.14099999999988,
+          "reference_speakers": 4,
+          "scored_uem_seconds": 275.3759999999999
+        },
+        "samples": 4800000
+      },
+      {
+        "acoustics": {
+          "peak": 1.0,
+          "rms": 0.036984589415240146
+        },
+        "batch_wer": {
+          "deletions": 145,
+          "hypothesis_words": 388,
+          "insertions": 19,
+          "reference_words": 514,
+          "substitutions": 59,
+          "wer": 0.433852140077821
+        },
+        "clipped_samples": 38,
+        "gain": 8,
+        "live_wer": {
+          "deletions": 225,
+          "hypothesis_words": 290,
+          "insertions": 1,
+          "reference_words": 514,
+          "substitutions": 156,
+          "wer": 0.7431906614785992
+        },
+        "native_vad": {
+          "detected_speech_windows": 5726,
+          "discarded_partial_samples": 0,
+          "settings": "same native detector fields/reset/clear sequence as production LiveVad; does not measure ASR gate-open windows",
+          "window_ms": 32,
+          "windows": 9375
+        },
+        "phases": [
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 833.239625,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 15.18675,
+              "p50": 0.060375,
+              "p95": 0.159625,
+              "p99": 7.702999999999999
+            },
+            "processing_wall_ms": 6218.72225,
+            "real_time_factor": 0.020729074166666667
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 1770.0748339999998,
+            "extra": {
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "batch_parakeet_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 2453.036959,
+              "p50": 0.058708,
+              "p95": 0.067542,
+              "p99": 0.077375
+            },
+            "processing_wall_ms": 23197.111249999998,
+            "real_time_factor": 0.07732370416666666
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 171.3855,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": false,
+              "paced": false,
+              "segmentation_threads": 1,
+              "turns": 93,
+              "unknown_or_uncertain": 44
+            },
+            "name": "refined_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 220.318042,
+              "p50": 0.000125,
+              "p95": 0.000167,
+              "p99": 0.001667
+            },
+            "processing_wall_ms": 11848.662125,
+            "real_time_factor": 0.03949554041666667
+          }
+        ],
+        "refined_diarization": {
+          "confused_speaker_seconds": 3.0849999999999653,
+          "der": 0.5414700139898837,
+          "false_alarm_speaker_seconds": 4.165999999999997,
+          "hypothesis_speaker_seconds": 100.895,
+          "hypothesis_speakers": 5,
+          "jer": 0.6656337668542197,
+          "jer_speaker_error_sum": 2.662535067416879,
+          "mapping": {
+            "A": "mic:speaker-7",
+            "B": "mic:speaker-6",
+            "D": "mic:speaker-15"
+          },
+          "missed_speaker_seconds": 98.41199999999986,
+          "reference_speaker_seconds": 195.14099999999988,
+          "reference_speakers": 4,
+          "scored_uem_seconds": 275.3759999999999
+        },
+        "samples": 4800000
+      },
+      {
+        "acoustics": {
+          "peak": 1.0,
+          "rms": 0.0732245843178481
+        },
+        "batch_wer": {
+          "deletions": 138,
+          "hypothesis_words": 391,
+          "insertions": 15,
+          "reference_words": 514,
+          "substitutions": 52,
+          "wer": 0.39883268482490275
+        },
+        "clipped_samples": 774,
+        "gain": 16,
+        "live_wer": {
+          "deletions": 202,
+          "hypothesis_words": 314,
+          "insertions": 2,
+          "reference_words": 514,
+          "substitutions": 180,
+          "wer": 0.7470817120622568
+        },
+        "native_vad": {
+          "detected_speech_windows": 5574,
+          "discarded_partial_samples": 0,
+          "settings": "same native detector fields/reset/clear sequence as production LiveVad; does not measure ASR gate-open windows",
+          "window_ms": 32,
+          "windows": 9375
+        },
+        "phases": [
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 852.623709,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 16.385834,
+              "p50": 0.060583,
+              "p95": 0.165375,
+              "p99": 8.033708
+            },
+            "processing_wall_ms": 6417.6995830000005,
+            "real_time_factor": 0.021392331943333336
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 1872.5355829999999,
+            "extra": {
+              "thread_budget": 2,
+              "vad_threads": 1
+            },
+            "name": "batch_parakeet_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 2042.0393749999998,
+              "p50": 0.059083000000000004,
+              "p95": 0.06849999999999999,
+              "p99": 0.088666
+            },
+            "processing_wall_ms": 22778.188291,
+            "real_time_factor": 0.07592729430333332
+          },
+          {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 189.4635,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": false,
+              "paced": false,
+              "segmentation_threads": 1,
+              "turns": 92,
+              "unknown_or_uncertain": 45
+            },
+            "name": "refined_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 248.420834,
+              "p50": 0.000125,
+              "p95": 0.0012920000000000002,
+              "p99": 0.005915999999999999
+            },
+            "processing_wall_ms": 11815.356749999999,
+            "real_time_factor": 0.0393845225
+          }
+        ],
+        "refined_diarization": {
+          "confused_speaker_seconds": 3.0849999999999653,
+          "der": 0.5692345534767164,
+          "false_alarm_speaker_seconds": 5.065000000000005,
+          "hypothesis_speaker_seconds": 97.275,
+          "hypothesis_speakers": 5,
+          "jer": 0.6847234952855462,
+          "jer_speaker_error_sum": 2.738893981142185,
+          "mapping": {
+            "A": "mic:speaker-6",
+            "B": "mic:speaker-5",
+            "D": "mic:speaker-15"
+          },
+          "missed_speaker_seconds": 102.93099999999987,
+          "reference_speaker_seconds": 195.14099999999988,
+          "reference_speakers": 4,
+          "scored_uem_seconds": 275.3759999999999
+        },
+        "samples": 4800000
+      }
+    ]
+  },
+  "local_artifacts": {
+    "directory": "/private/tmp/vantranscribe-ami-eval/run-diagnostics-v1",
+    "sha256": {
+      "inference.json": "817d2b01a336aa5fc90693ace0a466ca60459a7040b8345fa196c705637c7e5d",
+      "live-report.json": "2dc219d0fba4e87f19f0e56ceef1a2ee99df2c9f04671da672eb030dd6680f30",
+      "refined-report.json": "77a322cfaae90dc8a7282e51a002da62eac0ff837d557af92de8dc13ee95cee6",
+      "diagnostics/results.json": "8b2efb210a5affc6c563c1b22a4329b88ff1b99a6614a38fcb93160238391aea"
+    }
+  },
+  "interpretation": [
+    "Both control paths emitted the expected full sentence; runner/packet/finish flow works.",
+    "Raw native VAD detected speech, but gated ASR emitted no text; ungated raw ASR also failed.",
+    "Fixed gain reduces ASR deletions but does not solve low SNR/ASR quality or speaker-turn misses.",
+    "No production setting was changed from these diagnostics."
+  ]
+}

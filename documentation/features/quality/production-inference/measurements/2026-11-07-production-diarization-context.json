@@ -1,0 +1,1459 @@
+{
+  "acceptance": "not_claimed",
+  "clips": [
+    {
+      "audio_ms": 300000.0,
+      "legacy_corpus": {
+        "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+        "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+        "id": "ami-manual-1.6.2-ES2002a-array1-01-0-300",
+        "license": "CC-BY-4.0",
+        "recording_id": "ES2002a-array1-01-0-300",
+        "source_urls": [
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+          "https://groups.inf.ed.ac.uk/ami/download/"
+        ]
+      },
+      "phases": [
+        {
+          "calibrated": false,
+          "constraint_reviews": [],
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "resources": [
+              {
+                "cpu_total_percent": 6.171428571428572,
+                "measured_at_ms": 180.588459,
+                "rss_bytes": 209584128
+              },
+              {
+                "cpu_total_percent": 7.057142857142857,
+                "measured_at_ms": 1379.45175,
+                "rss_bytes": 257245184
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 2548.1495,
+                "rss_bytes": 304005120
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 3700.3477089999997,
+                "rss_bytes": 304119808
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 4782.490375,
+                "rss_bytes": 304267264
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 5851.945292,
+                "rss_bytes": 305037312
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 7021.778958999999,
+                "rss_bytes": 305152000
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 8109.788333999999,
+                "rss_bytes": 305348608
+              },
+              {
+                "cpu_total_percent": 7.05,
+                "measured_at_ms": 9307.426625,
+                "rss_bytes": 305397760
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 10416.587459,
+                "rss_bytes": 305479680
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 11092.450875,
+                "rss_bytes": 305823744
+              }
+            ]
+          },
+          "phase": "live",
+          "prior_artifact_assignment_projection_equal": true,
+          "projection_excludes_only": "provenance string (live/refined phase name)",
+          "scores": [
+            {
+              "assignment_view": "live5",
+              "counts": {
+                "assigned_speakers": 18,
+                "overlap_ms": 10599,
+                "overlap_turns": 9,
+                "turns": 94,
+                "unknown_or_uncertain_ms": 50500,
+                "unknown_or_uncertain_turns": 52
+              },
+              "legacy_segments": {
+                "confused_speaker_seconds": 2.2519999999999527,
+                "der": 0.5673999825767003,
+                "false_alarm_speaker_seconds": 0.3340000000000103,
+                "hypothesis_speaker_seconds": 87.33800000000002,
+                "hypothesis_speakers": 4,
+                "jer": 0.725506638901835,
+                "jer_speaker_error_sum": 2.90202655560734,
+                "mapping": {
+                  "A": "mic:speaker-6",
+                  "B": "mic:speaker-5",
+                  "D": "mic:speaker-14"
+                },
+                "missed_speaker_seconds": 108.13699999999986,
+                "reference_speaker_seconds": 195.14099999999988,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 275.3759999999999
+              },
+              "secondary_only_words": {
+                "confused_speaker_seconds": 2.173999999999978,
+                "der": 0.49407420969120014,
+                "false_alarm_speaker_seconds": 1.1379999999999981,
+                "hypothesis_speaker_seconds": 87.35099999999998,
+                "hypothesis_speakers": 4,
+                "jer": 0.6907326859147436,
+                "jer_speaker_error_sum": 2.7629307436589743,
+                "mapping": {
+                  "A": "mic:speaker-6",
+                  "B": "mic:speaker-5",
+                  "D": "mic:speaker-14"
+                },
+                "missed_speaker_seconds": 77.64700000000013,
+                "reference_speaker_seconds": 163.86000000000013,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 281.95500000000004
+              }
+            },
+            {
+              "assignment_view": "live5-finalized-control",
+              "counts": {
+                "assigned_speakers": 18,
+                "overlap_ms": 10599,
+                "overlap_turns": 9,
+                "turns": 94,
+                "unknown_or_uncertain_ms": 43406,
+                "unknown_or_uncertain_turns": 48
+              },
+              "legacy_segments": {
+                "confused_speaker_seconds": 3.05199999999995,
+                "der": 0.5453851317765097,
+                "false_alarm_speaker_seconds": 0.9690000000000083,
+                "hypothesis_speaker_seconds": 93.70400000000001,
+                "hypothesis_speakers": 4,
+                "jer": 0.6808488601165329,
+                "jer_speaker_error_sum": 2.7233954404661316,
+                "mapping": {
+                  "A": "mic:speaker-6",
+                  "B": "mic:speaker-5",
+                  "D": "mic:speaker-14"
+                },
+                "missed_speaker_seconds": 102.40599999999986,
+                "reference_speaker_seconds": 195.14099999999988,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 275.3759999999999
+              },
+              "secondary_only_words": {
+                "confused_speaker_seconds": 2.4689999999999657,
+                "der": 0.47527767606493376,
+                "false_alarm_speaker_seconds": 2.6229999999999905,
+                "hypothesis_speaker_seconds": 93.69599999999997,
+                "hypothesis_speakers": 4,
+                "jer": 0.6317964428242511,
+                "jer_speaker_error_sum": 2.5271857712970043,
+                "mapping": {
+                  "A": "mic:speaker-6",
+                  "B": "mic:speaker-5",
+                  "D": "mic:speaker-14"
+                },
+                "missed_speaker_seconds": 72.78700000000015,
+                "reference_speaker_seconds": 163.86000000000013,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 281.95500000000004
+              }
+            }
+          ],
+          "settings": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 175.632541,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": true,
+              "paced": false,
+              "segmentation_context": {
+                "native_window_ms": 10000,
+                "ownership_stride_ms": 2500,
+                "source_window_ms": 5000
+              },
+              "segmentation_threads": 1,
+              "turns": 94,
+              "unknown_or_uncertain": 52
+            },
+            "name": "live_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 218.13691599999999,
+              "p50": 0.000125,
+              "p95": 0.000167,
+              "p99": 0.000834
+            },
+            "processing_wall_ms": 10908.944458,
+            "real_time_factor": 0.03636314819333333
+          },
+          "warnings": [
+            "Experimental uncalibrated speaker clustering; labels are not verified identities. English/channel-specific DER, thresholds, overlap attribution and long-call acceptance remain unvalidated.",
+            "Canonical segmentation input is 10 s; 5 s source windows are zero-padded, with 2.5 s ownership stride. Offline agglomeration starts from bounded online seed clusters and cannot automatically split a mistaken seed without supplied constraints."
+          ],
+          "resource_summary": {
+            "samples": 11,
+            "rss_max_bytes": 305823744,
+            "cpu_machine_percent_mean": 7.031818181818182,
+            "cpu_machine_percent_max": 7.142857142857143,
+            "interpretation": "ps process %cpu divided by logical CPUs; RSS sampled between native calls, not interval CPU or peak RSS; no competing project native inference during measurement; warm caches and retained allocator/runtime memory possible"
+          }
+        },
+        {
+          "calibrated": false,
+          "constraint_reviews": [],
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "resources": [
+              {
+                "cpu_total_percent": 7.05,
+                "measured_at_ms": 163.593,
+                "rss_bytes": 308183040
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 1506.703542,
+                "rss_bytes": 323420160
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 2657.824083,
+                "rss_bytes": 399081472
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 3711.4925,
+                "rss_bytes": 399081472
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 4878.352917,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 6.992857142857143,
+                "measured_at_ms": 6216.4355000000005,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 7365.162791999999,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.078571428571428,
+                "measured_at_ms": 8514.092458000001,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 9883.0165,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.078571428571428,
+                "measured_at_ms": 10930.086958,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 11941.387875,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 13061.653667,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 14212.617583,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 15226.805625,
+                "rss_bytes": 413958144
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 16318.136041999998,
+                "rss_bytes": 413974528
+              },
+              {
+                "cpu_total_percent": 7.121428571428572,
+                "measured_at_ms": 16795.846458,
+                "rss_bytes": 414056448
+              }
+            ]
+          },
+          "phase": "refined",
+          "prior_artifact_assignment_projection_equal": true,
+          "projection_excludes_only": "provenance string (live/refined phase name)",
+          "scores": [
+            {
+              "assignment_view": "refined10",
+              "counts": {
+                "assigned_speakers": 19,
+                "overlap_ms": 7247,
+                "overlap_turns": 10,
+                "turns": 98,
+                "unknown_or_uncertain_ms": 41207,
+                "unknown_or_uncertain_turns": 46
+              },
+              "legacy_segments": {
+                "confused_speaker_seconds": 6.5390000000000015,
+                "der": 0.46131771385818404,
+                "false_alarm_speaker_seconds": 0.6139999999999972,
+                "hypothesis_speaker_seconds": 112.88600000000002,
+                "hypothesis_speakers": 6,
+                "jer": 0.5859999572435649,
+                "jer_speaker_error_sum": 2.3439998289742596,
+                "mapping": {
+                  "A": "mic:speaker-7",
+                  "B": "mic:speaker-6",
+                  "C": "mic:speaker-17",
+                  "D": "mic:speaker-16"
+                },
+                "missed_speaker_seconds": 82.86899999999983,
+                "reference_speaker_seconds": 195.14099999999988,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 275.3759999999999
+              },
+              "secondary_only_words": {
+                "confused_speaker_seconds": 5.3019999999999925,
+                "der": 0.380202611985842,
+                "false_alarm_speaker_seconds": 3.1940000000000097,
+                "hypothesis_speaker_seconds": 113.25000000000001,
+                "hypothesis_speakers": 6,
+                "jer": 0.476423328388003,
+                "jer_speaker_error_sum": 1.905693313552012,
+                "mapping": {
+                  "A": "mic:speaker-7",
+                  "B": "mic:speaker-6",
+                  "C": "mic:speaker-17",
+                  "D": "mic:speaker-16"
+                },
+                "missed_speaker_seconds": 53.804000000000116,
+                "reference_speaker_seconds": 163.86000000000013,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 281.95500000000004
+              }
+            }
+          ],
+          "settings": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 161.512125,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": false,
+              "paced": false,
+              "segmentation_context": {
+                "native_window_ms": 10000,
+                "ownership_stride_ms": 2500,
+                "source_window_ms": 10000
+              },
+              "segmentation_threads": 1,
+              "turns": 98,
+              "unknown_or_uncertain": 46
+            },
+            "name": "refined_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 386.903083,
+              "p50": 0.000125,
+              "p95": 0.000167,
+              "p99": 0.00075
+            },
+            "processing_wall_ms": 16629.286417,
+            "real_time_factor": 0.05543095472333333
+          },
+          "warnings": [
+            "Experimental uncalibrated speaker clustering; labels are not verified identities. English/channel-specific DER, thresholds, overlap attribution and long-call acceptance remain unvalidated.",
+            "Canonical segmentation input is 10 s; refined windows use 10 s of real source context with 2.5 s ownership stride. Short final tails are zero-padded and clipped to real source. Offline agglomeration starts from bounded online seed clusters and cannot automatically split a mistaken seed without supplied constraints."
+          ],
+          "resource_summary": {
+            "samples": 16,
+            "rss_max_bytes": 414056448,
+            "cpu_machine_percent_mean": 7.104910714285714,
+            "cpu_machine_percent_max": 7.142857142857143,
+            "interpretation": "ps process %cpu divided by logical CPUs; RSS sampled between native calls, not interval CPU or peak RSS; no competing project native inference during measurement; warm caches and retained allocator/runtime memory possible"
+          }
+        }
+      ],
+      "raw_audio_sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb",
+      "secondary_corpus": {
+        "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+        "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D words XML starttime/endtime (BUTSpeechFIT only_words protocol; positive-duration words only), clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. No invented timing or speaker labels.",
+        "id": "ami-manual-1.6.2-only_words-ES2002a-array1-01-0-300",
+        "license": "CC-BY-4.0",
+        "recording_id": "ES2002a-array1-01-0-300",
+        "source_urls": [
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+          "https://groups.inf.ed.ac.uk/ami/download/"
+        ]
+      }
+    },
+    {
+      "audio_ms": 300000.0,
+      "legacy_corpus": {
+        "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+        "derivation": "Official mono Array1-01 source cropped [300,600) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+        "id": "ami-manual-1.6.2-ES2002a-array1-01-300-600",
+        "license": "CC-BY-4.0",
+        "recording_id": "ES2002a-array1-01-300-600",
+        "source_urls": [
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+          "https://groups.inf.ed.ac.uk/ami/download/"
+        ]
+      },
+      "phases": [
+        {
+          "calibrated": false,
+          "constraint_reviews": [],
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "resources": [
+              {
+                "cpu_total_percent": 7.107142857142857,
+                "measured_at_ms": 164.41162500000002,
+                "rss_bytes": 460931072
+              },
+              {
+                "cpu_total_percent": 6.992857142857143,
+                "measured_at_ms": 1298.869292,
+                "rss_bytes": 478347264
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 2396.107959,
+                "rss_bytes": 478380032
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 3462.481709,
+                "rss_bytes": 478380032
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 4526.195042,
+                "rss_bytes": 478380032
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 5617.863791999999,
+                "rss_bytes": 478380032
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 6762.918,
+                "rss_bytes": 478380032
+              },
+              {
+                "cpu_total_percent": 7.121428571428572,
+                "measured_at_ms": 7954.597709,
+                "rss_bytes": 478396416
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 8963.378042,
+                "rss_bytes": 478412800
+              },
+              {
+                "cpu_total_percent": 7.078571428571428,
+                "measured_at_ms": 10125.715042,
+                "rss_bytes": 478412800
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 11161.989292,
+                "rss_bytes": 478461952
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 12232.161959000001,
+                "rss_bytes": 478527488
+              },
+              {
+                "cpu_total_percent": 7.121428571428572,
+                "measured_at_ms": 13394.237625,
+                "rss_bytes": 478625792
+              },
+              {
+                "cpu_total_percent": 7.035714285714286,
+                "measured_at_ms": 13570.990291999999,
+                "rss_bytes": 478953472
+              }
+            ]
+          },
+          "phase": "live",
+          "prior_artifact_assignment_projection_equal": true,
+          "projection_excludes_only": "provenance string (live/refined phase name)",
+          "scores": [
+            {
+              "assignment_view": "live5",
+              "counts": {
+                "assigned_speakers": 39,
+                "overlap_ms": 21304,
+                "overlap_turns": 16,
+                "turns": 132,
+                "unknown_or_uncertain_ms": 118420,
+                "unknown_or_uncertain_turns": 96
+              },
+              "legacy_segments": {
+                "confused_speaker_seconds": 12.607000000000028,
+                "der": 0.7750877512336612,
+                "false_alarm_speaker_seconds": 1.781000000000006,
+                "hypothesis_speaker_seconds": 73.00500000000012,
+                "hypothesis_speakers": 8,
+                "jer": 0.7794545302533984,
+                "jer_speaker_error_sum": 3.1178181210135936,
+                "mapping": {
+                  "A": "mic:speaker-3",
+                  "B": "mic:speaker-24",
+                  "D": "mic:speaker-28"
+                },
+                "missed_speaker_seconds": 181.47899999999998,
+                "reference_speaker_seconds": 252.70300000000015,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 260.27800000000013
+              },
+              "secondary_only_words": {
+                "confused_speaker_seconds": 12.440999999999974,
+                "der": 0.7502965008374444,
+                "false_alarm_speaker_seconds": 2.4850000000000207,
+                "hypothesis_speaker_seconds": 72.57300000000009,
+                "hypothesis_speakers": 8,
+                "jer": 0.6601206308051473,
+                "jer_speaker_error_sum": 1.9803618924154418,
+                "mapping": {
+                  "A": "mic:speaker-3",
+                  "B": "mic:speaker-24",
+                  "D": "mic:speaker-28"
+                },
+                "missed_speaker_seconds": 150.82199999999963,
+                "reference_speaker_seconds": 220.9099999999997,
+                "reference_speakers": 3,
+                "scored_uem_seconds": 264.3799999999999
+              }
+            },
+            {
+              "assignment_view": "live5-finalized-control",
+              "counts": {
+                "assigned_speakers": 29,
+                "overlap_ms": 21304,
+                "overlap_turns": 16,
+                "turns": 132,
+                "unknown_or_uncertain_ms": 81889,
+                "unknown_or_uncertain_turns": 80
+              },
+              "legacy_segments": {
+                "confused_speaker_seconds": 21.268,
+                "der": 0.6881398321349558,
+                "false_alarm_speaker_seconds": 3.274000000000001,
+                "hypothesis_speaker_seconds": 106.62400000000025,
+                "hypothesis_speakers": 6,
+                "jer": 0.6956415296508878,
+                "jer_speaker_error_sum": 2.782566118603551,
+                "mapping": {
+                  "A": "mic:speaker-3",
+                  "B": "mic:speaker-24",
+                  "D": "mic:speaker-28"
+                },
+                "missed_speaker_seconds": 149.35299999999984,
+                "reference_speaker_seconds": 252.70300000000015,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 260.27800000000013
+              },
+              "secondary_only_words": {
+                "confused_speaker_seconds": 21.515999999999934,
+                "der": 0.6530532796161319,
+                "false_alarm_speaker_seconds": 4.39000000000005,
+                "hypothesis_speaker_seconds": 106.94000000000024,
+                "hypothesis_speakers": 6,
+                "jer": 0.5324881266088246,
+                "jer_speaker_error_sum": 1.5974643798264738,
+                "mapping": {
+                  "A": "mic:speaker-3",
+                  "B": "mic:speaker-24",
+                  "D": "mic:speaker-28"
+                },
+                "missed_speaker_seconds": 118.35999999999952,
+                "reference_speaker_seconds": 220.9099999999997,
+                "reference_speakers": 3,
+                "scored_uem_seconds": 264.3799999999999
+              }
+            }
+          ],
+          "settings": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 162.231667,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": true,
+              "paced": false,
+              "segmentation_context": {
+                "native_window_ms": 10000,
+                "ownership_stride_ms": 2500,
+                "source_window_ms": 5000
+              },
+              "segmentation_threads": 1,
+              "turns": 132,
+              "unknown_or_uncertain": 96
+            },
+            "name": "live_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 219.911958,
+              "p50": 0.000125,
+              "p95": 0.000167,
+              "p99": 0.000833
+            },
+            "processing_wall_ms": 13403.507542,
+            "real_time_factor": 0.04467835847333333
+          },
+          "warnings": [
+            "Experimental uncalibrated speaker clustering; labels are not verified identities. English/channel-specific DER, thresholds, overlap attribution and long-call acceptance remain unvalidated.",
+            "Canonical segmentation input is 10 s; 5 s source windows are zero-padded, with 2.5 s ownership stride. Offline agglomeration starts from bounded online seed clusters and cannot automatically split a mistaken seed without supplied constraints."
+          ],
+          "resource_summary": {
+            "samples": 14,
+            "rss_max_bytes": 478953472,
+            "cpu_machine_percent_mean": 7.098979591836735,
+            "cpu_machine_percent_max": 7.142857142857143,
+            "interpretation": "ps process %cpu divided by logical CPUs; RSS sampled between native calls, not interval CPU or peak RSS; no competing project native inference during measurement; warm caches and retained allocator/runtime memory possible"
+          }
+        },
+        {
+          "calibrated": false,
+          "constraint_reviews": [],
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "resources": [
+              {
+                "cpu_total_percent": 7.014285714285714,
+                "measured_at_ms": 161.160375,
+                "rss_bytes": 480985088
+              },
+              {
+                "cpu_total_percent": 7.0928571428571425,
+                "measured_at_ms": 1324.222583,
+                "rss_bytes": 484392960
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 2479.671958,
+                "rss_bytes": 484392960
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 3538.5625410000002,
+                "rss_bytes": 484392960
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 4561.101291,
+                "rss_bytes": 484392960
+              },
+              {
+                "cpu_total_percent": 7.114285714285714,
+                "measured_at_ms": 5768.084416,
+                "rss_bytes": 484392960
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 6867.819208,
+                "rss_bytes": 484392960
+              },
+              {
+                "cpu_total_percent": 7.1000000000000005,
+                "measured_at_ms": 7894.796791,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 9038.023540999999,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 10257.518333,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 11415.169541,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 12620.333,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 13823.454333000001,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.071428571428571,
+                "measured_at_ms": 14823.5375,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 15871.32025,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 16883.381,
+                "rss_bytes": 484425728
+              },
+              {
+                "cpu_total_percent": 7.142857142857143,
+                "measured_at_ms": 17556.713083,
+                "rss_bytes": 484474880
+              }
+            ]
+          },
+          "phase": "refined",
+          "prior_artifact_assignment_projection_equal": true,
+          "projection_excludes_only": "provenance string (live/refined phase name)",
+          "scores": [
+            {
+              "assignment_view": "refined10",
+              "counts": {
+                "assigned_speakers": 13,
+                "overlap_ms": 20053,
+                "overlap_turns": 19,
+                "turns": 139,
+                "unknown_or_uncertain_ms": 63520,
+                "unknown_or_uncertain_turns": 79
+              },
+              "legacy_segments": {
+                "confused_speaker_seconds": 0.3760000000000048,
+                "der": 0.5069904195834628,
+                "false_alarm_speaker_seconds": 2.0250000000000057,
+                "hypothesis_speaker_seconds": 129.0110000000002,
+                "hypothesis_speakers": 3,
+                "jer": 0.5984197807207081,
+                "jer_speaker_error_sum": 2.3936791228828325,
+                "mapping": {
+                  "A": "mic:speaker-3",
+                  "B": "mic:speaker-4",
+                  "D": "mic:speaker-13"
+                },
+                "missed_speaker_seconds": 125.71699999999989,
+                "reference_speaker_seconds": 252.70300000000015,
+                "reference_speakers": 4,
+                "scored_uem_seconds": 260.27800000000013
+              },
+              "secondary_only_words": {
+                "confused_speaker_seconds": 0.18599999999996442,
+                "der": 0.43733194513602625,
+                "false_alarm_speaker_seconds": 2.728999999999992,
+                "hypothesis_speaker_seconds": 129.9430000000002,
+                "hypothesis_speakers": 3,
+                "jer": 0.38602468633202675,
+                "jer_speaker_error_sum": 1.1580740589960803,
+                "mapping": {
+                  "A": "mic:speaker-3",
+                  "B": "mic:speaker-4",
+                  "D": "mic:speaker-13"
+                },
+                "missed_speaker_seconds": 93.69599999999949,
+                "reference_speaker_seconds": 220.9099999999997,
+                "reference_speakers": 3,
+                "scored_uem_seconds": 264.3799999999999
+              }
+            }
+          ],
+          "settings": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 159.023958,
+            "extra": {
+              "calibrated": false,
+              "embedding_threads": 1,
+              "live_uses_emitted_updates": false,
+              "paced": false,
+              "segmentation_context": {
+                "native_window_ms": 10000,
+                "ownership_stride_ms": 2500,
+                "source_window_ms": 10000
+              },
+              "segmentation_threads": 1,
+              "turns": 139,
+              "unknown_or_uncertain": 79
+            },
+            "name": "refined_diarization",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 390.38625,
+              "p50": 0.000125,
+              "p95": 0.000167,
+              "p99": 0.0006670000000000001
+            },
+            "processing_wall_ms": 17392.523416,
+            "real_time_factor": 0.05797507805333333
+          },
+          "warnings": [
+            "Experimental uncalibrated speaker clustering; labels are not verified identities. English/channel-specific DER, thresholds, overlap attribution and long-call acceptance remain unvalidated.",
+            "Canonical segmentation input is 10 s; refined windows use 10 s of real source context with 2.5 s ownership stride. Short final tails are zero-padded and clipped to real source. Offline agglomeration starts from bounded online seed clusters and cannot automatically split a mistaken seed without supplied constraints."
+          ],
+          "resource_summary": {
+            "samples": 17,
+            "rss_max_bytes": 484474880,
+            "cpu_machine_percent_mean": 7.107142857142858,
+            "cpu_machine_percent_max": 7.142857142857143,
+            "interpretation": "ps process %cpu divided by logical CPUs; RSS sampled between native calls, not interval CPU or peak RSS; no competing project native inference during measurement; warm caches and retained allocator/runtime memory possible"
+          }
+        }
+      ],
+      "raw_audio_sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6",
+      "secondary_corpus": {
+        "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+        "derivation": "Official mono Array1-01 source cropped [300,600) seconds; samples unchanged PCM16. RTTM derived from each A-D words XML starttime/endtime (BUTSpeechFIT only_words protocol; positive-duration words only), clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. Observed reference speakers: A,B,D. No invented timing or speaker labels.",
+        "id": "ami-manual-1.6.2-only_words-ES2002a-array1-01-300-600",
+        "license": "CC-BY-4.0",
+        "recording_id": "ES2002a-array1-01-300-600",
+        "source_urls": [
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+          "https://groups.inf.ed.ac.uk/ami/download/"
+        ]
+      }
+    }
+  ],
+  "controls": [
+    {
+      "counts": {
+        "assigned_speakers": 1,
+        "overlap_ms": 0,
+        "overlap_turns": 0,
+        "turns": 2,
+        "unknown_or_uncertain_ms": 0,
+        "unknown_or_uncertain_turns": 0
+      },
+      "observations": {
+        "clock": "monotonic_session_ms",
+        "latency": [],
+        "metadata": {
+          "machine": "Mac16,7",
+          "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+          "os": "Darwin 27.2.0 arm64",
+          "profile": "release",
+          "provider": "cpu",
+          "source": "actual sequential production core inference runner"
+        },
+        "resources": [
+          {
+            "cpu_total_percent": 7.071428571428571,
+            "measured_at_ms": 162.65558299999998,
+            "rss_bytes": 484540416
+          }
+        ]
+      },
+      "phase": "live",
+      "reason": "Clean public control has no supplied speaker reference; no DER/JER invented",
+      "reference_scores": null,
+      "settings": {
+        "audio_ms": 6625.0,
+        "constructor_load_ms": 160.578,
+        "extra": {
+          "calibrated": false,
+          "embedding_threads": 1,
+          "live_uses_emitted_updates": true,
+          "paced": false,
+          "segmentation_context": {
+            "native_window_ms": 10000,
+            "ownership_stride_ms": 2500,
+            "source_window_ms": 5000
+          },
+          "segmentation_threads": 1,
+          "turns": 2,
+          "unknown_or_uncertain": 1
+        },
+        "name": "live_diarization",
+        "native_accept_call_ms": {
+          "count": 332,
+          "max": 211.45129100000003,
+          "p50": 0.000125,
+          "p95": 0.001084,
+          "p99": 0.0025840000000000004
+        },
+        "processing_wall_ms": 371.76458299999996,
+        "real_time_factor": 0.056115408754716975
+      },
+      "source_bounds_valid": true
+    },
+    {
+      "counts": {
+        "assigned_speakers": 1,
+        "overlap_ms": 0,
+        "overlap_turns": 0,
+        "turns": 1,
+        "unknown_or_uncertain_ms": 0,
+        "unknown_or_uncertain_turns": 0
+      },
+      "observations": {
+        "clock": "monotonic_session_ms",
+        "latency": [],
+        "metadata": {
+          "machine": "Mac16,7",
+          "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+          "os": "Darwin 27.2.0 arm64",
+          "profile": "release",
+          "provider": "cpu",
+          "source": "actual sequential production core inference runner"
+        },
+        "resources": [
+          {
+            "cpu_total_percent": 7.135714285714286,
+            "measured_at_ms": 162.581667,
+            "rss_bytes": 484605952
+          }
+        ]
+      },
+      "phase": "refined",
+      "reason": "Clean public control has no supplied speaker reference; no DER/JER invented",
+      "reference_scores": null,
+      "settings": {
+        "audio_ms": 6625.0,
+        "constructor_load_ms": 160.510041,
+        "extra": {
+          "calibrated": false,
+          "embedding_threads": 1,
+          "live_uses_emitted_updates": false,
+          "paced": false,
+          "segmentation_context": {
+            "native_window_ms": 10000,
+            "ownership_stride_ms": 2500,
+            "source_window_ms": 10000
+          },
+          "segmentation_threads": 1,
+          "turns": 1,
+          "unknown_or_uncertain": 0
+        },
+        "name": "refined_diarization",
+        "native_accept_call_ms": {
+          "count": 332,
+          "max": 0.000916,
+          "p50": 0.000125,
+          "p95": 0.000166,
+          "p99": 0.000167
+        },
+        "processing_wall_ms": 249.775667,
+        "real_time_factor": 0.03770198747169811
+      },
+      "source_bounds_valid": true
+    }
+  ],
+  "limitations": [
+    "Adjacent windows of one public meeting, not independent meetings or in-house4speaker/gallery50 acceptance.",
+    "Live uses actual emitted assignments; finalizedLive5s is explicitly labelled a retrospective comparison control.",
+    "Legacy segments and secondary standard only-words protocols remain separate; holdout only-words contains3lexical speakers.",
+    "Unknown/uncertain/provisional turns do not gain invented RTTM identities; missed reference speech remains scored.",
+    "Sampled CPU/RSS and warm-cache possible constructor times are observations, not peak/sustained hardware qualifications.",
+    "Unpaced direct-core throughput is not GUI/live capture latency; no devices,network,private meetings,ASR or app activation."
+  ],
+  "mode": "production_diarization_context",
+  "models": {
+    "files": [
+      {
+        "bytes": 1596,
+        "path": "/private/tmp/vt-diarization-models/verified/pyannote3-eres2net-2024-v1/manifest.json",
+        "sha256": "92c0135169b0a5c39f4563c0b0868a70fdb4595fb301b06669e7906210d18e2e"
+      },
+      {
+        "bytes": 11358,
+        "path": "/private/tmp/vt-diarization-models/verified/pyannote3-eres2net-2024-v1/3D-Speaker-Apache-2.0.txt",
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "bytes": 39593761,
+        "path": "/private/tmp/vt-diarization-models/verified/pyannote3-eres2net-2024-v1/embedding.onnx",
+        "sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b"
+      },
+      {
+        "bytes": 1061,
+        "path": "/private/tmp/vt-diarization-models/verified/pyannote3-eres2net-2024-v1/pyannote-MIT.txt",
+        "sha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba"
+      },
+      {
+        "bytes": 1540506,
+        "path": "/private/tmp/vt-diarization-models/verified/pyannote3-eres2net-2024-v1/segmentation.int8.onnx",
+        "sha256": "d582f4b4c6b48205de7e0643c57df0df5615a3c176189be3fc461e9d18827b5d"
+      }
+    ],
+    "manifest": {
+      "acquisition": "User explicitly requested official release downloads and acknowledged the source notice. Original pyannote Hugging Face acquisition requires its own publisher conditions; this app neither logs in nor accepts them. No weights are bundled with the application.",
+      "attribution": "pyannote/S\u00e9verin Baroudi, Alexis Plaquet and Herv\u00e9 Bredin; CNRS. 3D-Speaker/ModelScope ERes2Net; sherpa-onnx conversion by k2-fsa. Source model revisions are not provided by release assets. ERes2Net source model language is Chinese; English/channel calibration is unvalidated.",
+      "calibration": "experimental_uncalibrated; assign=0.55 merge=0.70 margin=0.10; NOT identification confidence",
+      "embedding_sha256": "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b",
+      "embedding_version": "fb58e351faac141e86cc27aff963f9818a9753dafee0561b381a685fd59c2d52",
+      "id": "pyannote3-eres2net-2024-v1",
+      "licenses": [
+        "MIT (segmentation archive LICENSE, Copyright 2022 CNRS)",
+        "Apache-2.0 (original 3D-Speaker model card)"
+      ],
+      "segmentation_sha256": "d582f4b4c6b48205de7e0643c57df0df5615a3c176189be3fc461e9d18827b5d",
+      "source_urls": [
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+        "https://huggingface.co/pyannote/segmentation-3.0",
+        "https://modelscope.cn/models/iic/speech_eres2net_base_sv_zh-cn_3dspeaker_16k"
+      ]
+    }
+  },
+  "runner": {
+    "bytes": 28766592,
+    "path": "/Volumes/dev/repos/personal/VanTranscribe/target/release/xtask",
+    "sha256": "70d2173f864d6c64640ac23366e80b024746507344e96f4db469338171c8d66e"
+  },
+  "schema_version": 1,
+  "settings": {
+    "asr_constructed": false,
+    "embedding_threads": 1,
+    "meeting_mode": "in_person",
+    "packet_ms": 20,
+    "pair_constraints": [],
+    "raw_gain": 1,
+    "segmentation_threads": 1,
+    "speaker_count_prior": null,
+    "temporal_constraints": [],
+    "thresholds": "unchanged model-version experimental uncalibrated defaults",
+    "track": "mic"
+  },
+  "sources": [
+    {
+      "bytes": 2601,
+      "path": "/private/tmp/vantranscribe-ami-eval/production-diarization-context.json",
+      "sha256": "b453c1c811314e271b1874860a915cfbf7316743df94662cbf93871a48b71f31"
+    },
+    {
+      "bytes": 212044,
+      "path": "/private/tmp/vantranscribe-stt-fixture.wav",
+      "sha256": "6bc58a4efdf20daac252b6b1502632601a71efe0308f6757dc1eda34891a7e4f"
+    },
+    {
+      "bytes": 4159,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/inference-input.json",
+      "sha256": "9ba03e629a61bd19df800c879b656b175ffee4cd489f2a7102b8bf5ccd84bca6"
+    },
+    {
+      "bytes": 4286,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/inference-input.json",
+      "sha256": "6a58833f2a822c44c10eb0531290a68c3a27a8d2d3eb3631ce678caed1630f8c"
+    },
+    {
+      "bytes": 33373,
+      "path": "/private/tmp/vantranscribe-ami-eval/context5-control/first300-turns.json",
+      "sha256": "4e9627274acb2a069d63deaa322ac49646626f909a3c52da0931983fccd52c8f"
+    },
+    {
+      "bytes": 34997,
+      "path": "/private/tmp/vantranscribe-ami-eval/context10-matched/first300-turns.json",
+      "sha256": "4c40929179cc07a2a1fb0d7867b5fd7270285084ea4bc2d6acee904956452d04"
+    },
+    {
+      "bytes": 9600044,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/audio.wav",
+      "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+    },
+    {
+      "bytes": 4022,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.rttm",
+      "sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468"
+    },
+    {
+      "bytes": 46,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/regions.uem",
+      "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+    },
+    {
+      "bytes": 40727594,
+      "path": "/private/tmp/vantranscribe-ami-eval/ES2002a.Array1-01.wav",
+      "sha256": "38887e3bf7b597fe348f3818e9fc9844d7a1e15382aab52e5316dc3228fb6c1d"
+    },
+    {
+      "bytes": 22887865,
+      "path": "/private/tmp/vantranscribe-ami-eval/ami_public_manual_1.6.2.zip",
+      "sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d"
+    },
+    {
+      "bytes": 44831,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/reference-words.json",
+      "sha256": "0994ef8367e61461d88cc75723dc197eed4a3c4a93e1b7d631477c909bf7a709"
+    },
+    {
+      "bytes": 25103,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.A.words.xml",
+      "sha256": "03e7f37c4b3519ee78396779bbc90e2778b7b7ccd7a7388f7fa3a22cb31f7044"
+    },
+    {
+      "bytes": 7202,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.A.segments.xml",
+      "sha256": "c8d26cf329af8c8917c07f4725a02c362d2471f01ea735d9016a89fccb847c02"
+    },
+    {
+      "bytes": 130553,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.B.words.xml",
+      "sha256": "a51156e0b3f1b05d9d1a631206d523c5247d2d6fd851ecfe826317ab261cc17a"
+    },
+    {
+      "bytes": 23321,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.B.segments.xml",
+      "sha256": "ff370c9b7968ee5cf76357eda8447c63f3af664c482a71843dc0fb4bd5d445c9"
+    },
+    {
+      "bytes": 8896,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.C.words.xml",
+      "sha256": "c539fca7b7183a2b56be43f2362432a91a4552512ed03df8c4ce96aee75f3330"
+    },
+    {
+      "bytes": 3918,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.C.segments.xml",
+      "sha256": "6b3667b7c49ea81902a19593b21c7c74568da73f9e33dd0062a9f238a0e50f68"
+    },
+    {
+      "bytes": 100864,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.D.words.xml",
+      "sha256": "d4f8b66e53de583c839424323f0e05d038a1426e5628042d03dcd2ee72e68b05"
+    },
+    {
+      "bytes": 24307,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/ES2002a.D.segments.xml",
+      "sha256": "655286757eab17d36aa2ff1fada19742ce1b131be94fcc655c492790aed3797e"
+    },
+    {
+      "bytes": 9600044,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/audio.wav",
+      "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+    },
+    {
+      "bytes": 3034,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/reference.rttm",
+      "sha256": "132be61f49634f16eaa86574044f630d32b55b6a358b0b178bbed0bd3319cec9"
+    },
+    {
+      "bytes": 46,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/regions.uem",
+      "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+    },
+    {
+      "bytes": 44831,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/reference-words.json",
+      "sha256": "0994ef8367e61461d88cc75723dc197eed4a3c4a93e1b7d631477c909bf7a709"
+    },
+    {
+      "bytes": 25103,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.A.words.xml",
+      "sha256": "03e7f37c4b3519ee78396779bbc90e2778b7b7ccd7a7388f7fa3a22cb31f7044"
+    },
+    {
+      "bytes": 7202,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.A.segments.xml",
+      "sha256": "c8d26cf329af8c8917c07f4725a02c362d2471f01ea735d9016a89fccb847c02"
+    },
+    {
+      "bytes": 130553,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.B.words.xml",
+      "sha256": "a51156e0b3f1b05d9d1a631206d523c5247d2d6fd851ecfe826317ab261cc17a"
+    },
+    {
+      "bytes": 23321,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.B.segments.xml",
+      "sha256": "ff370c9b7968ee5cf76357eda8447c63f3af664c482a71843dc0fb4bd5d445c9"
+    },
+    {
+      "bytes": 8896,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.C.words.xml",
+      "sha256": "c539fca7b7183a2b56be43f2362432a91a4552512ed03df8c4ce96aee75f3330"
+    },
+    {
+      "bytes": 3918,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.C.segments.xml",
+      "sha256": "6b3667b7c49ea81902a19593b21c7c74568da73f9e33dd0062a9f238a0e50f68"
+    },
+    {
+      "bytes": 100864,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.D.words.xml",
+      "sha256": "d4f8b66e53de583c839424323f0e05d038a1426e5628042d03dcd2ee72e68b05"
+    },
+    {
+      "bytes": 24307,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300-onlywords/ES2002a.D.segments.xml",
+      "sha256": "655286757eab17d36aa2ff1fada19742ce1b131be94fcc655c492790aed3797e"
+    },
+    {
+      "bytes": 4152,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/inference-input.json",
+      "sha256": "ca14297e7da833abc3d65e49568000c58561f50a3a4b77595313e41ae1fcc325"
+    },
+    {
+      "bytes": 4354,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/inference-input.json",
+      "sha256": "48cd63c4a42d5849d3a40142c5d19287667bc7002065ba4eb1107f848d72e3e1"
+    },
+    {
+      "bytes": 47562,
+      "path": "/private/tmp/vantranscribe-ami-eval/context5-control/next300-turns.json",
+      "sha256": "5a092ee48e2df088bf6f9ff250ca26a8ef5b0a894919be2635cc0af582b8bdd7"
+    },
+    {
+      "bytes": 46484,
+      "path": "/private/tmp/vantranscribe-ami-eval/context10-matched/next300-turns.json",
+      "sha256": "290ad5d7d705431e9748b2c766abd264fd4372062e83598405f826fd529c2271"
+    },
+    {
+      "bytes": 9600044,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/audio.wav",
+      "sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6"
+    },
+    {
+      "bytes": 6827,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.rttm",
+      "sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0"
+    },
+    {
+      "bytes": 48,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/regions.uem",
+      "sha256": "efdc01dd82b0c26c56d3b8840732f7f8b669b1ae7a640fdcf054ce68954c6f58"
+    },
+    {
+      "bytes": 68216,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/reference-words.json",
+      "sha256": "fb4049c723b797af84fb394dbe664f0ac091aa2402b79f79166e35aa833ef8ce"
+    },
+    {
+      "bytes": 25103,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.A.words.xml",
+      "sha256": "03e7f37c4b3519ee78396779bbc90e2778b7b7ccd7a7388f7fa3a22cb31f7044"
+    },
+    {
+      "bytes": 7202,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.A.segments.xml",
+      "sha256": "c8d26cf329af8c8917c07f4725a02c362d2471f01ea735d9016a89fccb847c02"
+    },
+    {
+      "bytes": 130553,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.B.words.xml",
+      "sha256": "a51156e0b3f1b05d9d1a631206d523c5247d2d6fd851ecfe826317ab261cc17a"
+    },
+    {
+      "bytes": 23321,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.B.segments.xml",
+      "sha256": "ff370c9b7968ee5cf76357eda8447c63f3af664c482a71843dc0fb4bd5d445c9"
+    },
+    {
+      "bytes": 8896,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.C.words.xml",
+      "sha256": "c539fca7b7183a2b56be43f2362432a91a4552512ed03df8c4ce96aee75f3330"
+    },
+    {
+      "bytes": 3918,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.C.segments.xml",
+      "sha256": "6b3667b7c49ea81902a19593b21c7c74568da73f9e33dd0062a9f238a0e50f68"
+    },
+    {
+      "bytes": 100864,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.D.words.xml",
+      "sha256": "d4f8b66e53de583c839424323f0e05d038a1426e5628042d03dcd2ee72e68b05"
+    },
+    {
+      "bytes": 24307,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/ES2002a.D.segments.xml",
+      "sha256": "655286757eab17d36aa2ff1fada19742ce1b131be94fcc655c492790aed3797e"
+    },
+    {
+      "bytes": 9600044,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/audio.wav",
+      "sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6"
+    },
+    {
+      "bytes": 5900,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/reference.rttm",
+      "sha256": "7ecec70c4529747893e5acb63c2e5f9306cfec7c6e28a8654a7c1581eb0d2f01"
+    },
+    {
+      "bytes": 48,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/regions.uem",
+      "sha256": "efdc01dd82b0c26c56d3b8840732f7f8b669b1ae7a640fdcf054ce68954c6f58"
+    },
+    {
+      "bytes": 68216,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/reference-words.json",
+      "sha256": "fb4049c723b797af84fb394dbe664f0ac091aa2402b79f79166e35aa833ef8ce"
+    },
+    {
+      "bytes": 25103,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.A.words.xml",
+      "sha256": "03e7f37c4b3519ee78396779bbc90e2778b7b7ccd7a7388f7fa3a22cb31f7044"
+    },
+    {
+      "bytes": 7202,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.A.segments.xml",
+      "sha256": "c8d26cf329af8c8917c07f4725a02c362d2471f01ea735d9016a89fccb847c02"
+    },
+    {
+      "bytes": 130553,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.B.words.xml",
+      "sha256": "a51156e0b3f1b05d9d1a631206d523c5247d2d6fd851ecfe826317ab261cc17a"
+    },
+    {
+      "bytes": 23321,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.B.segments.xml",
+      "sha256": "ff370c9b7968ee5cf76357eda8447c63f3af664c482a71843dc0fb4bd5d445c9"
+    },
+    {
+      "bytes": 8896,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.C.words.xml",
+      "sha256": "c539fca7b7183a2b56be43f2362432a91a4552512ed03df8c4ce96aee75f3330"
+    },
+    {
+      "bytes": 3918,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.C.segments.xml",
+      "sha256": "6b3667b7c49ea81902a19593b21c7c74568da73f9e33dd0062a9f238a0e50f68"
+    },
+    {
+      "bytes": 100864,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.D.words.xml",
+      "sha256": "d4f8b66e53de583c839424323f0e05d038a1426e5628042d03dcd2ee72e68b05"
+    },
+    {
+      "bytes": 24307,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300-onlywords-v2/ES2002a.D.segments.xml",
+      "sha256": "655286757eab17d36aa2ff1fada19742ce1b131be94fcc655c492790aed3797e"
+    }
+  ],
+  "date_central": "2026-11-07",
+  "command": "target/release/xtask probe --manifest /private/tmp/vantranscribe-ami-eval/production-diarization-context.json --output /private/tmp/vantranscribe-ami-eval/production-diarization-context-v1",
+  "full_artifacts": {
+    "directory": "/private/tmp/vantranscribe-ami-eval/production-diarization-context-v1",
+    "results_sha256": "811844cbe2734a5ec106517e977c791977920917a8cd2dc9bf0604026c7698d6",
+    "complete_marker": {
+      "acceptance": "not_claimed",
+      "results": {
+        "bytes": 59008,
+        "path": "/private/tmp/vantranscribe-ami-eval/production-diarization-context-v1/results.json",
+        "sha256": "811844cbe2734a5ec106517e977c791977920917a8cd2dc9bf0604026c7698d6"
+      },
+      "status": "complete"
+    },
+    "source_rechecks": "All supplied config/corpus/reference/prior-artifact/control and model file hashes rechecked before successful publication"
+  },
+  "code_sha256": {
+    "crates/vt-diarize/src/lib.rs": "6e84f98c136d7f0c735682f30c52260cbe9e739800d4270c4e9b30c0e8ebf9b4",
+    "crates/vt-diarize/src/engine.rs": "3b788a9d2e395db5b5a1e80f80c5b2307c73bce143f8654ee62f722b88d253fc",
+    "crates/vt-diarize/src/finalize.rs": "ffa73a4f277950bea80ab27ac2793b8444c477405b8bfe0aa8758d6d41cae839",
+    "crates/vt-diarize/src/cluster.rs": "c3e349262e71799bc47aa0be57df614e58da7a73695f5bd5eee7715a4befaaed",
+    "crates/vt-diarize/src/models.rs": "0a2a503a4daba77f30608499207626c0598bc4321214b87291efe954b89cf367",
+    "xtask/src/inference/production_diarization.rs": "4844762956496e271ab161f21540f4f7a4a990ed0f36a1f6b37b5afcb361b7c4",
+    "xtask/src/inference/stages.rs": "803c2116f1ff4077b2efdaf30758c4b089e5d035cf149a271856836695ac979a",
+    "xtask/src/inference/experiments.rs": "a36ea9b06bdf34b492b543aed3e9634366a8675d1c3391ea15a2489c2387c0b5",
+    "xtask/src/inference/mod.rs": "fecdbbfc9b3a04b147796a62a6c9ede0cbe54202f933139900debf75cc2be223",
+    "xtask/src/diarization.rs": "26f228716739da6eb38bc2b4f6991bbb958141f71aadf4be53796bf80e85d16f"
+  },
+  "metric_protocol": {
+    "rates_are_fractions": true,
+    "collar_seconds_total": 0.25,
+    "collar_half_width_seconds": 0.125,
+    "overlap_scored": true,
+    "speaker_mapping": "global maximum co-occurrence duration (Hungarian); JER uses the same duration-optimal mapping",
+    "timestamp_resolution_seconds": 1e-09,
+    "references": "Original derived NXT transcriber-segment protocol and separately labelled standard only-words protocol; both preserved; no new references or timestamps synthesized"
+  },
+  "matched_comparison": {
+    "before": "Actual production Phase::Live final result, explicitly retrospective and distinct from emittedLive labels;5s source context",
+    "after": "Actual production Phase::Refined final result;10s real source context",
+    "prior_projection_comparison": "Every SpeakerTurn JSON field except provenance is exactly compared, including id/track/start/end/speaker_ids/label/score/overlap/uncertain/provisional. Only provenance phase strings live-cluster vs refined-cluster are ignored. All four comparisons returned true.",
+    "policy_source_audit": {
+      "cluster_rs_byte_identical_to_prior_control": true,
+      "models_rs_byte_identical_to_prior_control": true,
+      "finalize_rs_changes": "Only phase-dependent context warning and additive segmentation_context metadata; clustering/constraint/Unknown policy unchanged"
+    },
+    "thresholds": {
+      "assign": 0.55,
+      "merge": 0.7,
+      "margin": 0.1,
+      "calibrated": false
+    },
+    "constraints_and_prior": "No pair/temporal constraints and no reference speaker-count prior for any phase",
+    "raw_input": "Same pinned PCM16 WAV decoded to normalized floats; gain1; no resampling/gain/source modification at runner; Mic/in-person production API,20ms packets"
+  },
+  "fragmentation_interpretation": "Refined19/13 all assigned IDs include provisional/uncertain identities; only6/3 survive masking into scored RTTM. Neither count establishes correct participant identification; legacy has4 speakers and holdout only-words3 lexical speakers.",
+  "validation": {
+    "xtask_inference_unit_tests": {
+      "passed": 30,
+      "failed": 0
+    },
+    "xtask_cli_tests": {
+      "passed": 1,
+      "failed": 0
+    },
+    "strict_clippy": "cargo clippy --locked -p xtask --all-targets --features inference -- -D warnings: passed",
+    "release_probe": "exit0; COMPLETE.json published; all source/model rechecks passed",
+    "source_clock_bounds": "Every emitted/final actual production turn is within source duration; actual result context equals Phase::segmentation_context for all6engine runs",
+    "unrelated_asr": "No streaming or batch recognizer instantiated; no WER rerun"
+  }
+}

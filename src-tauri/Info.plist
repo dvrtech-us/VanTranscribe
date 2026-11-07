@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>VanTranscribe records your microphone for the meetings you choose to record.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>VanTranscribe records meeting audio from your computer for a local transcript.</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+</dict></plist>

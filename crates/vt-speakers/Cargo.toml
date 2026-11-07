@@ -1,0 +1,29 @@
+[package]
+name = "vt-speakers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Opt-in encrypted local speaker memory with explicit consent and expiry"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+rusqlite.workspace = true
+uuid.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+chacha20poly1305 = { version = "0.10.1", features = ["std"] }
+zeroize = "1.8"
+getrandom = "0.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7"
+core-foundation = "0.10.1"
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

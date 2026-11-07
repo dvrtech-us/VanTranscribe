@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-07T13:48:36Z",
+  "research_only": true,
+  "identity_scored": false,
+  "production_eligible": false,
+  "reference": "torchaudio.compliance.kaldi.fbank==2.11.0",
+  "stage": "raw_log_mel_before_cmn",
+  "window": "hamming",
+  "snip_edges": true,
+  "high_freq": 0,
+  "high_freq_meaning": "Kaldi convention: values <= 0 are offsets from Nyquist, so 0 is 8000 Hz at 16 kHz",
+  "low_freq": 20,
+  "subtract_mean": false,
+  "max_abs_error_limit": 0.001,
+  "passed": true,
+  "cases": [
+    {
+      "name": "zeros-1s",
+      "samples": 16000,
+      "frames": 98,
+      "bins": 80,
+      "max_abs_error": 0.0
+    },
+    {
+      "name": "sine-440-1s",
+      "samples": 16000,
+      "frames": 98,
+      "bins": 80,
+      "max_abs_error": 0.00017261505126953125
+    },
+    {
+      "name": "noise-2s",
+      "samples": 32000,
+      "frames": 198,
+      "bins": 80,
+      "max_abs_error": 0.00033664703369140625
+    },
+    {
+      "name": "sine-220-5s",
+      "samples": 80000,
+      "frames": 498,
+      "bins": 80,
+      "max_abs_error": 0.0001010894775390625
+    },
+    {
+      "name": "frozen-calibration-window",
+      "wav_sha256": "71284119af7620ccb34afa9c5339082e033329f286c05d91d96bda91b721f2c2",
+      "source_start_frame": 895680,
+      "source_end_frame": 975680,
+      "sample_rate": 16000,
+      "samples": 80000,
+      "frames": 498,
+      "bins": 80,
+      "max_abs_error": 0.0003113746643066406
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+/target/
+/recordings/
+.DS_Store
+*.core
+core
+/node_modules/
+/ui/node_modules/
+/ui/dist/
+/src-tauri/resources/vt-capture-helper
+/src-tauri/resources/vt-summary-helper
+/src-tauri/resources/*.o
+/models/
+/test-results/
+/playwright-report/

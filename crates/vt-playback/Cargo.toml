@@ -1,0 +1,25 @@
+[package]
+name = "vt-playback"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Bounded Rust-core saved recording playback and waveform peaks"
+
+[dependencies]
+vt-core.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+claxon.workspace = true
+cpal = "0.18.2"
+rtrb = "0.4.1"
+cap-std = "4.0.2"
+
+[dev-dependencies]
+vt-record.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

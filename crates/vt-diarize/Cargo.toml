@@ -1,0 +1,23 @@
+[package]
+name = "vt-diarize"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.90"
+description = "Bounded local speaker turns and experimental per-track clustering"
+[dependencies]
+vt-core = { path = "../vt-core" }
+sherpa-onnx = "=2.0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10.9"
+thiserror = "2"
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1.54", features = ["rt", "time", "macros"] }
+bzip2 = "0.6"
+tar = "0.4.44"
+zeroize.workspace = true
+[dev-dependencies]
+tempfile = "3.23"
+[lints.rust]
+unsafe_code = "forbid"

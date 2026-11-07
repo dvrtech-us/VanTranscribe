@@ -1,0 +1,18 @@
+[package]
+name = "vt-dsp"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.91"
+description = "Inference-only bounded two-track WebRTC AEC3 echo processing"
+
+[dependencies]
+vt-core = { path = "../vt-core" }
+sherpa-onnx = "=2.0.1"
+sonora = "=0.2.0"
+sonora-aec3 = "=0.2.0"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[lints.rust]
+unsafe_code = "forbid"

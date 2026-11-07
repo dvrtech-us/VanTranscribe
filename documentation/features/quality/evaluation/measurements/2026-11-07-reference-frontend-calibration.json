@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "recorded_utc": "2026-11-07T13:51:40Z",
+  "research_only": true,
+  "production_eligible": false,
+  "runtime_pin_generated": false,
+  "acceptance": "not_claimed",
+  "selected_mode": "calibration_only",
+  "status": "calibration_only_held_out_not_evaluated",
+  "profile": "wespeaker-resnet34-reference-frontend-v1",
+  "raw_contract_sha256": "27d8ed7041366fde7527d485bc6e5b2970f9b500a3cbd8f244d8f2d0e0c3c7bd",
+  "weights_sha256": "6928c40c3b5c695352998c261cb6f2250c4e52a991e324c0f63c2e10fe7c31f8",
+  "manifest_sha256": "6531838462582710277417dfc121feef712d794f1ff9d5b1145509e23900b50c",
+  "partition_sha256": "90b40f63eea00a794e8cb0e3805e24ec211100a18824a42191882d23d9ac8454",
+  "report_sha256": "9d37359b5a5242206106b1f273ada85fef03a3fd7a4754461b29f2c62a1daf6f",
+  "executable_sha256": "54fd34daa42ce721499d18e7923fded55a0863f3f00129a05ffc212a60114814",
+  "started_utc": "2026-11-07T13:48:26.708067+00:00",
+  "finished_utc": "2026-11-07T13:51:40.177122+00:00",
+  "same_calibration_query_ids_as_cmn_report": true,
+  "policy": {
+    "tau_auto": 0.62,
+    "margin": 0.01
+  },
+  "calibration": {
+    "known_trials": 150,
+    "correctly_recognized": 138,
+    "wrongly_recognized_known": 0,
+    "known_abstentions": 12,
+    "unknown_trials": 42,
+    "falsely_recognized_unknown": 0,
+    "recognition_rate": 0.92
+  },
+  "held_out_identity_scores": 0,
+  "independent_grid_recount_confirms_policy": true
+}

@@ -1,0 +1,18 @@
+[package]
+name = "vt-capture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Native macOS audio capture helper transport for VanTranscribe"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", features = ["fs", "process", "signal"] }
+
+[lints]
+workspace = true

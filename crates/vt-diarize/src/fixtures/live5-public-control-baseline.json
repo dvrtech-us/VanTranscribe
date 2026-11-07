@@ -1,0 +1,91 @@
+{
+  "fixture_sha256": "6bc58a4efdf20daac252b6b1502632601a71efe0308f6757dc1eda34891a7e4f",
+  "turns": [
+    {
+      "end_ms": 3500,
+      "id": "mic:turn-1",
+      "label": "Me",
+      "overlap": false,
+      "provenance": "channel_prior",
+      "provisional": false,
+      "speaker_ids": [
+        "mic:me"
+      ],
+      "start_ms": 1030,
+      "track": "mic",
+      "uncertain": false
+    },
+    {
+      "end_ms": 5500,
+      "id": "system:turn-1",
+      "label": "Speaker 1",
+      "overlap": false,
+      "provenance": "live-cluster",
+      "provisional": false,
+      "speaker_ids": [
+        "system:speaker-1"
+      ],
+      "start_ms": 3030,
+      "track": "system",
+      "uncertain": false
+    },
+    {
+      "end_ms": 7176,
+      "id": "mic:turn-2",
+      "label": "Me",
+      "overlap": false,
+      "provenance": "channel_prior",
+      "provisional": false,
+      "speaker_ids": [
+        "mic:me"
+      ],
+      "start_ms": 3530,
+      "track": "mic",
+      "uncertain": false
+    },
+    {
+      "end_ms": 9176,
+      "id": "system:turn-2",
+      "label": "Speaker 1",
+      "overlap": false,
+      "provenance": "live-cluster",
+      "provisional": false,
+      "speaker_ids": [
+        "system:speaker-1"
+      ],
+      "start_ms": 5530,
+      "track": "system",
+      "uncertain": false
+    }
+  ],
+  "updates": [
+    {
+      "end_ms": 3500,
+      "id": "mic:turn-1",
+      "label": "Me",
+      "overlap": false,
+      "provenance": "channel_prior",
+      "provisional": false,
+      "speaker_ids": [
+        "mic:me"
+      ],
+      "start_ms": 1030,
+      "track": "mic",
+      "uncertain": false
+    },
+    {
+      "end_ms": 5500,
+      "id": "system:turn-1",
+      "label": "Unknown",
+      "overlap": false,
+      "provenance": "live-cluster",
+      "provisional": true,
+      "speaker_ids": [
+        "system:speaker-1"
+      ],
+      "start_ms": 3030,
+      "track": "system",
+      "uncertain": true
+    }
+  ]
+}

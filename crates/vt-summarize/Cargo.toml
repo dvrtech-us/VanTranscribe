@@ -1,0 +1,21 @@
+[package]
+name = "vt-summarize"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.90"
+description = "Private-by-default cited meeting summaries with pluggable inference"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1.54", features = ["rt", "time", "macros"] }
+url = "2.5"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3.7"
+
+[lints.rust]
+unsafe_code = "forbid"

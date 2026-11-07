@@ -1,0 +1,2756 @@
+{
+  "schema_version": 1,
+  "native_identity": {
+    "sherpa_version": "2.0.1",
+    "sherpa_commit": "af2d8d81dbfa61c4cea4c568da78f3982edca005",
+    "onnxruntime_version": "1.28.2",
+    "git_date": "Mon Oct 26 14:57:12 2026",
+    "evidence_sha256": "4cfdfb76f2bd117486483c72bc445b307d60ec417edd42e30dd1f963eee3313d"
+  },
+  "include_roots": [
+    "sherpa-onnx",
+    "kaldi-decoder",
+    "kaldifst",
+    "openfst/src/include",
+    "onnxruntime/include/onnxruntime/core/session",
+    "eigen"
+  ],
+  "components": {
+    "sherpa-onnx": {
+      "repository": "https://github.com/k2-fsa/sherpa-onnx",
+      "revision": "af2d8d81dbfa61c4cea4c568da78f3982edca005",
+      "version": "2.0.1",
+      "license_files": [
+        "sherpa-onnx/LICENSE"
+      ],
+      "license_summary": "Apache-2.0; see original per-file notices"
+    },
+    "kaldi-decoder": {
+      "repository": "https://github.com/k2-fsa/kaldi-decoder",
+      "revision": "62fda2d74246a90db9570e46fb16b012f813fae7",
+      "version": "0.3.0",
+      "license_files": [
+        "kaldi-decoder/LICENSE"
+      ],
+      "license_summary": "Apache-2.0; see original per-file notices",
+      "source_archive": {
+        "url": "https://github.com/k2-fsa/kaldi-decoder/archive/refs/tags/v0.3.0.tar.gz",
+        "sha256": "b9f34cfb4fd3b1344100eead79ef4d37aa15962274b9e3056de345021f76a1b0",
+        "verified": true
+      }
+    },
+    "kaldifst": {
+      "repository": "https://github.com/k2-fsa/kaldifst",
+      "revision": "ab5bdd013bdf13921e6aeee77db5722ebf9955fb",
+      "version": "1.8.0",
+      "license_files": [
+        "kaldifst/LICENSE"
+      ],
+      "license_summary": "Apache-2.0; see original per-file notices",
+      "source_archive": {
+        "url": "https://github.com/k2-fsa/kaldifst/archive/refs/tags/v1.8.0.tar.gz",
+        "sha256": "3f247b7e5a2409071202f5e2bc6200060f66728c0a3443c03923ad2723e040b3",
+        "verified": true
+      }
+    },
+    "openfst": {
+      "repository": "https://github.com/csukuangfj/openfst",
+      "revision": "b3b4c7aa57e65ac32faec5648f45da9061490ddb",
+      "version": "1.8.5-2026-04-10",
+      "license_files": [
+        "openfst/COPYING"
+      ],
+      "license_summary": "Apache-2.0; see original per-file notices",
+      "source_archive": {
+        "url": "https://github.com/csukuangfj/openfst/archive/refs/tags/v1.8.5-2026-04-10.tar.gz",
+        "sha256": "c3549940384cbe4fa9f18c2bcfb1bfbd0a80492fd1b0bfa27433cee395a6a199",
+        "verified": true
+      }
+    },
+    "onnxruntime": {
+      "repository": "https://github.com/microsoft/onnxruntime",
+      "revision": "33ca9628233dc8f002435e868d4c2e9f82766ca1",
+      "version": "1.28.2",
+      "license_files": [
+        "onnxruntime/LICENSE",
+        "onnxruntime/ThirdPartyNotices.txt"
+      ],
+      "license_summary": "MIT"
+    },
+    "eigen": {
+      "repository": "https://gitlab.com/libeigen/eigen",
+      "revision": "5.0.1",
+      "version": "5.0.1",
+      "license_files": [
+        "eigen/COPYING.BSD",
+        "eigen/COPYING.MPL2",
+        "eigen/COPYING.APACHE",
+        "eigen/LICENSE",
+        "eigen/COPYING.MINPACK",
+        "eigen/COPYING.README"
+      ],
+      "license_summary": "MPL-2.0; bundled BSD/Apache/MINPACK notices preserved; see per-file notices",
+      "source_archive": {
+        "url": "https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz",
+        "sha256": "e9c326dc8c05cd1e044c71f30f1b2e34a6161a3b6ecf445d56b53ff1669e3dec",
+        "verified": true
+      }
+    }
+  },
+  "files": [
+    {
+      "path": "eigen/COPYING.APACHE",
+      "sha256": "03379001a7b12a2ec997a25554247d985270b353c10d5bafee9ac8d6519820b7",
+      "size": 11362,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/COPYING.APACHE",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/COPYING.BSD",
+      "sha256": "51928dce36213c5333ba3172e847d735d4c6e9b7ff2722a326c49067155b82eb",
+      "size": 1517,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/COPYING.BSD",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/COPYING.MINPACK",
+      "sha256": "c87b7f8ee88f6195e91743820c00354833583aef091b72e2d4a49c8e28e798a0",
+      "size": 2193,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/COPYING.MINPACK",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/COPYING.MPL2",
+      "sha256": "66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172",
+      "size": 16727,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/COPYING.MPL2",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/COPYING.README",
+      "sha256": "db640ff2bd90c6abd6a4d3fbb351e0ee4d555417cf840492054d1cbb2ea85644",
+      "size": 264,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/COPYING.README",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Cholesky",
+      "sha256": "32d0599653c4b65eea180a8106fd8d016394bbcee56524ed5fc262feb37259aa",
+      "size": 1155,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Cholesky",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Core",
+      "sha256": "267988e70f30e9a4e27b41541e162c4d0610480f63649994156c135d8a1e658f",
+      "size": 14585,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Core",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Dense",
+      "sha256": "5325c9d4d693e504ee012c5275ad4b10b135a701cbd87c14466d2ea21ea22ee5",
+      "size": 122,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Dense",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Eigenvalues",
+      "sha256": "0cd7e9b9adf5f3d02e82a102806dd6194776676c9fb8f9606e8d614a197e208a",
+      "size": 1825,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Eigenvalues",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Geometry",
+      "sha256": "f4bdc7e4677aa8a4e316085f40e03d48c8632b5b1f30bc18f798f596bfdfd031",
+      "size": 1982,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Geometry",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Householder",
+      "sha256": "293192a50d46d08cd991be220f5b26492eb23ba31692804ea87d54c27799eefe",
+      "size": 882,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Householder",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Jacobi",
+      "sha256": "802de67dcc4fae0a594b219b09e050e9703541f5ff56da94497d36a82e68238c",
+      "size": 942,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Jacobi",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/LU",
+      "sha256": "0f46a97cde7db69cbe16850575512fbbfe07972ba68d6b982d9e6eb1943f167d",
+      "size": 1266,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/LU",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/QR",
+      "sha256": "44f24570f93e9e4b963d344982a066b7541e9f51569d39e6c65feba7a7c1bf03",
+      "size": 1267,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/QR",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/SVD",
+      "sha256": "6897eaae34d0e42e5e7af5d52e934d5a3b669cf2d122df4ac1f40ca703a80a73",
+      "size": 1663,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/SVD",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/Version",
+      "sha256": "3bb04dc80ede841309fc975fd3ff522a58bbdf2d591e06e49d2456676a89e759",
+      "size": 448,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/Version",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Cholesky/InternalHeaderCheck.h",
+      "sha256": "71a9fe57e1f9d7b696e970bc34d13c657851d3d7928732ac114c6bf5a1d957c4",
+      "size": 142,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Cholesky/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Cholesky/LDLT.h",
+      "sha256": "9c252a265b05b65e79eb42f6b17ed1fe329e20c2dae78e77b5acb5d3d37deb5a",
+      "size": 24763,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Cholesky/LDLT.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Cholesky/LLT.h",
+      "sha256": "b1652b57639abaef484a92d0baf9c7899522b45c0db7a5fc9b85e4626049b41d",
+      "size": 18532,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Cholesky/LLT.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/ArithmeticSequence.h",
+      "sha256": "7bdb3900384e698f212b8bfeb2f65412b973c9c0173f43f22291718000836044",
+      "size": 9935,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/ArithmeticSequence.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Array.h",
+      "sha256": "82cffd04f294e13ce3be94515f1c80a95d996323c0d4561a5c2f13826a8da812",
+      "size": 16017,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Array.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/ArrayBase.h",
+      "sha256": "9ae9c7b08f4576d2d7c056512fa162f71b730836595fb34e9531e6316757782c",
+      "size": 7788,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/ArrayBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/ArrayWrapper.h",
+      "sha256": "fe372559629e37d136f17a6f9f7a7037698c24f84c326c9af14a68b20e60131c",
+      "size": 6390,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/ArrayWrapper.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Assign.h",
+      "sha256": "e528b4a5acd3c393430a4811c53c2a679b74784a86bdfdf65d21cb5d12d0a28a",
+      "size": 2822,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Assign.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/AssignEvaluator.h",
+      "sha256": "0bc0628e57f31765cf77a922c32f6a52e4facc00a3c63165c7ae8388f6ecadca",
+      "size": 52640,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/AssignEvaluator.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/BandMatrix.h",
+      "sha256": "b53c793ab55e1523274111ac2d100c5c266e113e95752bc64a524a7b4b278ff3",
+      "size": 13846,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/BandMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Block.h",
+      "sha256": "a1b18bd8002bb9124756e48582f196389b6ac938df15949cb60daf54801d1940",
+      "size": 20635,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Block.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CommaInitializer.h",
+      "sha256": "f7b94686c5d840ec67f631582124d50673496e527fac935db79a28e5f4f11214",
+      "size": 6275,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CommaInitializer.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/ConditionEstimator.h",
+      "sha256": "cb30224e872c1f7cc863e21d5f100335ff9a39d4476a5763a041d81701870114",
+      "size": 7050,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/ConditionEstimator.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CoreEvaluators.h",
+      "sha256": "b272f58175f284b3cbe51429d950d555f84a30a841e74193a5b438c7450e5be4",
+      "size": 99119,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CoreEvaluators.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CoreIterators.h",
+      "sha256": "ff41e2079e445d6f69cea4960ae30fd5e2398c02720ac522f7a8c9aada510adb",
+      "size": 4815,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CoreIterators.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CwiseBinaryOp.h",
+      "sha256": "446600e133b56e810b184b412e2f1c58422595c56f5dc020e9d1dc947b5324b8",
+      "size": 7725,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CwiseBinaryOp.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CwiseNullaryOp.h",
+      "sha256": "7964da7e8208b4fbb5a29fd45e0083056609439a5dadb1af1425bc3e79ae33bd",
+      "size": 38334,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CwiseNullaryOp.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CwiseTernaryOp.h",
+      "sha256": "576f0b5a214a2246001935384e0fa9fe1d2bf05c2db71be43abc26d126b6c4fd",
+      "size": 7811,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CwiseTernaryOp.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CwiseUnaryOp.h",
+      "sha256": "cc3203b8a82fb0e243a1028b314075ba6d4eeef8727efdee32397481b81431b3",
+      "size": 3850,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CwiseUnaryOp.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/CwiseUnaryView.h",
+      "sha256": "f3703c07f0f1a20d05b88784c86788eb7c41df6b5c46328d794ac9ff38696c62",
+      "size": 7767,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/CwiseUnaryView.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/DenseBase.h",
+      "sha256": "dc55d471d588b4394ab31db84610935125d3a58ee6a0a8942c1d4a8b9abee995",
+      "size": 32925,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/DenseBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/DenseCoeffsBase.h",
+      "sha256": "0f8e87b43b1a13fc0df3d3c75befd82f6f5f6b1d1a8e2c3755e8e9f7e7da0168",
+      "size": 23863,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/DenseCoeffsBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/DenseStorage.h",
+      "sha256": "67628a56b5a921f58404fae8d6e1a95baf76e1f3dbd5ae1507963334b81da6b9",
+      "size": 29323,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/DenseStorage.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/DeviceWrapper.h",
+      "sha256": "bcc30dc1ebf41ad0e14d8960422f33f02d81152af323a882d5a45afe0067073d",
+      "size": 7143,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/DeviceWrapper.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Diagonal.h",
+      "sha256": "13f6c8a3c7adc250c94b9e166cb02185e9b70213a564e287e27908562d34795a",
+      "size": 9249,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Diagonal.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/DiagonalMatrix.h",
+      "sha256": "c8d97fdd127f5e2ade95b9a6e23d3d0888e34751ba7bd7c3246036c1645ec2bd",
+      "size": 18030,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/DiagonalMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/DiagonalProduct.h",
+      "sha256": "f5a6596cb5f29e9238a052412210b4ac6ca1d107469ac7f5df6f13edfa1a3eff",
+      "size": 1056,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/DiagonalProduct.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Dot.h",
+      "sha256": "0accdc0ad42e0d672edf459fd71d60a45d0bc15075f982ae0d74343c52d62a9b",
+      "size": 10202,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Dot.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/EigenBase.h",
+      "sha256": "7bfcc4471341248f295608e628c3696878b4234b9e27fb6bb01312617ace9bd1",
+      "size": 6114,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/EigenBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Fill.h",
+      "sha256": "9da7cc2eef7b2cd01e340d3ef74e219ababacc90d9c9c673d54a702c1827d7d2",
+      "size": 5409,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Fill.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/FindCoeff.h",
+      "sha256": "34a4d0e17e4b52e806934fc5c134be45bdcb39eceb7f89776723a404d93d81d1",
+      "size": 19223,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/FindCoeff.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Fuzzy.h",
+      "sha256": "08728e99d0b8c2cc0fb1a8f9b7c7e2c90053905c323905dd769affab2ccdc894",
+      "size": 6029,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Fuzzy.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/GeneralProduct.h",
+      "sha256": "5c25b07af27a2125127a57211c395e194d6b57b07e4493be5ab37278c8b65a8b",
+      "size": 22353,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/GeneralProduct.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/GenericPacketMath.h",
+      "sha256": "2b14fc2078eade2bd5c46cc5a4a6e93237ad3733e8f3420710b936eb3ee6bd62",
+      "size": 64624,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/GenericPacketMath.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/GlobalFunctions.h",
+      "sha256": "e8c1482827f0099dfde032aa0c4b51bf4ac67521b9794da9953fcaaea038107f",
+      "size": 14502,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/GlobalFunctions.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/IO.h",
+      "sha256": "be8a4110c48b9ea655db19a443db93bbac89fc8f01c159b1047cd5c90ae50682",
+      "size": 8393,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/IO.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/IndexedView.h",
+      "sha256": "3f74a528c1f11d30bda55f0071f8c18a21a8b5faa28ee77ee1fad46f8ee6a18f",
+      "size": 14756,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/IndexedView.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/InnerProduct.h",
+      "sha256": "a411232b298d3c4bda47caaeb65caeb9119238d25440109505aa4b31c5a35109",
+      "size": 10615,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/InnerProduct.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/InternalHeaderCheck.h",
+      "sha256": "47e7f47aae4fe6be7760d635bd430ab5f607484fc53efd76bef72e776d1e42c9",
+      "size": 134,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Inverse.h",
+      "sha256": "c8cb9bffd4535431602ede423693c6d58c16448a0273d18e1022f7369bc04ca3",
+      "size": 3467,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Inverse.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Map.h",
+      "sha256": "bcde8beebea10b012e92f88c44792777412f7f6faaf717b47b9af35ce9d10330",
+      "size": 7015,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Map.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/MapBase.h",
+      "sha256": "2a15615343c1960d15ee6791e9abcc35debdc8a7564ea3f6d4192ba64af53b8f",
+      "size": 11210,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/MapBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/MathFunctions.h",
+      "sha256": "27a0902c477c96caa17cdead4cc15e4ea17c287d935126cb9011dd287a935b6e",
+      "size": 71466,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/MathFunctions.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/MathFunctionsImpl.h",
+      "sha256": "cb2ad503896dd6cabc434b68facc6b4b24fb772ccf1ac55ce67909ae27fe7a34",
+      "size": 10915,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/MathFunctionsImpl.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Matrix.h",
+      "sha256": "af718890096678d19c078bc765982db6429374d8f4911c775cd82de4b3a957c1",
+      "size": 23972,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Matrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/MatrixBase.h",
+      "sha256": "289cc76452bbca6bf3d6f8867ec2d17de2c3d6ee82609e4b6b7dfca7c569dd10",
+      "size": 24163,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/MatrixBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/NestByValue.h",
+      "sha256": "2f65c168e54ca8f8d9d2d8b5374aa9ea65cb2a29e37158a6bc9264ad5747faef",
+      "size": 3053,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/NestByValue.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/NoAlias.h",
+      "sha256": "feea147b1b377e22510f028f86faceeff6e6e771915bb03891df3f3302f56039",
+      "size": 3634,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/NoAlias.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/NumTraits.h",
+      "sha256": "80fdf1ec00d4532de6ade2ba915b53e0c61cc39f81e44d1f58b831a68971e716",
+      "size": 15316,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/NumTraits.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/PartialReduxEvaluator.h",
+      "sha256": "7b666bf21a96693c61cfe8c6a993974764ab232429425a3f9a1804a6d2f60326",
+      "size": 11931,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/PartialReduxEvaluator.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/PermutationMatrix.h",
+      "sha256": "516691491d5b867a6bb0a051433692dc46a1a299e3636c353a95912875986759",
+      "size": 20294,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/PermutationMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/PlainObjectBase.h",
+      "sha256": "a43499d94e7b36eacb299681bc00527add35856ffe3617fa398df24cb06ad406",
+      "size": 46659,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/PlainObjectBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Product.h",
+      "sha256": "eacd42409a968c834c5c708329fedd5c6b4d2f46d64d3b21abf1085661632ffe",
+      "size": 13497,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Product.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/ProductEvaluators.h",
+      "sha256": "a544710b6d8102165d154ca4e0b0491ae2b8a42cc92591bd4d67bdfd2883b401",
+      "size": 66986,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/ProductEvaluators.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Random.h",
+      "sha256": "43daa8714c18e98870992287ddbeabe5346b6584c9a9b665fe8e6fe61a986805",
+      "size": 7652,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Random.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/RandomImpl.h",
+      "sha256": "e682747768f98b03899f23363b3764d1747d4a8adce834ec53162200c89ec95f",
+      "size": 11034,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/RandomImpl.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/RealView.h",
+      "sha256": "77dbcb28aacb46499f854bd485b7c98fd553e9c6c877893b7e74add21ca970e3",
+      "size": 12177,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/RealView.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Redux.h",
+      "sha256": "5a470b786f9d69d91b78a8df7905dcc10aad6fc6d988e6403fb0b665413baf4f",
+      "size": 23687,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Redux.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Ref.h",
+      "sha256": "99a3606bc4b7113df81667e92e1767cdabb2696972d9f8453ac6d8b0341abb96",
+      "size": 19299,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Ref.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Replicate.h",
+      "sha256": "34675084927dabdfc331dbd3bffda7efe628d0543f5d5766a0f9ef002fd33bda",
+      "size": 5718,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Replicate.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Reshaped.h",
+      "sha256": "06e0d85e6d91e5b8efa32d6107ff0ddc0c53b8da3b9b4433889e6fdd387e4f98",
+      "size": 16706,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Reshaped.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/ReturnByValue.h",
+      "sha256": "219326566bfc3e6de0e7593e6e02f20208c5070d459b705f0ad8670e736db4ea",
+      "size": 4256,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/ReturnByValue.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Reverse.h",
+      "sha256": "35f8ba87d0e42c0591dbb6bd2cad8c59403697e332193b0e7f842e1ba868cc75",
+      "size": 7975,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Reverse.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Select.h",
+      "sha256": "383ccb58f1f886a8c8770fd02461cb79545e1e3c9501d73cf216da55fba48dc7",
+      "size": 4512,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Select.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/SelfAdjointView.h",
+      "sha256": "81bf299b4f1d4e12cf0791b5e3eeb0a7691cb97ba7f822f6652a7dbe9255b543",
+      "size": 14809,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/SelfAdjointView.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/SelfCwiseBinaryOp.h",
+      "sha256": "9c82655a8667ac6ec0abbccd694404cf6d6b585790cb4055cf0d37e0fb3afdbb",
+      "size": 1737,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/SelfCwiseBinaryOp.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/SkewSymmetricMatrix3.h",
+      "sha256": "f8e2b5d74e334ac8c91e428c10b0d0d9d320c7ffd26aff330a1f57f43d840f3d",
+      "size": 15771,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/SkewSymmetricMatrix3.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Solve.h",
+      "sha256": "485b8d9ec26eb628fb4282161925bf3b1c6dd94c1bdbf8c328f856fcc56025d0",
+      "size": 7000,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Solve.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/SolveTriangular.h",
+      "sha256": "46396db9db9f1a5ef72187a0b98d69a2253754dc95aedeb26e6953757f03acb4",
+      "size": 10190,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/SolveTriangular.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/SolverBase.h",
+      "sha256": "2e8e576fd9b24e7db993853ea93ed073cde40bfec0b68608bd0dd889522ec048",
+      "size": 6234,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/SolverBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/StableNorm.h",
+      "sha256": "15293bfe200748b84ff2c9acc8ae4c03e8ccee991d2f3baf9b0e852ed356dbe2",
+      "size": 7960,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/StableNorm.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/StlIterators.h",
+      "sha256": "c83eb8f0107f5d28c181110cc828b069716ca2bc96b9c353817e58d9c00b0b25",
+      "size": 22053,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/StlIterators.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Stride.h",
+      "sha256": "da150173f6c9fee66fa3a2479e000c42e0e2e73af53e69e88b23f3e4926e34ee",
+      "size": 4491,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Stride.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Swap.h",
+      "sha256": "3fe5cafd7e1ad3ae8128605ddbc0bd71d1c89b3a0e715e1ff5d90165b5616dcb",
+      "size": 4693,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Swap.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Transpose.h",
+      "sha256": "23a020cbb7342f57eee8a5120c2ae6581e26f3bc3b7986ae20f441b2f862e3e4",
+      "size": 17727,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Transpose.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Transpositions.h",
+      "sha256": "9be3aa809645ec0a6f2a74d6c15602e632360829ce9b28e63040511b4ddf270c",
+      "size": 13237,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Transpositions.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/TriangularMatrix.h",
+      "sha256": "6b51306f6fe363d95469fe7f96ed69c89a3b2b544c8f23b59a219fc637c296eb",
+      "size": 37830,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/TriangularMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/VectorBlock.h",
+      "sha256": "df5d6f252c70a6b5df9ec2c4a13455fbd6556a3891615b563b4902afa701b380",
+      "size": 3383,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/VectorBlock.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/VectorwiseOp.h",
+      "sha256": "dadd0201cae41969599acf4cf6e184578c6f136ffd5a689ae4adcbb64a5fab1b",
+      "size": 34976,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/VectorwiseOp.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/Visitor.h",
+      "sha256": "ceb4159fdc757a60d8d52d3ccd7f9d2cc1fbbc72cae42754fdbe756f8931e8c1",
+      "size": 23836,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/Visitor.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/Default/BFloat16.h",
+      "sha256": "6e1983203d85f4874cb11431b5b41357236ea806fd188cca80135043a9718ebc",
+      "size": 36700,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/Default/BFloat16.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/Default/ConjHelper.h",
+      "sha256": "3d9ebaa131cf7035145d781f7530ec7791899ce68362774f41826aaab73e4662",
+      "size": 5880,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/Default/ConjHelper.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h",
+      "sha256": "d4a9b44c130f05f78b6221c97da2cf99d258dd19ca81ff1e3372f82b18185630",
+      "size": 117620,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/Default/GenericPacketMathFunctions.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h",
+      "sha256": "ad9e6f638df964dd95177479d266ce91cb5c750476ab62b19a9b7cd7080da5db",
+      "size": 10151,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/Default/Half.h",
+      "sha256": "6aef8811305cb4ed25860e3e403f885a11b340b6b73b150db59cb0502b7283f6",
+      "size": 47293,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/Default/Half.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/Default/Settings.h",
+      "sha256": "d827e0889cf6d0bf88b0135e9526c558712877b851b55d4a84dc576d715c6613",
+      "size": 1736,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/Default/Settings.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/NEON/Complex.h",
+      "sha256": "2ad3f8027c1c2a116e45642f01d0de14e5587a5feb0dab9515cef074f24f8b33",
+      "size": 24656,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/NEON/Complex.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/NEON/GeneralBlockPanelKernel.h",
+      "sha256": "09d21465c0546603b48315a811cc8edd1db7652a6761d5c59727c50abb84ce1b",
+      "size": 10332,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/NEON/GeneralBlockPanelKernel.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/NEON/MathFunctions.h",
+      "sha256": "000c8d75abbd5b9010f43a9c199d52e466f23697de4b6ce6808ef823afe1071c",
+      "size": 2201,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/NEON/MathFunctions.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/NEON/PacketMath.h",
+      "sha256": "41f22358ac91a36906a9f5e98c5e0cfa8bbc261e85ceb5f01f5a6ba30cc7bd51",
+      "size": 200165,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/NEON/PacketMath.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/NEON/TypeCasting.h",
+      "sha256": "568e521d83bbd4192ca92ae5f8c184076e0811263276453740e376c1773454c2",
+      "size": 62006,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/NEON/TypeCasting.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/arch/NEON/UnaryFunctors.h",
+      "sha256": "65c5ebbd55d34848180e01432a0e7ce13b5167c475f896726d45cb3fb9f03c05",
+      "size": 1909,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/arch/NEON/UnaryFunctors.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/functors/AssignmentFunctors.h",
+      "sha256": "7dcb881c40ef0b2d801d82b7d3dd400d0db776ba7da90fcd8767733acfe2a4e0",
+      "size": 6649,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/functors/AssignmentFunctors.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/functors/BinaryFunctors.h",
+      "sha256": "7d0af835ce7c242f725f6282c8cb4454f1fbb6025c5d2d66e4a2eaa9483ec441",
+      "size": 31118,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/functors/BinaryFunctors.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/functors/NullaryFunctors.h",
+      "sha256": "c4b71b4e7aca3cbaffb4d744ed77c26e33205d6c144cdce4edb547840a72b159",
+      "size": 10058,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/functors/NullaryFunctors.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/functors/StlFunctors.h",
+      "sha256": "ea2e03a15a2fa0f0d3b0fad830fb2c7a1680373311567bb447879036ed12aa97",
+      "size": 4117,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/functors/StlFunctors.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/functors/TernaryFunctors.h",
+      "sha256": "1dfb135af8b48ddaccf4e04d0962cb086041a241399efb9a2a233d49470d6634",
+      "size": 1832,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/functors/TernaryFunctors.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/functors/UnaryFunctors.h",
+      "sha256": "353a890c567cf3ea87527c73d77d66d960b0980749893b0548dbcd3e797669c5",
+      "size": 51555,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/functors/UnaryFunctors.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/GeneralBlockPanelKernel.h",
+      "sha256": "92cd0888411b442a7fbf7c017844d5771e0d1cb1041720948249a206029b5cb8",
+      "size": 144788,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/GeneralBlockPanelKernel.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/GeneralMatrixMatrix.h",
+      "sha256": "ea6c717c19094881634f76c20664580d1d532d8dc2d8eb848d79d49f8c75381e",
+      "size": 21029,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/GeneralMatrixMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h",
+      "sha256": "07012e7b087e8abbd086563ecd09fc45b0bcaae407193e493582417f1a06a820",
+      "size": 17650,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/GeneralMatrixVector.h",
+      "sha256": "f6586e9fe134f4622c1e2b364b541ae1bd9bd10707b4d9c3a010d44b146a321b",
+      "size": 23180,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/GeneralMatrixVector.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/Parallelizer.h",
+      "sha256": "a629cd12bda4d47a0e92a9ac66b2e9981f8f6a813f2711196e3ce54750015e52",
+      "size": 10619,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/Parallelizer.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/SelfadjointMatrixMatrix.h",
+      "sha256": "095d777d55b4272da0cf1d3830aa3a723989626db4a73de2e191680af8e47bdc",
+      "size": 22530,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/SelfadjointMatrixMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/SelfadjointMatrixVector.h",
+      "sha256": "29ce0a845ad4fa45f48da6fbf1613710db147ec12d3bba490c1e3acb0a9f4aa6",
+      "size": 10507,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/SelfadjointMatrixVector.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/SelfadjointProduct.h",
+      "sha256": "7a9f44350f9550787a0e381b392b47aa649416c46d9114081be4af25af74046b",
+      "size": 6632,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/SelfadjointProduct.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/SelfadjointRank2Update.h",
+      "sha256": "b7a4e012084c15460e0b09d5d73a49c11f77ca5de2af39839607ce1e3749bc15",
+      "size": 4360,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/SelfadjointRank2Update.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/TriangularMatrixMatrix.h",
+      "sha256": "1169d4231bf26d774ff4cc1397fdafe8e3cdbb9377ab4be47f8a1417583d36fa",
+      "size": 20361,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/TriangularMatrixMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/TriangularMatrixVector.h",
+      "sha256": "98f2e14661f035e98018f1fa912554c6c4cbf391d658b2cd44d7648e49c98c67",
+      "size": 18302,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/TriangularMatrixVector.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/TriangularSolverMatrix.h",
+      "sha256": "8a4bdfc4274f3a83f9d5bbffa398b5c17fe7836b090fbdd1647d454282b645a2",
+      "size": 19701,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/TriangularSolverMatrix.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/products/TriangularSolverVector.h",
+      "sha256": "05a4eae5215a890d34d09861d8af35e7a0af621339c3a771af9d08243e8fefdb",
+      "size": 6010,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/products/TriangularSolverVector.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/Assert.h",
+      "sha256": "99ce6b5dc49c4f5233b5fd6c240235f3d7d2235b1aca2870e5c1f772b09d2319",
+      "size": 6737,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/Assert.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/BlasUtil.h",
+      "sha256": "a945febfd77268e19a80982c54809e23e98303c332e89bb1c29ad92f7613ea53",
+      "size": 27304,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/BlasUtil.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/ConfigureVectorization.h",
+      "sha256": "69a980d9dbe682d4ae3d28f16ceda09ee314acf4aae73707d8a97cc757d96cca",
+      "size": 19519,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/ConfigureVectorization.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/Constants.h",
+      "sha256": "aa12efe9478991620b2b35efc13b3aed25545fbf5caf18cd9ba6f8b9962ae5d1",
+      "size": 21897,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/Constants.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/DisableStupidWarnings.h",
+      "sha256": "12ac7e06cfbcc65bf3217de6131f154e742082596bee210962a217af8bbea0c4",
+      "size": 6250,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/DisableStupidWarnings.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/EmulateArray.h",
+      "sha256": "aa1b534fe1ad2650f29643af2b9851a817a6c9ba99020cad1c9d87d48a219742",
+      "size": 8777,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/EmulateArray.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/ForwardDeclarations.h",
+      "sha256": "775f43beb4332540eb264232652d0771bd84847a25b6e48d70e56261e3359400",
+      "size": 16779,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/ForwardDeclarations.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/IndexedViewHelper.h",
+      "sha256": "fe8bb502e2b5cd692a17bdcc60fd99f1efa53039a3719c36a9caf7bb00405057",
+      "size": 24386,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/IndexedViewHelper.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/IntegralConstant.h",
+      "sha256": "0d21e61574dfdf0dd23883a80b20122d11405d3c72c1bb5871053656b42fa72f",
+      "size": 9489,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/IntegralConstant.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/MKL_support.h",
+      "sha256": "5dba2a1cbf645e81ac982ba12a0fd3cfebdb6528264220269a76c1323dbcb7ad",
+      "size": 4175,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/MKL_support.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/Macros.h",
+      "sha256": "11b6bb8f172be235e46573c99fdd6482b5fac6c6f12434a3d85392851aa01819",
+      "size": 52775,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/Macros.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/Memory.h",
+      "sha256": "6aad7ab94ffe16d6ba495ef513995f93c9de7f630a277235f600722652d109fd",
+      "size": 57088,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/Memory.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/Meta.h",
+      "sha256": "631fb371c18c62a74df0e962507b9e680ea78b49f981b97a8ee0dce7165a6d0f",
+      "size": 21930,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/Meta.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/MoreMeta.h",
+      "sha256": "6d2815ac3ff5f6e7bb7def4726bdfea528dad553d48c51004a32ef63ec3befe6",
+      "size": 22246,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/MoreMeta.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/ReenableStupidWarnings.h",
+      "sha256": "8a5cb605b24185f102a11b47c3b7b2bf05becf6c238d241005203bf20b9e8424",
+      "size": 1519,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/ReenableStupidWarnings.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/ReshapedHelper.h",
+      "sha256": "f240d35dcffcf8bfb5feddb9792b7c4e1913705d8b6f32579b5f6da7d752d480",
+      "size": 1514,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/ReshapedHelper.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/Serializer.h",
+      "sha256": "89e728e2f5312c82867a760f71eca1558ca37b59c5ac3863fd5b99530b38cda4",
+      "size": 7960,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/Serializer.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/StaticAssert.h",
+      "sha256": "2e8295703b5a3181ac8f0d8d1f5b424a673cfb571b30175b3cc6d80f7556829c",
+      "size": 5981,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/StaticAssert.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/SymbolicIndex.h",
+      "sha256": "02c66ad22f174692f99a4b1bc102fdab3f345b6d2dd612eddcd4f7dcaaf26ccb",
+      "size": 17104,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/SymbolicIndex.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Core/util/XprHelper.h",
+      "sha256": "cca20df69de08c3ebe2d0b100047094d64f2f2988ef0b34f68389b3469c271bc",
+      "size": 43627,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Core/util/XprHelper.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/ComplexEigenSolver.h",
+      "sha256": "4009b82edc1ca6d5c65a0d3ee09f5dc7b642780270f4f7b9274dfad663192102",
+      "size": 12071,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/ComplexEigenSolver.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/ComplexSchur.h",
+      "sha256": "bb02962de580ce5da6a6eac15ffac20384d9f07dbdc0cec9b73657e605fbc8e7",
+      "size": 17296,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/ComplexSchur.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/EigenSolver.h",
+      "sha256": "65dccdded8e068bcb103e3788dbffe192dd0999445a387729b3123997efa94b8",
+      "size": 22566,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/EigenSolver.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h",
+      "sha256": "54167fb5c7a1bd928b1a8a69a9bc95392d1f7ec3f8c03342ca6b94b3b4a8fdf1",
+      "size": 17471,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/GeneralizedEigenSolver.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h",
+      "sha256": "cd820dabd3ad8cf86f5aa35a57cab94a19cab9882f4bba1cd8adee2d36a55c13",
+      "size": 9497,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/HessenbergDecomposition.h",
+      "sha256": "c88de831da30532389da79bb343ee9da1107183697c76500bceb6ce14dbaf765",
+      "size": 13786,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/HessenbergDecomposition.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/InternalHeaderCheck.h",
+      "sha256": "6f2ccbf8f8dc9f6691cf73ca7306b689f5007d2f05e4fe34cde5c4b022a991c4",
+      "size": 148,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h",
+      "sha256": "14879bf81198929c35b12d69be6732389ab861d4ab8ed31ebdc08cd279d1de56",
+      "size": 5530,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/RealQZ.h",
+      "sha256": "35904d0cb602a9b19ce2704f6c4a4dd5916bdd975b0718c008b7dc73d38371bb",
+      "size": 22231,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/RealQZ.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/RealSchur.h",
+      "sha256": "319328869eceede3b9e3a1f2791c796223c557c0f9f9d35cf6d2280fe7fd3bbd",
+      "size": 21008,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/RealSchur.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h",
+      "sha256": "f7f7c8dc2f3fdee15317858582311b4135eed3a1759dc629386e8bfff0499996",
+      "size": 35357,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Eigenvalues/Tridiagonalization.h",
+      "sha256": "ea5a6f0ffe9a1a99d55f336cf2519b400f8300a4f997da2dc92f59126c6a6130",
+      "size": 22380,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Eigenvalues/Tridiagonalization.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/AlignedBox.h",
+      "sha256": "1249e7e037e5c849eb1a4197c1f051e02dc09be8ce8377db2b5471a16c5e2036",
+      "size": 19095,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/AlignedBox.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/AngleAxis.h",
+      "sha256": "61a5a83fef8b28a7b2b2cc021ddfcf214723d58e0860ccf245ba0f2341ee335d",
+      "size": 8556,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/AngleAxis.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/EulerAngles.h",
+      "sha256": "7fd755c972d605786bb54d35f783ada03b88a8b5363985b19797915aa3eeb8a3",
+      "size": 8345,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/EulerAngles.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Homogeneous.h",
+      "sha256": "22ddcb9a8dcf9459cb8caf70216bfdfc030ac48d37620517c379fdcfb74c4840",
+      "size": 20711,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Homogeneous.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Hyperplane.h",
+      "sha256": "ce4940e0debae5690f076fccbf5b2e8de463606c3a21bd3a742491dfeb64ff2b",
+      "size": 12182,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Hyperplane.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/InternalHeaderCheck.h",
+      "sha256": "aa2bd7d0b950761db787e10953edd239d93f2849fdd792dbb30384218579025d",
+      "size": 142,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/OrthoMethods.h",
+      "sha256": "d31f2f2760a195602dc5b1ca0e64d50b393eaa6a9ce50dc8c5567c87acbcb6e1",
+      "size": 11755,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/OrthoMethods.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/ParametrizedLine.h",
+      "sha256": "a736a0e5d41965e7de70626a72ca7fe68c2361e13fed8dddb98300dee85bcf16",
+      "size": 9992,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/ParametrizedLine.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Quaternion.h",
+      "sha256": "647bee175ef29e4b57252cf84f0ca211c34b30096aeb8ea5898e2f7b05c5e039",
+      "size": 38921,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Quaternion.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Rotation2D.h",
+      "sha256": "4af5c35e96a3211f575d400f17973950efb35e9296209f9d2263d36ba1115851",
+      "size": 7035,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Rotation2D.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/RotationBase.h",
+      "sha256": "8e12ca50334fe114f16ffae81cff13c90a8c741a7ec651dc7d11c26c4a566eda",
+      "size": 8310,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/RotationBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Scaling.h",
+      "sha256": "078a7a9c32aeb5d06582067e50810910837ca5b32e4ce81d9402aada3c1aa649",
+      "size": 7171,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Scaling.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Transform.h",
+      "sha256": "4118579a142449a707774533efc2fc57f512dbc9c04f9b6cc31e45f23827b3ab",
+      "size": 63972,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Transform.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Translation.h",
+      "sha256": "5f782d578ae09903f466ccd7180691c38ff89058dcbc5a90e872ea2487275110",
+      "size": 7906,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Translation.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/Umeyama.h",
+      "sha256": "f844b33d40afbd0c30363a57330bcf344eff2e5a0969cb55b4c32e98cfb0de88",
+      "size": 6355,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/Umeyama.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Geometry/arch/Geometry_SIMD.h",
+      "sha256": "5d179a27a6e8d0904cda44f7b29ad23fae2165c779654a653da37d678eabd437",
+      "size": 6356,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Geometry/arch/Geometry_SIMD.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Householder/BlockHouseholder.h",
+      "sha256": "bbdbd63adae7aaeea7578f4cb01cd0f188afb6edbcb75de8446d01613e5ce0aa",
+      "size": 4939,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Householder/BlockHouseholder.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Householder/Householder.h",
+      "sha256": "11b496964a44d35c043e508eb249078a313351e6578d874d3472ed5b95fcd3e9",
+      "size": 5766,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Householder/Householder.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Householder/HouseholderSequence.h",
+      "sha256": "ee85a93e256353ed8015aecb5fab92bb8328bfd80cb0996122cddf8d18771e39",
+      "size": 22870,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Householder/HouseholderSequence.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Householder/InternalHeaderCheck.h",
+      "sha256": "0cd4c48a96edf192bcc411120ca470b9ebb93cbf494c4f76f7aa0dc0d0d60382",
+      "size": 148,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Householder/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Jacobi/InternalHeaderCheck.h",
+      "sha256": "5bb69a50d71f7b387c897a165264f326b9e0e2b388d9388ac8617a3399da6c6c",
+      "size": 138,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Jacobi/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/Jacobi/Jacobi.h",
+      "sha256": "a223c0dab8e9846fc064972a2dd2baf7b798e25dfbb835e18b50758b79710798",
+      "size": 16977,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/Jacobi/Jacobi.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/LU/Determinant.h",
+      "sha256": "13372af0466abfa2bc19acf822d5610011248c25b00b87b3b70aea3f00b0057d",
+      "size": 3743,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/LU/Determinant.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/LU/FullPivLU.h",
+      "sha256": "04bdd4b486e1ed655ce96de4adb9b1473efbc08595df7eb995e0a369c729c9eb",
+      "size": 32910,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/LU/FullPivLU.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/LU/InternalHeaderCheck.h",
+      "sha256": "f507d98a6d48ce048ff3d4261e4c63bd34d7a22bf960c099f15423eaa145d8a3",
+      "size": 130,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/LU/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/LU/InverseImpl.h",
+      "sha256": "aed6c7bcd06c6c9a08b86628785da87b3a7ef91ac290cf607a1b1aec1a3281d4",
+      "size": 16609,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/LU/InverseImpl.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/LU/PartialPivLU.h",
+      "sha256": "feb8b2ca26a2ec3d89fb0177d44e309a7f71ddd6c5bdc0c236e7bd5116220fa4",
+      "size": 22812,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/LU/PartialPivLU.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/LU/arch/InverseSize4.h",
+      "sha256": "619dfeab1fb47d95a647d54f2e187d3aa92cc06f97b1e6a475f72f5f1987e68c",
+      "size": 13886,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/LU/arch/InverseSize4.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/QR/ColPivHouseholderQR.h",
+      "sha256": "a1ddca814167fde3af965686509cb7c40d848c8b122b4fa2802ec111e785b509",
+      "size": 27408,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/QR/ColPivHouseholderQR.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/QR/CompleteOrthogonalDecomposition.h",
+      "sha256": "11cf25f7ed2db7584474e352b27af947e0fcffec025396a3d762e922916646b5",
+      "size": 25798,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/QR/CompleteOrthogonalDecomposition.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/QR/FullPivHouseholderQR.h",
+      "sha256": "517aced22bc1c84a8f578d68a2cc3f46706951b368957ebfda7dddb9614d1f35",
+      "size": 29913,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/QR/FullPivHouseholderQR.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/QR/HouseholderQR.h",
+      "sha256": "841479807a28d4c460d5af5f57fc42de059fbee124053a3c7901d2953d48e64d",
+      "size": 20060,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/QR/HouseholderQR.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/QR/InternalHeaderCheck.h",
+      "sha256": "d46420fd879bd538a54daeba61f840ebb6322ad772e86a1f42ff72d505e527a8",
+      "size": 130,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/QR/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/SVD/BDCSVD.h",
+      "sha256": "0ea2d9c0289653b8b963b3469f07964d3c4985eede399a48340727a136f1823b",
+      "size": 63054,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/SVD/BDCSVD.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/SVD/InternalHeaderCheck.h",
+      "sha256": "747f34a8eb81689cdcf74154fe015f3846e5e13f9a82b995ffea1043dedafd7a",
+      "size": 132,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/SVD/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/SVD/JacobiSVD.h",
+      "sha256": "c88660f406eccf2c56bfb9be1fb0c4073bf2d76f3c6b4658eada76ee98a5d1cb",
+      "size": 36627,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/SVD/JacobiSVD.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/SVD/SVDBase.h",
+      "sha256": "99eba5deaa03477517aea4ec5529a211ca069be5aab1e6ce71719fb2f8c7a4d1",
+      "size": 19682,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/SVD/SVDBase.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/SVD/UpperBidiagonalization.h",
+      "sha256": "4ab3a9c6f4bdf7919895aa1ab7d37ddaeb5251da447d89b054133d67e4848987",
+      "size": 15205,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/SVD/UpperBidiagonalization.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/misc/Image.h",
+      "sha256": "3f55e8f5a048a98402bb46872dd359ebf8cb74550fccf811ff43f4e94191a46c",
+      "size": 3420,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/misc/Image.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/misc/InternalHeaderCheck.h",
+      "sha256": "47e7f47aae4fe6be7760d635bd430ab5f607484fc53efd76bef72e776d1e42c9",
+      "size": 134,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/misc/InternalHeaderCheck.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/misc/Kernel.h",
+      "sha256": "b897c8b693a4c8cee297351d60ac5b5b1178e8eedff002ee3c13d6492d01ae7c",
+      "size": 3201,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/misc/Kernel.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/misc/RealSvd2x2.h",
+      "sha256": "050e1016e88e2e50ee0f4f0139f6d50a85d100e334aa446d8544b699735ac014",
+      "size": 1795,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/misc/RealSvd2x2.h",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/ArrayCwiseBinaryOps.inc",
+      "sha256": "dcb4c440b90166075dbf41595d68f8cd646422e2fcbf763f159db54d69cc899a",
+      "size": 15537,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/ArrayCwiseBinaryOps.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/ArrayCwiseUnaryOps.inc",
+      "sha256": "aca73293654b35c557c6222eb5d2a418d45cb5cec7a04d0a60361f99d2a75e9a",
+      "size": 24116,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/ArrayCwiseUnaryOps.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/BlockMethods.inc",
+      "sha256": "858c01172c214448a5bc0b2bab7883e1f1605a97760bf599eb66e17d56269cb0",
+      "size": 63345,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/BlockMethods.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/CommonCwiseBinaryOps.inc",
+      "sha256": "49e1963fb8eb60f657e98af2908d47cda9d431901db2de84c299d15d18706920",
+      "size": 5538,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/CommonCwiseBinaryOps.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/CommonCwiseUnaryOps.inc",
+      "sha256": "a2b7cf3dd3b91f572048eb96c83ee8f25e0abf009bd584f124ca7cf789209378",
+      "size": 6500,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/CommonCwiseUnaryOps.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/IndexedViewMethods.inc",
+      "sha256": "a3df8689c729b8a580bbd08ec23f540c8b4873f05a39df3fff4b0160acfb2d2d",
+      "size": 9904,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/IndexedViewMethods.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/MatrixCwiseBinaryOps.inc",
+      "sha256": "1d2466e50d5167bd139f77255244537bb8e06842fcf209720a17d8bd765652d9",
+      "size": 17396,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/MatrixCwiseBinaryOps.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/MatrixCwiseUnaryOps.inc",
+      "sha256": "531d5ee49de6dacede7c82b53efe991afe832330f411e13205e69f62835adb8f",
+      "size": 4894,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/MatrixCwiseUnaryOps.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/Eigen/src/plugins/ReshapedMethods.inc",
+      "sha256": "4e40e72b23857affbd0c4a199ae98a1905bacf88e5b5f5d0bf4e84eced1ea7bf",
+      "size": 6824,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/Eigen/src/plugins/ReshapedMethods.inc",
+      "component": "eigen"
+    },
+    {
+      "path": "eigen/LICENSE",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "size": 16725,
+      "source_url": "https://gitlab.com/libeigen/eigen/-/raw/5.0.1/LICENSE",
+      "component": "eigen"
+    },
+    {
+      "path": "kaldi-decoder/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/LICENSE",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "kaldi-decoder/kaldi-decoder/csrc/decodable-itf.h",
+      "sha256": "bd82470ca65eafef35099bcdd7ec2e00703da5f8a3fecc156780ae9ca15a750e",
+      "size": 5429,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/kaldi-decoder/csrc/decodable-itf.h",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "kaldi-decoder/kaldi-decoder/csrc/faster-decoder.h",
+      "sha256": "38e3a7a207fad317252befe9c0e1d44ff3e1a0b61655b9572ce12d75d1b21794",
+      "size": 6723,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/kaldi-decoder/csrc/faster-decoder.h",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "kaldi-decoder/kaldi-decoder/csrc/hash-list-inl.h",
+      "sha256": "9ff9394e4f6f32e47fab8bf21166cb6e2a89c187c713aa8b9c2944d9b6dfb2dd",
+      "size": 6176,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/kaldi-decoder/csrc/hash-list-inl.h",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "kaldi-decoder/kaldi-decoder/csrc/hash-list.h",
+      "sha256": "04c48b552489ee5370f0d718f69db49700b0f21d7293a79baf5e2f7dc50fc207",
+      "size": 5138,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/kaldi-decoder/csrc/hash-list.h",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "kaldi-decoder/kaldi-decoder/csrc/log.h",
+      "sha256": "ea10a34b73418331d00033311c602f1c4671d15b065d55d06cd1316eccec8db5",
+      "size": 2712,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/kaldi-decoder/csrc/log.h",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "kaldi-decoder/kaldi-decoder/csrc/stl-utils.h",
+      "sha256": "6f6bd594e792d44bc6b364958ebd6d9061e09f82961dbfc9c69d4c460a7a760d",
+      "size": 6645,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/kaldi-decoder/csrc/stl-utils.h",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "kaldifst/LICENSE",
+      "sha256": "a682d6efd1ee5dee08a8e405c233c2c198ea70ae0718129daa83ab58cfe31c5d",
+      "size": 11728,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldifst/ab5bdd013bdf13921e6aeee77db5722ebf9955fb/LICENSE",
+      "component": "kaldifst"
+    },
+    {
+      "path": "kaldifst/kaldifst/csrc/kaldi-fst-io-inl.h",
+      "sha256": "8480e1c9860dff0af753b539faa45ed375713409adf48f8bd49a3eac71d21bba",
+      "size": 6330,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldifst/ab5bdd013bdf13921e6aeee77db5722ebf9955fb/kaldifst/csrc/kaldi-fst-io-inl.h",
+      "component": "kaldifst"
+    },
+    {
+      "path": "kaldifst/kaldifst/csrc/kaldi-fst-io.h",
+      "sha256": "726a60807721e3c24db49cd46f7d1126da4dd1a8e1986a11702c9f0bd1225ec0",
+      "size": 5646,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldifst/ab5bdd013bdf13921e6aeee77db5722ebf9955fb/kaldifst/csrc/kaldi-fst-io.h",
+      "component": "kaldifst"
+    },
+    {
+      "path": "kaldifst/kaldifst/csrc/lattice-weight.h",
+      "sha256": "af64a131e081a2a4078e57e97c528a4da42dc68f6bad90353e4e9e5da21f606b",
+      "size": 32288,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldifst/ab5bdd013bdf13921e6aeee77db5722ebf9955fb/kaldifst/csrc/lattice-weight.h",
+      "component": "kaldifst"
+    },
+    {
+      "path": "kaldifst/kaldifst/csrc/log.h",
+      "sha256": "1f2a051013d2912038d6b770c666013775ccf05b0fcabc8e40c7440d819dfe57",
+      "size": 2481,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldifst/ab5bdd013bdf13921e6aeee77db5722ebf9955fb/kaldifst/csrc/log.h",
+      "component": "kaldifst"
+    },
+    {
+      "path": "kaldifst/kaldifst/csrc/text-utils.h",
+      "sha256": "affe883b0c5e24b92c962233e004da5bf0d21455b387067d5467e208b8e9eeb5",
+      "size": 4742,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldifst/ab5bdd013bdf13921e6aeee77db5722ebf9955fb/kaldifst/csrc/text-utils.h",
+      "component": "kaldifst"
+    },
+    {
+      "path": "onnxruntime/LICENSE",
+      "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c",
+      "size": 1073,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/LICENSE",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "onnxruntime/ThirdPartyNotices.txt",
+      "sha256": "0e07b95f3a8d6230037707c5c4a2b554d12c4cb67369669ac255635528ffcee2",
+      "size": 325054,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/ThirdPartyNotices.txt",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "onnxruntime/include/onnxruntime/core/session/onnxruntime_c_api.h",
+      "sha256": "b69a133143c0da61782b2b02cc8a620d21ac139231fd211719776d10385135c1",
+      "size": 394991,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/include/onnxruntime/core/session/onnxruntime_c_api.h",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "onnxruntime/include/onnxruntime/core/session/onnxruntime_cxx_api.h",
+      "sha256": "c6bf005e4063b7db911d0a6b030452bcb9d4fc5e87530a39d94c4a5fcd311b61",
+      "size": 168928,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/include/onnxruntime/core/session/onnxruntime_cxx_api.h",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "onnxruntime/include/onnxruntime/core/session/onnxruntime_cxx_inline.h",
+      "sha256": "97f960b1bc4a372918893ef4c77102dee725ccfce0d76607f4570b03e7e28325",
+      "size": 157610,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/include/onnxruntime/core/session/onnxruntime_cxx_inline.h",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "onnxruntime/include/onnxruntime/core/session/onnxruntime_ep_c_api.h",
+      "sha256": "db86df0f846b8d3bdbf429a5c76c5805293196575ca3c475878612591cd18e51",
+      "size": 152985,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/include/onnxruntime/core/session/onnxruntime_ep_c_api.h",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "onnxruntime/include/onnxruntime/core/session/onnxruntime_error_code.h",
+      "sha256": "5ce3b054e798eced8d14f5b86e98692fd33470463f96194ce0700a2d53dd8721",
+      "size": 2775,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/include/onnxruntime/core/session/onnxruntime_error_code.h",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "onnxruntime/include/onnxruntime/core/session/onnxruntime_float16.h",
+      "sha256": "88b242845d25981633a0bbd1c148e273cf8bfb016ea3f57c4af41a06530f72b0",
+      "size": 17991,
+      "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/33ca9628233dc8f002435e868d4c2e9f82766ca1/include/onnxruntime/core/session/onnxruntime_float16.h",
+      "component": "onnxruntime"
+    },
+    {
+      "path": "openfst/COPYING",
+      "sha256": "4300529197035fd3452350718a0b8cee984e9412c9932d7f35fcde849fc97a4b",
+      "size": 559,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/COPYING",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/accumulator.h",
+      "sha256": "c1ea840fcaff67494a55a9b161b92093cfd1743202c49259d1ca54350f7024b3",
+      "size": 30869,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/accumulator.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/add-on.h",
+      "sha256": "0cdde3fffe57d4f3139e119945e0656f72642434b000bd79b911f9ea44857afd",
+      "size": 7922,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/add-on.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/arc-map.h",
+      "sha256": "819ee84074e13361a025267fe30527f8bf18350a299905b7819bc512756527ce",
+      "size": 47645,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/arc-map.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/arc.h",
+      "sha256": "fdc9f877b2500e105d2b50db8dfc7c3c4cebf62c1fb78529765f6cc6ac5067e6",
+      "size": 7761,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/arc.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/arcfilter.h",
+      "sha256": "cdd4692e557bee19dc84be9300af40166f34f68270964fef6668690b82cacf35",
+      "size": 2907,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/arcfilter.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/arcsort.h",
+      "sha256": "3feb1c37b5b5dde89f2e5cd66f93f63e154cc9f59d41732b89e3b3890483fc94",
+      "size": 7497,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/arcsort.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/bi-table.h",
+      "sha256": "58fa359871acfc3e1562d094f11f1730d66ab276f8d9981f402a9a9a8ffc3f51",
+      "size": 13878,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/bi-table.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/cache.h",
+      "sha256": "f3c5ddb8ad4fa168f524e99bef16f5324e6c97f5f3c66ed45ac83db958503d61",
+      "size": 43328,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/cache.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/cc-visitors.h",
+      "sha256": "424ae9d4bf30420d6681ac98dc23850b84bb9a9441796a80de4cbac5f34e44d1",
+      "size": 7897,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/cc-visitors.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/closure.h",
+      "sha256": "d2c40c1b14b05d0770e49e0509f2e9edfeb7ef2ab6fc2c8b19ee6fb653e2a1ec",
+      "size": 4793,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/closure.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/compact-fst.h",
+      "sha256": "784406e4592532c2c87df22b65b7dbb10b8cb3d6f08da9e0ec98b7abaa8005ec",
+      "size": 58076,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/compact-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/compat.h",
+      "sha256": "3d47ee419d7751c139f0f2a99a34a1b34983fb0c968b34fa61df406b1287654f",
+      "size": 10319,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/compat.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/compat_memory.h",
+      "sha256": "876a97c8a425ccd5cac34abe1c3f88a7d79d946c0571c98953efb452a7d54b24",
+      "size": 1502,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/compat_memory.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/complement.h",
+      "sha256": "bb3d204ec503da2512ab311d046b1c7e5f0690b3ac7d6963361ad0d8fc3f19cf",
+      "size": 8347,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/complement.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/compose-filter.h",
+      "sha256": "c6f48907f0ec7b62c945c13b4e493224d2f85507aeca1191815b3fd06f690a54",
+      "size": 20507,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/compose-filter.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/compose.h",
+      "sha256": "26a1c31e224bb8c70a5e4caaf4b5c684a017cafb2897a26bd14d7b2c6791e623",
+      "size": 39887,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/compose.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/concat.h",
+      "sha256": "393f69abe5e40e72c5cb118404e475bff31bc44e0c7e9a46393f2d7e6983197e",
+      "size": 8377,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/concat.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/connect.h",
+      "sha256": "064041bdd84485b8e42f677e99d3125d5055863cb9f32909835a8ac41963c763",
+      "size": 3378,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/connect.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/const-fst.h",
+      "sha256": "d53c6afe1342e639203954154d34bd044e9cbeca70f7387d08c044096aa33dc1",
+      "size": 15727,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/const-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/determinize.h",
+      "sha256": "fce24140b54a84888ebaba001e1a1c711a894b9667a623fe0c879de1dafcaa8a",
+      "size": 41836,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/determinize.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/dfs-visit.h",
+      "sha256": "35a53ec88015c5f67a285263f64391d953912c571834524f34c378fcfff17c1c",
+      "size": 7427,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/dfs-visit.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/difference.h",
+      "sha256": "3884408c7d2817da9139c3ec7fe02a88214a4e3bf030df7b5ae7cbcfac4a93ce",
+      "size": 7716,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/difference.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/disambiguate.h",
+      "sha256": "da08bd25e6fea70a0a5d7af5434cab320a3e2d0e7ac3c69f1d6a0ade8e730623",
+      "size": 21444,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/disambiguate.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/edit-fst.h",
+      "sha256": "79397e027dafbc71ede81ece302bea77a919648e6e635b18c6ee646987e31872",
+      "size": 27821,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/edit-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/encode.h",
+      "sha256": "eaedd3a0c448684e8438fdb3085b1a5d37c316f1f20e9f238505191752f48194",
+      "size": 19868,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/encode.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/epsnormalize.h",
+      "sha256": "b2f36f9210313c129f70858592a8b6b30ba61aefb7f520d881a5e2f5872606c9",
+      "size": 2883,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/epsnormalize.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/equal.h",
+      "sha256": "d2c92743a161bd4f10852479e5e6373a482689fa403a16a6bfc23c0468ce3e2b",
+      "size": 6876,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/equal.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/equivalent.h",
+      "sha256": "db04f068dd5fa81324fd7ffc6957176b3ddd63127a158db14d8c87877b3a7b40",
+      "size": 9309,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/equivalent.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/error-weight.h",
+      "sha256": "2299bf9be0608cab6feaa3509083d47749bc3a809b8c1a15989b20f5756be1dd",
+      "size": 2264,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/error-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/expanded-fst.h",
+      "sha256": "fa30a9abed284e094d39fd820b1fdff500086a0abe2f13e465516b5cb8c45cce",
+      "size": 6487,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/expanded-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/expectation-weight.h",
+      "sha256": "8842accd67511ea7a2f2226826f7be0f018f8cefc9c3d8adebaf91ed956b82b1",
+      "size": 7706,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/expectation-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/factor-weight.h",
+      "sha256": "df0b393f1d2be518804ffafa484b8db5a472eb0853ada8acb147bdd31a681b24",
+      "size": 17822,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/factor-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/filter-state.h",
+      "sha256": "c1b59f9b081044bff276817295ad22a45f99ae852b4cf0c7f5bf83c8a6d9a4fb",
+      "size": 5344,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/filter-state.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/flags.h",
+      "sha256": "eafeb088e5abb9dbd812ca91d777bc21ffdff7aac0d96562764790798b48edc2",
+      "size": 7035,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/flags.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/float-weight.h",
+      "sha256": "7f1222ee2985bec217e1c0504bd3a1ca63683ae5cf0b70886098438c4d8837d1",
+      "size": 39852,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/float-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/fst-decl.h",
+      "sha256": "6d4f507ea25a8fe259774d8e518e29fce6a03379be00d3b887d0666cba1898f1",
+      "size": 6374,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/fst-decl.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/fst.h",
+      "sha256": "5f922af5ada065d3272aba5f5d4a9d0c45cfff41ba952cd3115c25dd2544cd8f",
+      "size": 33724,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/fstlib.h",
+      "sha256": "ac1600cea6929ca81cfd850a012be2ca6c38d20fccf04a6778e0ec2ed6430330",
+      "size": 4382,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/fstlib.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/generic-register.h",
+      "sha256": "4d9b96fa3cc9d9ea676030b161d04490403cb91c3908e06bf63da5824c62ff4b",
+      "size": 4555,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/generic-register.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/heap.h",
+      "sha256": "d95e64edb116c77e26593d638395fff785af4165584c7c25ffca64799b53b190",
+      "size": 5187,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/heap.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/icu.h",
+      "sha256": "18505876eb5f2d7291a8727dd02989cfded2e7381273f9e40d84afc0b0fc22fe",
+      "size": 5249,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/icu.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/impl-to-fst.h",
+      "sha256": "cf45e3f58e3db60b8d00af6b25f95ef1b102e4dfc0966f2eabea8457a4eef316",
+      "size": 4408,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/impl-to-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/intersect.h",
+      "sha256": "a353a62a15601838fd02801607e04f1d65ff6cb279afcb85ed515ca93d24668d",
+      "size": 6383,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/intersect.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/interval-set.h",
+      "sha256": "584ed6ec085a00f4dc2f5df9a290cd3d60e26ee2855c63eeb37f0d8c473061af",
+      "size": 12998,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/interval-set.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/invert.h",
+      "sha256": "69930f89db58344af1301c3fb945377ee0d1757527cc0ed4a7a1d8c243880917",
+      "size": 4551,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/invert.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/isomorphic.h",
+      "sha256": "1b98c318ca3373b190de90c690a33bd6ca35504d4e6e82ae123fde4220f9f55d",
+      "size": 9914,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/isomorphic.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/label-reachable.h",
+      "sha256": "05121292f786d9493bb3434a6e571acab667fc77f5e17eaa1515566bd900a220",
+      "size": 23457,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/label-reachable.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/lexicographic-weight.h",
+      "sha256": "22c6b78fa26aa48ef7e4158021d06aaabbff54c3bed5dd4221213ddde196c982",
+      "size": 6358,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/lexicographic-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/lock.h",
+      "sha256": "cb94254d8b646a179d143683049930e59cefa127f76d00b6bc5a5688a2bf0fd2",
+      "size": 1991,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/lock.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/log.h",
+      "sha256": "035eeb39c63b8eb3ba516ecc0b6dd7596e56516280e91412673d80dea37a9918",
+      "size": 2266,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/log.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/lookahead-filter.h",
+      "sha256": "37a76e83e385eee58dc55a3c3a468440bed5a4dcd089b99a92a6ea834469b57f",
+      "size": 24012,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/lookahead-filter.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/lookahead-matcher.h",
+      "sha256": "d525afee387aabfb1a59beee400f9500447ed7b92efedcdb54fbaa9fc46ad77c",
+      "size": 30339,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/lookahead-matcher.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/mapped-file.h",
+      "sha256": "ff5af6ef426ea12b90ea4196b3d808660f906f8fc67635a28a39b75fbe1f19ed",
+      "size": 4149,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/mapped-file.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/matcher-fst.h",
+      "sha256": "315924f42da0bfd38e28676cb95b91f6bd804b70fdd1b7b7fa97026f263417f7",
+      "size": 12901,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/matcher-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/matcher.h",
+      "sha256": "3b94d5d58e78ef6a5430aa18a148ee9b042ab06c8cc1012014e491bc179932cb",
+      "size": 52500,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/matcher.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/memory.h",
+      "sha256": "12df02ed93afd95fa7e66dca37379d5411fab8f0d7c15d4604ea2f7a63119b5d",
+      "size": 11190,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/memory.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/minimize.h",
+      "sha256": "97b96f607947c736434ee57e04fbb2ada446bface7321b4ffe8339d8d1d766a5",
+      "size": 21626,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/minimize.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/mutable-fst.h",
+      "sha256": "60201d3bd9a2fb47604eda96e2983d86fc91a776c057eef593beeee431e4f191",
+      "size": 12784,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/mutable-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/pair-weight.h",
+      "sha256": "22227f5dbea9615d9e64062d16dfe292a8bade1a4d6486d66d73f60a97560106",
+      "size": 4857,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/pair-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/partition.h",
+      "sha256": "4644e0f1deeda8128a0118fad484fabff081fb031c906d4e0c1f638052ccafd7",
+      "size": 13288,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/partition.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/port.h",
+      "sha256": "4ac105b4791f7682eca26f9d1baec0d50c59dcd6136580f7e4bccc158b581d43",
+      "size": 1005,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/port.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/power-weight.h",
+      "sha256": "ccc22c74858bc3d208f226cf814bb098f81ba7f3430966c8cd718569ad434cd6",
+      "size": 5499,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/power-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/product-weight.h",
+      "sha256": "1661e72ae590819269e817dc62278528c23de5ca770063ae174b00c046ae09aa",
+      "size": 4623,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/product-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/project.h",
+      "sha256": "fb96b8caae9f7994a6892a44d92067173861a64b75dd9a3c49ecbbef3a66ae53",
+      "size": 5475,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/project.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/properties.h",
+      "sha256": "72df88c780a5fdf0b98085448f8e8fd3b192793274849b7a90dcbe1c0fe4e01c",
+      "size": 22125,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/properties.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/prune.h",
+      "sha256": "a664529f3405e760bc074af7e155d3d17dda67522025b0e50800702847c59293",
+      "size": 12929,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/prune.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/push.h",
+      "sha256": "7a46d9144f7926e0eb61b6e5be4ed7d6fb5d87bdf2883d2b01a4176966e1f8f8",
+      "size": 6662,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/push.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/queue.h",
+      "sha256": "fb8e7393652c929461ac2af6da28e2ef4235f7a7609179defc214677edcadce7",
+      "size": 32885,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/queue.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/randequivalent.h",
+      "sha256": "730d73a2a85ad30c6481abe492dc72bf8af2b311192ac9b28147be166bafb163",
+      "size": 5076,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/randequivalent.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/randgen.h",
+      "sha256": "25b228953111dd2c85a72bfe5582307021e7c8eeff08fc6973be41b5f9bc81dd",
+      "size": 26626,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/randgen.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/rational.h",
+      "sha256": "06ac5ec09f5ca7da41af544a1f0ea644063182bb5d9bac3c3c5fa3739f1f9481",
+      "size": 10735,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/rational.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/register.h",
+      "sha256": "6cd8db4a416b6adbae075bfc316055e8362c10db621a0c5ab27c3eb7aebe0f01",
+      "size": 4368,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/register.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/relabel.h",
+      "sha256": "76ad1fdf0223a344b6eb1f18bbf7cb19dabbde4d068a7e0cb102c089fa0b81a2",
+      "size": 16414,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/relabel.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/replace-util.h",
+      "sha256": "ed95e7352bbc84e0ec2c0f47b6fd1b99678d4b08c7f8e84b5625950e1a80bdaa",
+      "size": 23591,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/replace-util.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/replace.h",
+      "sha256": "74647afc9de497c80dd70a25ecf7758fe073bf9b9760af37501d45a4eb113f6d",
+      "size": 58246,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/replace.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/reverse.h",
+      "sha256": "a947e92f2e5bfd01424de61165da74197aebd0f80e9ecfc3ab23849bf5a5d887",
+      "size": 4940,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/reverse.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/reweight.h",
+      "sha256": "fee2d92ff48bc3aca6a60566b5250aa0ad2e42bd864f68de95c08fcf208ad7b7",
+      "size": 5765,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/reweight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/rmepsilon.h",
+      "sha256": "74ce89823f11a7aea2a3c647c4b13316955b8804da735d5d486587eb73199076",
+      "size": 19196,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/rmepsilon.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/rmfinalepsilon.h",
+      "sha256": "d0ae4bf97ee00491e5d3c8f1cac2fbec6ccb615af0548868345a17157d896349",
+      "size": 3228,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/rmfinalepsilon.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/script/arc-class.h",
+      "sha256": "2ba8b5dedee9ad134ccdfae69846ca37a024f9357033afa20fa630254ae366ba",
+      "size": 1654,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/script/arc-class.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/script/fst-class.h",
+      "sha256": "34977aeebf01c83e3de23fc1353db8ac63b4b0b76d41b5e7b4e39bc7d7a60a5c",
+      "size": 23148,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/script/fst-class.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/script/print-impl.h",
+      "sha256": "77826b3a0e06e6d4b1f40a6450e87ac4e31296a4b2e62498009b721a8262abda",
+      "size": 4875,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/script/print-impl.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/script/print.h",
+      "sha256": "d335191c0e391d19582874830c5fcfc9efa4c0ce1f95651f29152520abbe62de",
+      "size": 3160,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/script/print.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/script/weight-class.h",
+      "sha256": "18f4e8a89d998126f5dd159538e9affc6ccf5722aeedea783178e90ac355ea01",
+      "size": 8160,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/script/weight-class.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/shortest-distance.h",
+      "sha256": "6990ece791638f8ea626b424f0e3f5aa8548c453dada5b80b8af454500afb3a6",
+      "size": 14006,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/shortest-distance.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/shortest-path.h",
+      "sha256": "1491a4ed6f255165c2de651ae9d93a78cfbdac2a4e2e4d2ab6533b80336fe20a",
+      "size": 22310,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/shortest-path.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/signed-log-weight.h",
+      "sha256": "cd3c8f5d3d81cc6f27cc09ea868e62c98b4af74c2096eb27e587da43acd8805f",
+      "size": 20394,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/signed-log-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/sparse-power-weight.h",
+      "sha256": "9d1ab21a35b8343699db11695d7bc206e1c8748743f2e233d0eb5b81dbedfce7",
+      "size": 7593,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/sparse-power-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/sparse-tuple-weight.h",
+      "sha256": "6cb7a4f494eb9fad22605c8043fa252f6e8bb1b4b83a85d943593e945d077f65",
+      "size": 13289,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/sparse-tuple-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/state-map.h",
+      "sha256": "dbf418d20e02a0a709d9851ca9db611b282d30b71ef2a88cab55f489ac845898",
+      "size": 19221,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/state-map.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/state-reachable.h",
+      "sha256": "d21ef7caf1ce79eb081c3a95d1b91b97a7286e8a5d9c8f8cff2dd3338a90c3cd",
+      "size": 7832,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/state-reachable.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/state-table.h",
+      "sha256": "4b13be6e0e66679eb806c2c651339f07129eefd98b5d011e5cadd00c79ebd57f",
+      "size": 17461,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/state-table.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/statesort.h",
+      "sha256": "b4bbb7975686575e38953f40a6ad7614225a56c2286bd5e5fb7b646bc7cd57c0",
+      "size": 2870,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/statesort.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/status/status.h",
+      "sha256": "c6dfedc0a3978d0e6f48cfca9bea002337919e80d71aac240034e1001f308bf0",
+      "size": 4803,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/status/status.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/string-weight.h",
+      "sha256": "16d01694d6ef3e4f9c5d3e6496479c26ddb3a854f6c58c631affe03fb7577c82",
+      "size": 26924,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/string-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/string.h",
+      "sha256": "dff2dbf96df19a4c66358cd22e4a24c205b4bf4afc1fe46ad8c865604f7198e2",
+      "size": 13767,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/string.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/symbol-table-ops.h",
+      "sha256": "9e505269f44fe6af436c9934b340091336c3e89733992fa6eb882b1dc86ec77c",
+      "size": 3677,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/symbol-table-ops.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/symbol-table.h",
+      "sha256": "b3fd903e61c3d4631d2c28da8eca3c208bc8de35d904dbc1621ce8eba1894155",
+      "size": 19885,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/symbol-table.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/synchronize.h",
+      "sha256": "48b1930e2b1a48e4c70a9ed97ba56268c091d6ba3ebbd396d2c9c31ca3981573",
+      "size": 14030,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/synchronize.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/test-properties.h",
+      "sha256": "dcaa1027673ee5acd9fd7cbdff22d4e7edfb3e955de7bc1bd3f1c46e60a4b18f",
+      "size": 9197,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/test-properties.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/topsort.h",
+      "sha256": "fb50f439a93f780d69f1fe0ac314be5464f3e2118bcaef6af1d9702fc7374e1f",
+      "size": 3137,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/topsort.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/tuple-weight.h",
+      "sha256": "a2168568ea85fc8a78d1080dd0ec6273c7be493fee5f31bbe2c17e19b70df701",
+      "size": 4708,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/tuple-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/union-find.h",
+      "sha256": "83153d770c375208fea1851878983a7075b5395f3522a6f837c2db39fde379ce",
+      "size": 3235,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/union-find.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/union-weight.h",
+      "sha256": "1d7e9ca3b7d31a96f638a50334e69d5c2759d3fa6ea0f46cbd3fe22651d31bdd",
+      "size": 15428,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/union-weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/union.h",
+      "sha256": "402cf984f5a220b16069d0a13d6db27bae09f4bf83f57b72e1911ddbcea36ac4",
+      "size": 6120,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/union.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/util.h",
+      "sha256": "5f6d21b6e029c6ae03957a26e6edf35a3b59e981f4b4552ad6e322fd28acc14e",
+      "size": 15530,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/util.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/vector-fst.h",
+      "sha256": "eaf13570e8fd208a835b361375559706d1821a01209443d6d533155be4c29c5f",
+      "size": 25310,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/vector-fst.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/verify.h",
+      "sha256": "938b56ed5966831abd7397ae348090921e2c2e4e4dae3465f289f95bab3aee91",
+      "size": 4263,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/verify.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/visit.h",
+      "sha256": "25d92d1c8f0d91d2ac222cc52961cb1ca40730d9239594e48aa961ecc0bf96b1",
+      "size": 9970,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/visit.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/weight.h",
+      "sha256": "1fe65566872a1e0be49a18e897d3cf7229b25803bde3bfdc2f7839816b65cead",
+      "size": 14216,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/weight.h",
+      "component": "openfst"
+    },
+    {
+      "path": "openfst/src/include/fst/windows_defs.inc",
+      "sha256": "07c418fe11b2580e036f9e6028bf79b0555ff906f02f2781959b504347c35e06",
+      "size": 1033,
+      "source_url": "https://raw.githubusercontent.com/csukuangfj/openfst/b3b4c7aa57e65ac32faec5648f45da9061490ddb/src/include/fst/windows_defs.inc",
+      "component": "openfst"
+    },
+    {
+      "path": "pins/decoder-kaldifst.cmake",
+      "sha256": "3fc84cb97584d944ad23cccacfcb958f163873ffae62a0764d8e75930f9a8bb3",
+      "size": 2113,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldi-decoder/62fda2d74246a90db9570e46fb16b012f813fae7/cmake/kaldifst.cmake",
+      "component": "kaldi-decoder"
+    },
+    {
+      "path": "pins/kaldifst-openfst.cmake",
+      "sha256": "06e4638e2f056cd53e3178fce83e73f68978b9c1f77a60d518067970c03f4211",
+      "size": 2531,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/kaldifst/ab5bdd013bdf13921e6aeee77db5722ebf9955fb/cmake/openfst.cmake",
+      "component": "kaldifst"
+    },
+    {
+      "path": "pins/sherpa-eigen.cmake",
+      "sha256": "8239d74b44e37e1bb05be2e1c86f6b1e931f0daca93b325fb2e0b6d6e996b2ed",
+      "size": 1409,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/cmake/eigen.cmake",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "pins/sherpa-kaldi-decoder.cmake",
+      "sha256": "af34b17974474a70b12978d49ac0831276839082924e5ac93bd9bb194a7fd310",
+      "size": 2667,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/cmake/kaldi-decoder.cmake",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "pins/sherpa-kaldi-native-fbank.cmake",
+      "sha256": "1cdf41df7fc3bf3d3ba69ce16c6bc7c0e631a8a81eb9a6a21838215322e1ee56",
+      "size": 2812,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/cmake/kaldi-native-fbank.cmake",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "pins/sherpa-ort-osx-arm64.cmake",
+      "sha256": "c11ad61b6403167f866204fffe25b60691171604d10e558e26db268b1cf1e1ce",
+      "size": 2384,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/cmake/onnxruntime-osx-arm64-static.cmake",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/LICENSE",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/context-graph.h",
+      "sha256": "bc3a51c1dfa0d967f97cd3173c21785e9c9f35d3e739e5cfd67197ad0c0675e0",
+      "size": 2920,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/context-graph.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/features.h",
+      "sha256": "98d7cced1049d2dcaca085d8b309e7296d8b6f811db8c8f0762907d4fd31d66e",
+      "size": 4507,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/features.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/hypothesis.h",
+      "sha256": "8eea98251a668112e2420451adce8ac9b5e95542d38124592a9011d8784f616a",
+      "size": 5201,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/hypothesis.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/lodr-fst.h",
+      "sha256": "bf166ccf07c788051cc0e958dd222840521ce15f00a95b5a78918d53ce2d0b61",
+      "size": 1774,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/lodr-fst.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/log.h",
+      "sha256": "697f7d53daeee5923eeb802c3da132f849306f262359fc6d31a8b9f67a2c0448",
+      "size": 11480,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/log.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/macros.h",
+      "sha256": "25abcee5880edb481b299106058b272e8311bd6281829695babd6df6821b36b3",
+      "size": 11225,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/macros.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/math.h",
+      "sha256": "ea88907fdc5f2d237bf22eb089098abd35cb3a1c714a8846f0ca2011fbaf12d6",
+      "size": 5098,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/math.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/online-ctc-decoder.h",
+      "sha256": "84780bf3207f44247f07568e4587adc033a10e8bce83d15a760d521313deef9a",
+      "size": 1865,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/online-ctc-decoder.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/online-paraformer-decoder.h",
+      "sha256": "a12241b227fb33df9fa657f1e40d7fb34f6b7eeb3731d667032c0abac2621db8",
+      "size": 524,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/online-paraformer-decoder.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/online-stream-state.h",
+      "sha256": "0c7eed01a7b231e4776876989989ea802c5ba2f985db586e730f01d28f874f6d",
+      "size": 1000,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/online-stream-state.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/online-stream.h",
+      "sha256": "6ffeaf0176285e8891fc3a7c1b18d278f4f7e7ffb8630a370b0e3bb7fa39d833",
+      "size": 4913,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/online-stream.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/online-transducer-decoder.h",
+      "sha256": "08f13b4e28736849f315f2662405b53ac4f43462cbcc33cd8f15b1ed912523d7",
+      "size": 3630,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/online-transducer-decoder.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/onnx-utils.h",
+      "sha256": "8879755b42f57347cc0ea9c87d8476aa6562d05c8c0f30502c1ea76948e09e9e",
+      "size": 3603,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/onnx-utils.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/parse-options.h",
+      "sha256": "4b47180282c7b1694261d9b42f81c7c494c664b2d38908c04adaec7ec9044a7c",
+      "size": 10691,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/parse-options.h",
+      "component": "sherpa-onnx"
+    },
+    {
+      "path": "sherpa-onnx/sherpa-onnx/csrc/speaker-embedding-extractor.h",
+      "sha256": "9b5e83ec1e49413579b519e0cdb6e550d31dcb4e621445ef1969ea67b7946c99",
+      "size": 2015,
+      "source_url": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/af2d8d81dbfa61c4cea4c568da78f3982edca005/sherpa-onnx/csrc/speaker-embedding-extractor.h",
+      "component": "sherpa-onnx"
+    }
+  ],
+  "external_system_headers": [
+    "basetsd.h",
+    "dlfcn.h",
+    "errno.h",
+    "intrin.h",
+    "specstrings.h",
+    "stdbool.h",
+    "stddef.h",
+    "stdint.h",
+    "stdio.h",
+    "stdlib.h",
+    "string.h",
+    "windows.h",
+    "x86intrin.h"
+  ],
+  "target": "aarch64-apple-darwin",
+  "scope": "Original headers and licenses for custom C++ OnlineStream; arm64 macOS C++17; no SDK source/header modifications. Eigen closure is compiler-active for this target, with original bytes retained.",
+  "native_libraries": [
+    {
+      "name": "libkaldi-decoder-core.a",
+      "sha256": "fe2e5506d0b2105202ceb15a69d190a353f362588bcc585c8b7ce882f21300b5",
+      "size": 729056
+    },
+    {
+      "name": "libkaldi-native-fbank-core.a",
+      "sha256": "d984d33d47c2a8546af6e2ff6f457ff7983f869dd05c6f137308e7ef78ddf352",
+      "size": 234232
+    },
+    {
+      "name": "libkissfft-float.a",
+      "sha256": "e2b6fef79f4edb680e6374d04b312a77eb0a527be79b67d3726214de72261bde",
+      "size": 19944
+    },
+    {
+      "name": "libonnxruntime.a",
+      "sha256": "589e781d544d85267be5d7e74eae68fddd40ba41bf27e9961f867378170f8802",
+      "size": 75070504
+    },
+    {
+      "name": "libsherpa-onnx-c-api.a",
+      "sha256": "ed57e51ff4ced2eff95739cb1aedefbb14db48d2562f60e61a16e6de4eb2fe28",
+      "size": 389336
+    },
+    {
+      "name": "libsherpa-onnx-core.a",
+      "sha256": "13d9679c7a14ad30590d971458bbd3e0289fe82b347a282c7614d49c28dd45e6",
+      "size": 14480640
+    },
+    {
+      "name": "libsherpa-onnx-cxx-api.a",
+      "sha256": "971fb96c82b524bc108c93bac89fbd7a0945e240b34ca3e6d123a23787b38fd9",
+      "size": 155944
+    },
+    {
+      "name": "libsherpa-onnx-fst.a",
+      "sha256": "7fdd97a7b716b28ceb6d44d83642128d9ea6072409f98ac00b7316b217bbd869",
+      "size": 2535400
+    },
+    {
+      "name": "libsherpa-onnx-fstfar.a",
+      "sha256": "cd229e8128f953d1e1968110c1e7724802fc78480a5c4395e368813034460664",
+      "size": 55920
+    },
+    {
+      "name": "libsherpa-onnx-kaldifst-core.a",
+      "sha256": "b24ec009d577f4808bb276db9cc7939b7adf1a77339222411f4de3376068ac55",
+      "size": 1585872
+    },
+    {
+      "name": "libsherpa-onnx-portaudio_static.a",
+      "sha256": "815d15a7103365f120f2f700aa3c1f7f21786b7470b855a26bbce6cf5d245f5e",
+      "size": 124128
+    },
+    {
+      "name": "libssentencepiece_core.a",
+      "sha256": "2864120829ecec4c5b11f3d97c876313dd8a47b15dfc980168369c08ca713f06",
+      "size": 151000
+    },
+    {
+      "name": "libutf8proc.a",
+      "sha256": "a4b26abf0cc741e8f355aefab1b34084397279b3389c4c14fc4d5a760e75b5bd",
+      "size": 357728
+    }
+  ],
+  "compile_smoke": {
+    "status": "compiled_and_linked_without_execution",
+    "language_standard": "c++17",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)",
+    "source_sha256": "201db1f5d262008418bb5ee50d2b89986cb235850a06df1844855750df339eeb",
+    "source": "#include \"sherpa-onnx/csrc/speaker-embedding-extractor.h\"\n#include \"sherpa-onnx/csrc/online-stream.h\"\n#include \"sherpa-onnx/csrc/features.h\"\nstd::vector<float> sdk_compile_only(sherpa_onnx::SpeakerEmbeddingExtractor const& extractor, const float* pcm, int n) {\n  sherpa_onnx::FeatureExtractorConfig config;\n  config.sampling_rate = 16000;\n  config.feature_dim = 80;\n  config.window_type = \"hamming\";\n  config.snip_edges = true;\n  config.high_freq = 0;\n  config.normalize_samples = false;\n  sherpa_onnx::OnlineStream stream(config);\n  stream.AcceptWaveform(16000, pcm, n);\n  stream.InputFinished();\n  if (!extractor.IsReady(&stream)) return {};\n  return extractor.Compute(&stream);\n}\nint main() { return 0; }\n",
+    "note": "No model load or inference. Link all native_libraries plus Foundation framework. Object references custom OnlineStream and SpeakerEmbeddingExtractor methods."
+  }
+}

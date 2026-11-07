@@ -1,0 +1,15 @@
+{
+  "name": "vantranscribe-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build --bundles app --features custom-protocol",
+    "check": "npm --prefix ui run check",
+    "test:ui": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}

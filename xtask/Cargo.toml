@@ -1,0 +1,27 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Offline reference-backed speech quality evaluation"
+
+[features]
+inference = ["dep:vt-core", "dep:vt-stt", "dep:vt-diarize", "dep:sherpa-onnx", "dep:vt-speakers", "dep:vt-speaker-frontend"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+vt-core = { workspace = true, optional = true }
+vt-stt = { workspace = true, optional = true }
+vt-diarize = { workspace = true, optional = true }
+vt-speakers = { workspace = true, optional = true }
+vt-speaker-frontend = { workspace = true, optional = true }
+zeroize.workspace = true
+sherpa-onnx = { version = "=2.0.1", optional = true }
+
+[lints]
+workspace = true

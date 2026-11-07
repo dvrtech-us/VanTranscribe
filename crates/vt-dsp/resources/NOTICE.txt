@@ -1,0 +1,47 @@
+VanTranscribe inference-only echo control third-party notices
+
+Direct DSP implementation: Sonora 0.2.0 / sonora-aec3 0.2.0, exact versions
+pinned in Cargo.toml and package checksums retained in the workspace Cargo.lock.
+Published Sonora source revision: a024d6ef8351add55be5e8b1d6cc35f555787660.
+Source: https://github.com/dignifiedquire/sonora
+Sonora is a Rust port of WebRTC M145 (branch-heads/7632).
+
+All seven actual Sonora crates declare BSD-3-Clause:
+sonora, sonora-aec3, sonora-common-audio, sonora-fft, sonora-simd,
+sonora-ns and sonora-agc2, all version 0.2.0.
+Their corresponding *-BSD-3-Clause.txt files reproduce the shared upstream
+copyright/terms. sonora-aec3's published package inherits license.workspace
+and does not package a separate LICENSE; its notice is the verified shared
+repository/root Sonora LICENSE, identical to the six packaged license files.
+Noise suppression and automatic gain control are disabled in vt-dsp at runtime;
+we retain their notices because the Sonora wrapper depends on those crates.
+
+Additional upstream code notices retained for the actual Rust port:
+- Ooura FFT: Takuya Ooura 1996-2001, permissive license, Ooura-FFT-LICENSE.txt.
+- PFFFT/FFTPACK: Julien Pommier, UCAR/NCAR, BSD-style terms,
+  PFFFT-FFTPACK-LICENSE.txt. sonora-fft includes the scalar PFFFT/FFTPACK port.
+- RNNoise-derived RNN VAD weights/code: Mozilla, Jean-Marc Valin, Xiph.Org
+  Foundation and Mark Borgerding; RNNoise-BSD-3-Clause.txt. These are included
+  by sonora-agc2 even though AGC2/RNN VAD are not enabled in vt-dsp.
+- WebRTC original BSD notice and additional patent grant:
+  WebRTC-M145-BSD-3-Clause.txt and WebRTC-M145-PATENTS.txt.
+Primary source notices were verified against WebRTC/Chromium M145:
+https://webrtc.googlesource.com/src/+/refs/branch-heads/7632/LICENSE
+https://webrtc.googlesource.com/src/+/refs/branch-heads/7632/PATENTS
+https://webrtc.googlesource.com/src/+/refs/branch-heads/7632/common_audio/third_party/ooura/LICENSE
+https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7632/third_party/pffft/LICENSE
+https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7632/third_party/rnnoise/COPYING
+
+Additional Sonora dependency notices:
+- bytemuck 1.25.2 and bytemuck_derive 1.12.1 offer Zlib OR Apache-2.0 OR MIT;
+  the included version-specific MIT notice is the selected alternative.
+- derive_more 2.1.1 and derive_more-impl 2.1.1: MIT.
+- tracing 0.1.44, tracing-core 0.1.36 and tracing-attributes 0.1.31: MIT.
+The included version-specific MIT files reproduce the actual published notices.
+Other shared Rust infrastructure dependencies are covered by the application's
+existing dependency notices. No GPL or LGPL component was found in the locked
+Sonora subtree inspected for this feature; this is not an entire-app inventory.
+
+Resampling reuses the already-pinned sherpa-onnx 2.0.1 native sinc resampler,
+with its Apache-2.0 license and ONNX Runtime MIT notice reproduced here too.
+No external speech-model downloads or audio fixtures are required by this DSP feature.

@@ -1,0 +1,54 @@
+WeSpeaker English VoxCeleb ResNet34: explicit CMN metadata research derivative
+
+Original speaker model: WeSpeaker / WeNet community, trained on VoxCeleb.
+Sherpa-compatible ONNX metadata/conversion: k2-fsa/sherpa-onnx contributors.
+VanTranscribe's separate research derivative appends one ONNX metadata entry:
+  feature_normalize_type = global-mean
+Transformation ID: onnx-metadata-feature-normalize-global-mean-v1
+
+Official source asset:
+https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34.onnx
+Source bytes: 26,534,365
+Publisher checksum, independently matched by the acquired source SHA-256:
+5ef208a9da1453335308a6b6f4e6dfbd7e183a38b604de0a57664f45d257fe94
+The official release checksum file supplies the same filename-specific hash:
+https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/checksum.txt
+Checksum-file bytes: 3,477
+Locally recorded checksum-file SHA-256:
+c3a928cc16d165ce869553f71fcbe6fc1c1b513aee0665414548780a979b2325
+The release asset API digest is absent; that does not negate the separately
+published checksum.
+
+Derived bytes: 26,534,404
+Locally frozen derived SHA-256:
+6928c40c3b5c695352998c261cb6f2250c4e52a991e324c0f63c2e10fe7c31f8
+The entire source is an unchanged byte-for-byte prefix. The only added bytes
+are this 39-byte protobuf ModelProto field-14 StringStringEntry suffix:
+72250a16666561747572655f6e6f726d616c697a655f74797065120b676c6f62616c2d6d65616e
+Graph nodes, tensors and trained parameters are not rewritten or retrained.
+The preparation script accepts only the pinned source and writes a new file;
+it does not overwrite or reinterpret the ordinary unmodified model profile.
+
+The upstream inference script requires per-feature time-mean normalization:
+https://github.com/wenet-e2e/wespeaker/blob/master/wespeaker/bin/infer_onnx.py
+The acquired ONNX has no feature_normalize_type metadata entry or input CMN
+node. Sherpa-onnx 2.0.1 uses the explicit global-mean metadata value to select
+its native feature normalization. This derivative makes that choice explicit
+under a distinct model/preprocessing identity. It does not apply an inferred
+ERes2Net rule or claim full WeSpeaker reference parity: native sample windows
+and other implementation details remain independently measurable.
+
+Original model and attribution:
+https://github.com/wenet-e2e/wespeaker
+https://huggingface.co/Wespeaker/wespeaker-voxceleb-resnet34
+The upstream pretrained-model documentation states that VoxCeleb-trained
+weights follow Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://github.com/wenet-e2e/wespeaker/blob/master/docs/pretrained.md#model-license
+https://creativecommons.org/licenses/by/4.0/
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+The Hugging Face model-card metadata separately declares Apache-2.0, and
+WeSpeaker source code uses Apache-2.0. Retain Apache-2.0.txt with this weights
+attribution and CC BY notice. These notices record the upstream difference;
+they do not resolve or override either publisher statement. No endorsement
+is implied. VanTranscribe does not bundle or redistribute these weights.

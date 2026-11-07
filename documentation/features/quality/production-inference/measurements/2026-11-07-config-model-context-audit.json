@@ -1,0 +1,2932 @@
+{
+  "configuration_audit": {
+    "acceptance": "not_claimed",
+    "experiments": [
+      {
+        "canonical_diarization": {
+          "der_jer": {
+            "confused_speaker_seconds": 44.154101999999995,
+            "der": 0.5370042840817659,
+            "false_alarm_speaker_seconds": 14.972703999999977,
+            "hypothesis_speaker_seconds": 164.448957,
+            "hypothesis_speakers": 25,
+            "jer": 0.5799903030835385,
+            "jer_speaker_error_sum": 2.319961212334154,
+            "mapping": {
+              "A": "native-11",
+              "B": "native-10",
+              "C": "native-25",
+              "D": "native-23"
+            },
+            "missed_speaker_seconds": 45.664746999999856,
+            "reference_speaker_seconds": 195.14099999999988,
+            "reference_speakers": 4,
+            "scored_uem_seconds": 275.3759999999999
+          },
+          "processing_ms": 13002.35075,
+          "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1/threshold.5 defaults; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy"
+        },
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-0-300",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-0-300",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4159,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/inference-input.json",
+            "sha256": "9ba03e629a61bd19df800c879b656b175ffee4cd489f2a7102b8bf5ccd84bca6"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/audio.wav",
+            "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+          },
+          {
+            "bytes": 2422,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.txt",
+            "sha256": "dee0878f7abb9936396cedffc52232809a6e57b2d93402cd444c91511766f8de"
+          },
+          {
+            "bytes": 4022,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.rttm",
+            "sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468"
+          },
+          {
+            "bytes": 46,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/regions.uem",
+            "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 709.730875,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7286.136875,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 1.0,
+              "id": "int8-production-endpoint",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": false,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 512,
+              "hypothesis_words": 2,
+              "insertions": 0,
+              "reference_words": 514,
+              "substitutions": 0,
+              "wer": 0.9961089494163424
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 695.601833,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7056.139333,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 1.0,
+              "id": "int8-official-endpoint",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 512,
+              "hypothesis_words": 2,
+              "insertions": 0,
+              "reference_words": 514,
+              "substitutions": 0,
+              "wer": 0.9961089494163424
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 678.145166,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7671.5983750000005,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 1.0,
+              "id": "int8-beam4-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": false,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 500,
+              "hypothesis_words": 14,
+              "insertions": 0,
+              "reference_words": 514,
+              "substitutions": 6,
+              "wer": 0.9844357976653697
+            }
+          },
+          {
+            "clipped_samples": 38,
+            "timing": {
+              "constructor_ms": 736.843792,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8014.487916,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 8.0,
+              "id": "int8-beam4-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": false,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 205,
+              "hypothesis_words": 309,
+              "insertions": 0,
+              "reference_words": 514,
+              "substitutions": 176,
+              "wer": 0.7412451361867705
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 739.92375,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8709.74,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/encoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "d1d74ba2fd9ce2186662cec93eab9f9c102d97a18e86dafdaf584776c961ab1d"
+              },
+              "gain": 1.0,
+              "id": "fp32-official-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/joiner-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "5fe99bb91ea035ab82765f65955b6a9cd2f8b7ebd320761e432d16e432dcaad9"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 508,
+              "hypothesis_words": 6,
+              "insertions": 0,
+              "reference_words": 514,
+              "substitutions": 2,
+              "wer": 0.9922178988326849
+            }
+          },
+          {
+            "clipped_samples": 38,
+            "timing": {
+              "constructor_ms": 650.16325,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8620.272458000001,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/encoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "d1d74ba2fd9ce2186662cec93eab9f9c102d97a18e86dafdaf584776c961ab1d"
+              },
+              "gain": 8.0,
+              "id": "fp32-official-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/joiner-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "5fe99bb91ea035ab82765f65955b6a9cd2f8b7ebd320761e432d16e432dcaad9"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 228,
+              "hypothesis_words": 286,
+              "insertions": 0,
+              "reference_words": 514,
+              "substitutions": 164,
+              "wer": 0.7626459143968871
+            }
+          }
+        ]
+      },
+      {
+        "canonical_diarization": {
+          "der_jer": {
+            "confused_speaker_seconds": 96.97380800000013,
+            "der": 0.5998572395262421,
+            "false_alarm_speaker_seconds": 4.990516999999965,
+            "hypothesis_speaker_seconds": 208.07211800000016,
+            "hypothesis_speakers": 31,
+            "jer": 0.6095035302915722,
+            "jer_speaker_error_sum": 2.438014121166289,
+            "mapping": {
+              "A": "native-3",
+              "B": "native-24",
+              "C": "native-11",
+              "D": "native-6"
+            },
+            "missed_speaker_seconds": 49.62139899999991,
+            "reference_speaker_seconds": 252.7030000000001,
+            "reference_speakers": 4,
+            "scored_uem_seconds": 260.27800000000013
+          },
+          "processing_ms": 15442.763292,
+          "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1/threshold.5 defaults; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy"
+        },
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [300,600) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-300-600",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-300-600",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4152,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/inference-input.json",
+            "sha256": "ca14297e7da833abc3d65e49568000c58561f50a3a4b77595313e41ae1fcc325"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/audio.wav",
+            "sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6"
+          },
+          {
+            "bytes": 3596,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.txt",
+            "sha256": "55c7432f274091782687d96080ee55af19ad08058c96a67bf506a482d255f0d1"
+          },
+          {
+            "bytes": 6827,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.rttm",
+            "sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0"
+          },
+          {
+            "bytes": 48,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/regions.uem",
+            "sha256": "efdc01dd82b0c26c56d3b8840732f7f8b669b1ae7a640fdcf054ce68954c6f58"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 704.218083,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7051.159250000001,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 1.0,
+              "id": "int8-production-endpoint",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": false,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 714,
+              "hypothesis_words": 59,
+              "insertions": 0,
+              "reference_words": 773,
+              "substitutions": 17,
+              "wer": 0.9456662354463131
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 677.723417,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7159.62925,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 1.0,
+              "id": "int8-official-endpoint",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 714,
+              "hypothesis_words": 59,
+              "insertions": 0,
+              "reference_words": 773,
+              "substitutions": 17,
+              "wer": 0.9456662354463131
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 683.432792,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7622.680458,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 1.0,
+              "id": "int8-beam4-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": false,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 689,
+              "hypothesis_words": 84,
+              "insertions": 0,
+              "reference_words": 773,
+              "substitutions": 25,
+              "wer": 0.9236739974126779
+            }
+          },
+          {
+            "clipped_samples": 2,
+            "timing": {
+              "constructor_ms": 684.7246660000001,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7735.5530420000005,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+              },
+              "gain": 8.0,
+              "id": "int8-beam4-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+                "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": false,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 410,
+              "hypothesis_words": 365,
+              "insertions": 2,
+              "reference_words": 773,
+              "substitutions": 166,
+              "wer": 0.7477360931435963
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 671.751208,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 9011.126167,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/encoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "d1d74ba2fd9ce2186662cec93eab9f9c102d97a18e86dafdaf584776c961ab1d"
+              },
+              "gain": 1.0,
+              "id": "fp32-official-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/joiner-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "5fe99bb91ea035ab82765f65955b6a9cd2f8b7ebd320761e432d16e432dcaad9"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 712,
+              "hypothesis_words": 61,
+              "insertions": 0,
+              "reference_words": 773,
+              "substitutions": 20,
+              "wer": 0.9469598965071151
+            }
+          },
+          {
+            "clipped_samples": 2,
+            "timing": {
+              "constructor_ms": 685.211291,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8923.257125,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/encoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "d1d74ba2fd9ce2186662cec93eab9f9c102d97a18e86dafdaf584776c961ab1d"
+              },
+              "gain": 8.0,
+              "id": "fp32-official-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/joiner-epoch-99-avg-1-chunk-16-left-128.onnx",
+                "sha256": "5fe99bb91ea035ab82765f65955b6a9cd2f8b7ebd320761e432d16e432dcaad9"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 420,
+              "hypothesis_words": 356,
+              "insertions": 3,
+              "reference_words": 773,
+              "substitutions": 161,
+              "wer": 0.7554980595084088
+            }
+          }
+        ]
+      }
+    ],
+    "model_files": [
+      {
+        "bytes": 70108816,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+      },
+      {
+        "bytes": 2093080,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+      },
+      {
+        "bytes": 259416,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 70108816,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+      },
+      {
+        "bytes": 2093080,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+      },
+      {
+        "bytes": 259416,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 70108816,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+      },
+      {
+        "bytes": 2093080,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+      },
+      {
+        "bytes": 259416,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 70108816,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+      },
+      {
+        "bytes": 2093080,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+      },
+      {
+        "bytes": 259416,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+        "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 260642850,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/encoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "d1d74ba2fd9ce2186662cec93eab9f9c102d97a18e86dafdaf584776c961ab1d"
+      },
+      {
+        "bytes": 2093080,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+      },
+      {
+        "bytes": 1026462,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/joiner-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "5fe99bb91ea035ab82765f65955b6a9cd2f8b7ebd320761e432d16e432dcaad9"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 260642850,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/encoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "d1d74ba2fd9ce2186662cec93eab9f9c102d97a18e86dafdaf584776c961ab1d"
+      },
+      {
+        "bytes": 2093080,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+      },
+      {
+        "bytes": 1026462,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/joiner-epoch-99-avg-1-chunk-16-left-128.onnx",
+        "sha256": "5fe99bb91ea035ab82765f65955b6a9cd2f8b7ebd320761e432d16e432dcaad9"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer26-fp32/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      }
+    ],
+    "artifact_sha256": "f940c61a0bb61863dabd3f00e086256c8f32b49a092ec154874623083c71f942",
+    "local_artifact": "/private/tmp/vantranscribe-ami-eval/configuration-audit-v1/results.json"
+  },
+  "june21_comparison": {
+    "acceptance": "not_claimed",
+    "experiments": [
+      {
+        "canonical_diarization": [
+          {
+            "der_jer": {
+              "confused_speaker_seconds": 30.97188500000003,
+              "der": 0.4689188432979227,
+              "false_alarm_speaker_seconds": 14.864802999999979,
+              "hypothesis_speaker_seconds": 164.33719899999997,
+              "hypothesis_speakers": 17,
+              "jer": 0.4714497921468409,
+              "jer_speaker_error_sum": 1.8857991685873636,
+              "mapping": {
+                "A": "native-10",
+                "B": "native-9",
+                "C": "native-17",
+                "D": "native-14"
+              },
+              "missed_speaker_seconds": 45.66860399999987,
+              "reference_speaker_seconds": 195.14099999999988,
+              "reference_speakers": 4,
+              "scored_uem_seconds": 275.3759999999999
+            },
+            "processing_ms": 12983.717875,
+            "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1; threshold is complete-linkage cosineDISTANCE; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy",
+            "threshold": 0.6499999761581421
+          },
+          {
+            "der_jer": {
+              "confused_speaker_seconds": 10.672511000000043,
+              "der": 0.36276078322853694,
+              "false_alarm_speaker_seconds": 14.563783999999982,
+              "hypothesis_speaker_seconds": 164.151577,
+              "hypothesis_speakers": 12,
+              "jer": 0.4616857062481186,
+              "jer_speaker_error_sum": 1.8467428249924744,
+              "mapping": {
+                "A": "native-9",
+                "B": "native-8",
+                "C": "native-12",
+                "D": "native-0"
+              },
+              "missed_speaker_seconds": 45.553206999999865,
+              "reference_speaker_seconds": 195.14099999999988,
+              "reference_speakers": 4,
+              "scored_uem_seconds": 275.3759999999999
+            },
+            "processing_ms": 12937.414042,
+            "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1; threshold is complete-linkage cosineDISTANCE; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy",
+            "threshold": 0.75
+          }
+        ],
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-0-300",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-0-300",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4159,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/inference-input.json",
+            "sha256": "9ba03e629a61bd19df800c879b656b175ffee4cd489f2a7102b8bf5ccd84bca6"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/audio.wav",
+            "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+          },
+          {
+            "bytes": 2422,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.txt",
+            "sha256": "dee0878f7abb9936396cedffc52232809a6e57b2d93402cd444c91511766f8de"
+          },
+          {
+            "bytes": 4022,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.rttm",
+            "sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468"
+          },
+          {
+            "bytes": 46,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/regions.uem",
+            "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 375.57970800000004,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8102.9905420000005,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 1.0,
+              "id": "libri-giga21-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 159,
+              "hypothesis_words": 365,
+              "insertions": 10,
+              "reference_words": 514,
+              "substitutions": 100,
+              "wer": 0.5233463035019456
+            }
+          },
+          {
+            "clipped_samples": 38,
+            "timing": {
+              "constructor_ms": 339.095667,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 7995.198792,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 8.0,
+              "id": "libri-giga21-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 136,
+              "hypothesis_words": 404,
+              "insertions": 26,
+              "reference_words": 514,
+              "substitutions": 104,
+              "wer": 0.5175097276264592
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 368.622791,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8691.757292,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 1.0,
+              "id": "libri-giga21-beam4-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 137,
+              "hypothesis_words": 398,
+              "insertions": 21,
+              "reference_words": 514,
+              "substitutions": 115,
+              "wer": 0.5311284046692607
+            }
+          },
+          {
+            "clipped_samples": 38,
+            "timing": {
+              "constructor_ms": 354.601334,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8523.438791,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 8.0,
+              "id": "libri-giga21-beam4-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 117,
+              "hypothesis_words": 440,
+              "insertions": 43,
+              "reference_words": 514,
+              "substitutions": 114,
+              "wer": 0.5330739299610895
+            }
+          }
+        ]
+      },
+      {
+        "canonical_diarization": [
+          {
+            "der_jer": {
+              "confused_speaker_seconds": 89.08496200000015,
+              "der": 0.564485613546337,
+              "false_alarm_speaker_seconds": 4.09503999999998,
+              "hypothesis_speaker_seconds": 207.33083400000015,
+              "hypothesis_speakers": 18,
+              "jer": 0.5645681241318816,
+              "jer_speaker_error_sum": 2.2582724965275265,
+              "mapping": {
+                "A": "native-3",
+                "B": "native-15",
+                "C": "native-10",
+                "D": "native-6"
+              },
+              "missed_speaker_seconds": 49.46720599999992,
+              "reference_speaker_seconds": 252.7030000000001,
+              "reference_speakers": 4,
+              "scored_uem_seconds": 260.27800000000013
+            },
+            "processing_ms": 15466.894333,
+            "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1; threshold is complete-linkage cosineDISTANCE; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy",
+            "threshold": 0.6499999761581421
+          },
+          {
+            "der_jer": {
+              "confused_speaker_seconds": 50.79829700000013,
+              "der": 0.4140329992125142,
+              "false_alarm_speaker_seconds": 4.702817999999972,
+              "hypothesis_speaker_seconds": 208.2795520000002,
+              "hypothesis_speakers": 14,
+              "jer": 0.4905368184897431,
+              "jer_speaker_error_sum": 1.9621472739589725,
+              "mapping": {
+                "A": "native-2",
+                "B": "native-6",
+                "C": "native-7",
+                "D": "native-0"
+              },
+              "missed_speaker_seconds": 49.1262659999999,
+              "reference_speaker_seconds": 252.7030000000001,
+              "reference_speakers": 4,
+              "scored_uem_seconds": 260.27800000000013
+            },
+            "processing_ms": 15445.892083,
+            "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1; threshold is complete-linkage cosineDISTANCE; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy",
+            "threshold": 0.75
+          }
+        ],
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [300,600) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-300-600",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-300-600",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4152,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/inference-input.json",
+            "sha256": "ca14297e7da833abc3d65e49568000c58561f50a3a4b77595313e41ae1fcc325"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/audio.wav",
+            "sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6"
+          },
+          {
+            "bytes": 3596,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.txt",
+            "sha256": "55c7432f274091782687d96080ee55af19ad08058c96a67bf506a482d255f0d1"
+          },
+          {
+            "bytes": 6827,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.rttm",
+            "sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0"
+          },
+          {
+            "bytes": 48,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/regions.uem",
+            "sha256": "efdc01dd82b0c26c56d3b8840732f7f8b669b1ae7a640fdcf054ce68954c6f58"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 351.064667,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8124.646625,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 1.0,
+              "id": "libri-giga21-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 263,
+              "hypothesis_words": 513,
+              "insertions": 3,
+              "reference_words": 773,
+              "substitutions": 122,
+              "wer": 0.5019404915912031
+            }
+          },
+          {
+            "clipped_samples": 2,
+            "timing": {
+              "constructor_ms": 337.783708,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8001.479791999999,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 8.0,
+              "id": "libri-giga21-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 232,
+              "hypothesis_words": 545,
+              "insertions": 4,
+              "reference_words": 773,
+              "substitutions": 122,
+              "wer": 0.463130659767141
+            }
+          },
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "constructor_ms": 330.936708,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8721.450083,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 1.0,
+              "id": "libri-giga21-beam4-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 226,
+              "hypothesis_words": 549,
+              "insertions": 2,
+              "reference_words": 773,
+              "substitutions": 141,
+              "wer": 0.47736093143596375
+            }
+          },
+          {
+            "clipped_samples": 2,
+            "timing": {
+              "constructor_ms": 349.580667,
+              "feature_dim": 80,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8984.110041999998,
+              "sample_rate": 16000,
+              "vad": false
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "modified_beam_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 8.0,
+              "id": "libri-giga21-beam4-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 206,
+              "hypothesis_words": 572,
+              "insertions": 5,
+              "reference_words": 773,
+              "substitutions": 134,
+              "wer": 0.4463130659767141
+            }
+          }
+        ]
+      }
+    ],
+    "model_files": [
+      {
+        "bytes": 187823992,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+        "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+      },
+      {
+        "bytes": 2092566,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+        "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+      },
+      {
+        "bytes": 259335,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+        "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 187823992,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+        "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+      },
+      {
+        "bytes": 2092566,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+        "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+      },
+      {
+        "bytes": 259335,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+        "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 187823992,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+        "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+      },
+      {
+        "bytes": 2092566,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+        "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+      },
+      {
+        "bytes": 259335,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+        "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 187823992,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+        "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+      },
+      {
+        "bytes": 2092566,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+        "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+      },
+      {
+        "bytes": 259335,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+        "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      }
+    ],
+    "artifact_sha256": "033259bcf8bf4780675e18e648eab52c3c03faf0859eee4d7129a159a758e475",
+    "local_artifact": "/private/tmp/vantranscribe-ami-eval/candidate21-evaluation-v1/results.json"
+  },
+  "june21_resources": {
+    "acceptance": "not_claimed",
+    "experiments": [
+      {
+        "canonical_diarization": null,
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-0-300",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-0-300",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4159,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/inference-input.json",
+            "sha256": "9ba03e629a61bd19df800c879b656b175ffee4cd489f2a7102b8bf5ccd84bca6"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/audio.wav",
+            "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+          },
+          {
+            "bytes": 2422,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.txt",
+            "sha256": "dee0878f7abb9936396cedffc52232809a6e57b2d93402cd444c91511766f8de"
+          },
+          {
+            "bytes": 4022,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.rttm",
+            "sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468"
+          },
+          {
+            "bytes": 46,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/regions.uem",
+            "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 420.573083,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8164.889708000001,
+              "real_time_factor": 0.027216299026666668,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 10,
+                "rss_max_bytes": 504102912,
+                "cpu_sample_mean_total_machine_percent": 20.52285714285714,
+                "cpu_sample_max_total_machine_percent": 23.82857142857143
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 1.0,
+              "id": "libri-giga21-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 159,
+              "hypothesis_words": 365,
+              "insertions": 10,
+              "reference_words": 514,
+              "substitutions": 100,
+              "wer": 0.5233463035019456
+            }
+          },
+          {
+            "clipped_samples": 38,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 344.586416,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8072.212374999999,
+              "real_time_factor": 0.02690737458333333,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 10,
+                "rss_max_bytes": 655540224,
+                "cpu_sample_mean_total_machine_percent": 20.72714285714286,
+                "cpu_sample_max_total_machine_percent": 24.157142857142855
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 8.0,
+              "id": "libri-giga21-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 136,
+              "hypothesis_words": 404,
+              "insertions": 26,
+              "reference_words": 514,
+              "substitutions": 104,
+              "wer": 0.5175097276264592
+            }
+          }
+        ]
+      },
+      {
+        "canonical_diarization": null,
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [300,600) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-300-600",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-300-600",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4152,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/inference-input.json",
+            "sha256": "ca14297e7da833abc3d65e49568000c58561f50a3a4b77595313e41ae1fcc325"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/audio.wav",
+            "sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6"
+          },
+          {
+            "bytes": 3596,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.txt",
+            "sha256": "55c7432f274091782687d96080ee55af19ad08058c96a67bf506a482d255f0d1"
+          },
+          {
+            "bytes": 6827,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.rttm",
+            "sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0"
+          },
+          {
+            "bytes": 48,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/regions.uem",
+            "sha256": "efdc01dd82b0c26c56d3b8840732f7f8b669b1ae7a640fdcf054ce68954c6f58"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 333.599625,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8045.277166,
+              "real_time_factor": 0.026817590553333333,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 10,
+                "rss_max_bytes": 656015360,
+                "cpu_sample_mean_total_machine_percent": 21.854999999999997,
+                "cpu_sample_max_total_machine_percent": 24.385714285714283
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 1.0,
+              "id": "libri-giga21-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 263,
+              "hypothesis_words": 513,
+              "insertions": 3,
+              "reference_words": 773,
+              "substitutions": 122,
+              "wer": 0.5019404915912031
+            }
+          },
+          {
+            "clipped_samples": 2,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 363.727875,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 8070.118792,
+              "real_time_factor": 0.026900395973333335,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 10,
+                "rss_max_bytes": 669499392,
+                "cpu_sample_mean_total_machine_percent": 22.010714285714286,
+                "cpu_sample_max_total_machine_percent": 24.685714285714287
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+                "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+                "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+              },
+              "gain": 8.0,
+              "id": "libri-giga21-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+                "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+              },
+              "license": "Apache-2.0",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-21",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+                "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+              }
+            },
+            "wer": {
+              "deletions": 232,
+              "hypothesis_words": 545,
+              "insertions": 4,
+              "reference_words": 773,
+              "substitutions": 122,
+              "wer": 0.463130659767141
+            }
+          }
+        ]
+      }
+    ],
+    "model_files": [
+      {
+        "bytes": 187823992,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+        "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+      },
+      {
+        "bytes": 2092566,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+        "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+      },
+      {
+        "bytes": 259335,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+        "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      },
+      {
+        "bytes": 187823992,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/encoder-epoch-99-avg-1.int8.onnx",
+        "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+      },
+      {
+        "bytes": 2092566,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/decoder-epoch-99-avg-1.onnx",
+        "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+      },
+      {
+        "bytes": 259335,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/joiner-epoch-99-avg-1.int8.onnx",
+        "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+      },
+      {
+        "bytes": 5048,
+        "path": "/private/tmp/vantranscribe-ami-eval/zipformer21-int8/tokens.txt",
+        "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+      }
+    ],
+    "runner": {
+      "binary": {
+        "bytes": 28544336,
+        "path": "/Volumes/dev/repos/personal/VanTranscribe/target/release/xtask",
+        "sha256": "41119d87d61a3ae3d38fa5de279605ac8d95b293b939c95778d52f4bb9f9e6d7"
+      },
+      "config": {
+        "bytes": 2824,
+        "path": "/private/tmp/vantranscribe-ami-eval/candidate21-resources.json",
+        "sha256": "87a76c52b401a06b831a8164a2467a3e7661d2f39111680ea6635cd4ffcb079c"
+      }
+    },
+    "artifact_sha256": "00331b646076875f499bbbc349dcfa3b3f2b5a01ab1aa36540351e47b45027b4",
+    "local_artifact": "/private/tmp/vantranscribe-ami-eval/candidate21-resources-v1/results.json"
+  },
+  "nemotron_comparison": {
+    "acceptance": "not_claimed",
+    "experiments": [
+      {
+        "canonical_diarization": [
+          {
+            "der_jer": {
+              "confused_speaker_seconds": 10.672511000000043,
+              "der": 0.36293372484511166,
+              "false_alarm_speaker_seconds": 14.597531999999985,
+              "hypothesis_speaker_seconds": 164.18532499999998,
+              "hypothesis_speakers": 10,
+              "jer": 0.4616857062481186,
+              "jer_speaker_error_sum": 1.8467428249924744,
+              "mapping": {
+                "A": "native-7",
+                "B": "native-6",
+                "C": "native-9",
+                "D": "native-0"
+              },
+              "missed_speaker_seconds": 45.553206999999865,
+              "reference_speaker_seconds": 195.14099999999988,
+              "reference_speakers": 4,
+              "scored_uem_seconds": 275.3759999999999
+            },
+            "processing_ms": 13074.343791000001,
+            "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1; threshold is complete-linkage cosineDISTANCE; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy",
+            "threshold": 0.8500000238418579
+          }
+        ],
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-0-300",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-0-300",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4159,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/inference-input.json",
+            "sha256": "9ba03e629a61bd19df800c879b656b175ffee4cd489f2a7102b8bf5ccd84bca6"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/audio.wav",
+            "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+          },
+          {
+            "bytes": 2422,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.txt",
+            "sha256": "dee0878f7abb9936396cedffc52232809a6e57b2d93402cd444c91511766f8de"
+          },
+          {
+            "bytes": 4022,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.rttm",
+            "sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468"
+          },
+          {
+            "bytes": 46,
+            "path": "/private/tmp/vantranscribe-ami-eval/first300/regions.uem",
+            "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 816.431875,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 96623.550542,
+              "real_time_factor": 0.32207850180666664,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 91,
+                "rss_max_bytes": 1216937984,
+                "cpu_sample_mean_total_machine_percent": 14.522527472527472,
+                "cpu_sample_max_total_machine_percent": 15.028571428571428
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/decoder.int8.onnx",
+                "sha256": "0be9702c2f427a2b6bb241d298e0d3836a558de1f5b9fd3018f1cce6e2b3fa98"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/encoder.int8.onnx",
+                "sha256": "7d932213491ad355c6e5576705dc3494731a52af87d7a1b954559340147909d8"
+              },
+              "gain": 1.0,
+              "id": "nemotron560-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/joiner.int8.onnx",
+                "sha256": "a35eac38a22ebceb04d230ed7afe0d68f446ba6914a036b97f14fece95967e23"
+              },
+              "license": "NVIDIA Open Model License (2025-10-24), not Apache/CC-BY; official model-owner card",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b",
+                "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/tokens.txt",
+                "sha256": "dc0b4584ab2e4ddbf888425c076c61b736e7356a015250db7d307e6f1a8188ff"
+              }
+            },
+            "wer": {
+              "deletions": 189,
+              "hypothesis_words": 339,
+              "insertions": 14,
+              "reference_words": 514,
+              "substitutions": 51,
+              "wer": 0.49416342412451364
+            }
+          },
+          {
+            "clipped_samples": 38,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 839.287458,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 98880.760375,
+              "real_time_factor": 0.32960253458333333,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 91,
+                "rss_max_bytes": 1218101248,
+                "cpu_sample_mean_total_machine_percent": 14.513265306122449,
+                "cpu_sample_max_total_machine_percent": 14.978571428571428
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/decoder.int8.onnx",
+                "sha256": "0be9702c2f427a2b6bb241d298e0d3836a558de1f5b9fd3018f1cce6e2b3fa98"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/encoder.int8.onnx",
+                "sha256": "7d932213491ad355c6e5576705dc3494731a52af87d7a1b954559340147909d8"
+              },
+              "gain": 8.0,
+              "id": "nemotron560-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/joiner.int8.onnx",
+                "sha256": "a35eac38a22ebceb04d230ed7afe0d68f446ba6914a036b97f14fece95967e23"
+              },
+              "license": "NVIDIA Open Model License (2025-10-24), not Apache/CC-BY; official model-owner card",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b",
+                "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/tokens.txt",
+                "sha256": "dc0b4584ab2e4ddbf888425c076c61b736e7356a015250db7d307e6f1a8188ff"
+              }
+            },
+            "wer": {
+              "deletions": 179,
+              "hypothesis_words": 351,
+              "insertions": 16,
+              "reference_words": 514,
+              "substitutions": 42,
+              "wer": 0.46108949416342415
+            }
+          }
+        ]
+      },
+      {
+        "canonical_diarization": [
+          {
+            "der_jer": {
+              "confused_speaker_seconds": 50.68579400000013,
+              "der": 0.4125960356624177,
+              "false_alarm_speaker_seconds": 4.502688999999975,
+              "hypothesis_speaker_seconds": 208.12991600000018,
+              "hypothesis_speakers": 8,
+              "jer": 0.521140389811208,
+              "jer_speaker_error_sum": 2.084561559244832,
+              "mapping": {
+                "A": "native-2",
+                "B": "native-4",
+                "D": "native-0"
+              },
+              "missed_speaker_seconds": 49.0757729999999,
+              "reference_speaker_seconds": 252.70300000000015,
+              "reference_speakers": 4,
+              "scored_uem_seconds": 260.27800000000013
+            },
+            "processing_ms": 15461.817125,
+            "settings": "sherpa full bounded<=600s offline API; canonical10s segmentation context,50%shift; numclusters=-1; threshold is complete-linkage cosineDISTANCE; no referencecount; native assignments including shortsegments; DOES NOTimplementproductUnknown<1s/userconstraintpolicy",
+            "threshold": 0.8500000238418579
+          }
+        ],
+        "corpus": {
+          "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+          "derivation": "Official mono Array1-01 source cropped [300,600) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+          "id": "ami-manual-1.6.2-ES2002a-array1-01-300-600",
+          "license": "CC-BY-4.0",
+          "recording_id": "ES2002a-array1-01-300-600",
+          "source_urls": [
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+            "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+            "https://groups.inf.ed.ac.uk/ami/download/"
+          ]
+        },
+        "sources": [
+          {
+            "bytes": 4152,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/inference-input.json",
+            "sha256": "ca14297e7da833abc3d65e49568000c58561f50a3a4b77595313e41ae1fcc325"
+          },
+          {
+            "bytes": 9600044,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/audio.wav",
+            "sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6"
+          },
+          {
+            "bytes": 3596,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.txt",
+            "sha256": "55c7432f274091782687d96080ee55af19ad08058c96a67bf506a482d255f0d1"
+          },
+          {
+            "bytes": 6827,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.rttm",
+            "sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0"
+          },
+          {
+            "bytes": 48,
+            "path": "/private/tmp/vantranscribe-ami-eval/next300/regions.uem",
+            "sha256": "efdc01dd82b0c26c56d3b8840732f7f8b669b1ae7a640fdcf054ce68954c6f58"
+          }
+        ],
+        "variants": [
+          {
+            "clipped_samples": 0,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 768.274792,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 97782.18920800001,
+              "real_time_factor": 0.32594063069333334,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 91,
+                "rss_max_bytes": 1290272768,
+                "cpu_sample_mean_total_machine_percent": 14.549999999999999,
+                "cpu_sample_max_total_machine_percent": 14.950000000000001
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/decoder.int8.onnx",
+                "sha256": "0be9702c2f427a2b6bb241d298e0d3836a558de1f5b9fd3018f1cce6e2b3fa98"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/encoder.int8.onnx",
+                "sha256": "7d932213491ad355c6e5576705dc3494731a52af87d7a1b954559340147909d8"
+              },
+              "gain": 1.0,
+              "id": "nemotron560-raw",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/joiner.int8.onnx",
+                "sha256": "a35eac38a22ebceb04d230ed7afe0d68f446ba6914a036b97f14fece95967e23"
+              },
+              "license": "NVIDIA Open Model License (2025-10-24), not Apache/CC-BY; official model-owner card",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b",
+                "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/tokens.txt",
+                "sha256": "dc0b4584ab2e4ddbf888425c076c61b736e7356a015250db7d307e6f1a8188ff"
+              }
+            },
+            "wer": {
+              "deletions": 314,
+              "hypothesis_words": 463,
+              "insertions": 4,
+              "reference_words": 773,
+              "substitutions": 55,
+              "wer": 0.48253557567917205
+            }
+          },
+          {
+            "clipped_samples": 2,
+            "timing": {
+              "configured_api_feature_dim": 80,
+              "configured_api_sample_rate": 16000,
+              "constructor_ms": 839.172,
+              "input_contract": "normalized[-1,1] floats; native default normalize_samples=true",
+              "native_model_may_override_features": true,
+              "num_threads": 2,
+              "packet_ms": 20,
+              "processing_ms": 97390.094917,
+              "real_time_factor": 0.3246336497233333,
+              "vad": false,
+              "sampled_resources": {
+                "method": {
+                  "machine": "Mac16,7",
+                  "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+                  "os": "Darwin 27.2.0 arm64",
+                  "profile": "release",
+                  "provider": "cpu",
+                  "source": "actual sequential production core inference runner"
+                },
+                "samples": 91,
+                "rss_max_bytes": 1117224960,
+                "cpu_sample_mean_total_machine_percent": 14.579356357927786,
+                "cpu_sample_max_total_machine_percent": 14.971428571428572
+              }
+            },
+            "variant": {
+              "decoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/decoder.int8.onnx",
+                "sha256": "0be9702c2f427a2b6bb241d298e0d3836a558de1f5b9fd3018f1cce6e2b3fa98"
+              },
+              "decoding_method": "greedy_search",
+              "encoder": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/encoder.int8.onnx",
+                "sha256": "7d932213491ad355c6e5576705dc3494731a52af87d7a1b954559340147909d8"
+              },
+              "gain": 8.0,
+              "id": "nemotron560-gain8",
+              "joiner": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/joiner.int8.onnx",
+                "sha256": "a35eac38a22ebceb04d230ed7afe0d68f446ba6914a036b97f14fece95967e23"
+              },
+              "license": "NVIDIA Open Model License (2025-10-24), not Apache/CC-BY; official model-owner card",
+              "official_endpoints": true,
+              "source_urls": [
+                "https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b",
+                "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/",
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25.tar.bz2"
+              ],
+              "tokens": {
+                "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/tokens.txt",
+                "sha256": "dc0b4584ab2e4ddbf888425c076c61b736e7356a015250db7d307e6f1a8188ff"
+              }
+            },
+            "wer": {
+              "deletions": 247,
+              "hypothesis_words": 529,
+              "insertions": 3,
+              "reference_words": 773,
+              "substitutions": 67,
+              "wer": 0.41009055627425617
+            }
+          }
+        ]
+      }
+    ],
+    "model_files": [
+      {
+        "bytes": 652916849,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/encoder.int8.onnx",
+        "sha256": "7d932213491ad355c6e5576705dc3494731a52af87d7a1b954559340147909d8"
+      },
+      {
+        "bytes": 7257753,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/decoder.int8.onnx",
+        "sha256": "0be9702c2f427a2b6bb241d298e0d3836a558de1f5b9fd3018f1cce6e2b3fa98"
+      },
+      {
+        "bytes": 1735862,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/joiner.int8.onnx",
+        "sha256": "a35eac38a22ebceb04d230ed7afe0d68f446ba6914a036b97f14fece95967e23"
+      },
+      {
+        "bytes": 8952,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/tokens.txt",
+        "sha256": "dc0b4584ab2e4ddbf888425c076c61b736e7356a015250db7d307e6f1a8188ff"
+      },
+      {
+        "bytes": 652916849,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/encoder.int8.onnx",
+        "sha256": "7d932213491ad355c6e5576705dc3494731a52af87d7a1b954559340147909d8"
+      },
+      {
+        "bytes": 7257753,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/decoder.int8.onnx",
+        "sha256": "0be9702c2f427a2b6bb241d298e0d3836a558de1f5b9fd3018f1cce6e2b3fa98"
+      },
+      {
+        "bytes": 1735862,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/joiner.int8.onnx",
+        "sha256": "a35eac38a22ebceb04d230ed7afe0d68f446ba6914a036b97f14fece95967e23"
+      },
+      {
+        "bytes": 8952,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron560-int8/tokens.txt",
+        "sha256": "dc0b4584ab2e4ddbf888425c076c61b736e7356a015250db7d307e6f1a8188ff"
+      }
+    ],
+    "runner": {
+      "binary": {
+        "bytes": 28544336,
+        "path": "/Volumes/dev/repos/personal/VanTranscribe/target/release/xtask",
+        "sha256": "41119d87d61a3ae3d38fa5de279605ac8d95b293b939c95778d52f4bb9f9e6d7"
+      },
+      "config": {
+        "bytes": 3085,
+        "path": "/private/tmp/vantranscribe-ami-eval/nemotron-evaluation.json",
+        "sha256": "06ddbe86a9b8b1c1576557e896334cea6c8e3b63560f1c6f9ebdacc7cf853dc3"
+      }
+    },
+    "artifact_sha256": "aa2f286036f6db3332e16e45f9cc8ef23ad108a2ebe31d20b6c1c1c48850b1e4",
+    "local_artifact": "/private/tmp/vantranscribe-ami-eval/nemotron-evaluation-v1/results.json"
+  },
+  "reference_protocol_audit": {
+    "acceptance": "not_claimed",
+    "official_rttm": {
+      "url": "https://raw.githubusercontent.com/BUTSpeechFIT/AMI-diarization-setup/main/only_words/rttms/train/ES2002a.rttm",
+      "sha256": "3153efc675b16b7c47c6e49a3b48602613b3dfcf0ca16f590fb7541176c0f0b2",
+      "geometry_verified": "Exact after cropping to [0,300) and [300,600), translating latter origin and permuting speaker names; first4/holdout3 lexicalspeakers."
+    },
+    "comparisons": [
+      {
+        "clip": "first300",
+        "protocol": "legacy_segments",
+        "hypothesis": "production5",
+        "score": {
+          "reference_speaker_seconds": 195.14099999999988,
+          "hypothesis_speaker_seconds": 93.70400000000001,
+          "missed_speaker_seconds": 102.40599999999986,
+          "false_alarm_speaker_seconds": 0.9690000000000083,
+          "confused_speaker_seconds": 3.05199999999995,
+          "scored_uem_seconds": 275.3759999999999,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 4,
+          "jer_speaker_error_sum": 2.7233954404661316,
+          "der": 0.5453851317765097,
+          "jer": 0.6808488601165329,
+          "mapping": {}
+        },
+        "reference_sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468",
+        "hypothesis_sha256": "53600ac022225e1a8c45da86091a99ef5bbf5d7d309e60a537f2e1ff464fb8c2",
+        "report_sha256": "1f409aadd9edb33fa9ee7aa736611f589a59db816b76fff94993bd535cd541d9"
+      },
+      {
+        "clip": "first300",
+        "protocol": "legacy_segments",
+        "hypothesis": "matched10",
+        "score": {
+          "reference_speaker_seconds": 195.14099999999988,
+          "hypothesis_speaker_seconds": 112.88600000000002,
+          "missed_speaker_seconds": 82.86899999999983,
+          "false_alarm_speaker_seconds": 0.6139999999999972,
+          "confused_speaker_seconds": 6.5390000000000015,
+          "scored_uem_seconds": 275.3759999999999,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 6,
+          "jer_speaker_error_sum": 2.3439998289742596,
+          "der": 0.46131771385818404,
+          "jer": 0.5859999572435649,
+          "mapping": {}
+        },
+        "reference_sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468",
+        "hypothesis_sha256": "ee85469a6ecab0a33cb6f7cb9eff7660414aae940429ab7924c552d096ec316f",
+        "report_sha256": "6ffccf0e52e4e8da8480cea7e86032ed40a640e255b7b96a06076aca52643c71"
+      },
+      {
+        "clip": "first300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold050",
+        "score": {
+          "reference_speaker_seconds": 195.14099999999988,
+          "hypothesis_speaker_seconds": 164.448957,
+          "missed_speaker_seconds": 45.664746999999856,
+          "false_alarm_speaker_seconds": 14.972703999999977,
+          "confused_speaker_seconds": 44.154101999999995,
+          "scored_uem_seconds": 275.3759999999999,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 25,
+          "jer_speaker_error_sum": 2.319961212334154,
+          "der": 0.5370042840817659,
+          "jer": 0.5799903030835385,
+          "mapping": {}
+        },
+        "reference_sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468",
+        "hypothesis_sha256": "165b253cc946c5f704612d2dce5854fed1fcdd74376126dc49696399876840b2",
+        "report_sha256": "e3d936cc2b718828cc245bcdc4dc23a5adf488a45f11d23914b48cbdce66dff5"
+      },
+      {
+        "clip": "first300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold065",
+        "score": {
+          "reference_speaker_seconds": 195.14099999999988,
+          "hypothesis_speaker_seconds": 164.33719899999997,
+          "missed_speaker_seconds": 45.66860399999987,
+          "false_alarm_speaker_seconds": 14.864802999999979,
+          "confused_speaker_seconds": 30.97188500000003,
+          "scored_uem_seconds": 275.3759999999999,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 17,
+          "jer_speaker_error_sum": 1.8857991685873636,
+          "der": 0.4689188432979227,
+          "jer": 0.4714497921468409,
+          "mapping": {}
+        },
+        "reference_sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468",
+        "hypothesis_sha256": "6af62389b14fb9479a4773ea798439861bc76770f0dfc83017c48226c1cbfda4",
+        "report_sha256": "fcaa514cbca694861265c7e631870c4d4a8278be13bf7903957aac4d04f4ded5"
+      },
+      {
+        "clip": "first300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold075",
+        "score": {
+          "reference_speaker_seconds": 195.14099999999988,
+          "hypothesis_speaker_seconds": 164.151577,
+          "missed_speaker_seconds": 45.553206999999865,
+          "false_alarm_speaker_seconds": 14.563783999999982,
+          "confused_speaker_seconds": 10.672511000000043,
+          "scored_uem_seconds": 275.3759999999999,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 12,
+          "jer_speaker_error_sum": 1.8467428249924744,
+          "der": 0.36276078322853694,
+          "jer": 0.4616857062481186,
+          "mapping": {}
+        },
+        "reference_sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468",
+        "hypothesis_sha256": "d192f05f14e7ae025e3cbab86e7c674b4c4bbf3da9718f7e2bf5b344238665a5",
+        "report_sha256": "75cd84f8d426075c92f9852972d4cf1841a2da1de5ab5607ab0cf97d577437cf"
+      },
+      {
+        "clip": "first300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold085",
+        "score": {
+          "reference_speaker_seconds": 195.14099999999988,
+          "hypothesis_speaker_seconds": 164.18532499999998,
+          "missed_speaker_seconds": 45.553206999999865,
+          "false_alarm_speaker_seconds": 14.597531999999985,
+          "confused_speaker_seconds": 10.672511000000043,
+          "scored_uem_seconds": 275.3759999999999,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 10,
+          "jer_speaker_error_sum": 1.8467428249924744,
+          "der": 0.36293372484511166,
+          "jer": 0.4616857062481186,
+          "mapping": {}
+        },
+        "reference_sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468",
+        "hypothesis_sha256": "b1a19234b7cbae65ecd38db08121947b5d134074a1822ae778257e280c002204",
+        "report_sha256": "0c5a9c1aca3d44896842160a3e82a1b79b445a91a53935db52df450601c328ff"
+      },
+      {
+        "clip": "first300",
+        "protocol": "standard_only_words",
+        "hypothesis": "production5",
+        "score": {
+          "reference_speaker_seconds": 163.86000000000013,
+          "hypothesis_speaker_seconds": 93.69599999999997,
+          "missed_speaker_seconds": 72.78700000000015,
+          "false_alarm_speaker_seconds": 2.6229999999999905,
+          "confused_speaker_seconds": 2.4689999999999657,
+          "scored_uem_seconds": 281.95500000000004,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 4,
+          "jer_speaker_error_sum": 2.5271857712970043,
+          "der": 0.47527767606493376,
+          "jer": 0.6317964428242511,
+          "mapping": {}
+        },
+        "reference_sha256": "132be61f49634f16eaa86574044f630d32b55b6a358b0b178bbed0bd3319cec9",
+        "hypothesis_sha256": "53600ac022225e1a8c45da86091a99ef5bbf5d7d309e60a537f2e1ff464fb8c2",
+        "report_sha256": "438bf6a19c619a5080d26aed0642d136e31a947384ad8a3e7f8791199dea276d"
+      },
+      {
+        "clip": "first300",
+        "protocol": "standard_only_words",
+        "hypothesis": "matched10",
+        "score": {
+          "reference_speaker_seconds": 163.86000000000013,
+          "hypothesis_speaker_seconds": 113.25000000000001,
+          "missed_speaker_seconds": 53.804000000000116,
+          "false_alarm_speaker_seconds": 3.1940000000000097,
+          "confused_speaker_seconds": 5.3019999999999925,
+          "scored_uem_seconds": 281.95500000000004,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 6,
+          "jer_speaker_error_sum": 1.905693313552012,
+          "der": 0.380202611985842,
+          "jer": 0.476423328388003,
+          "mapping": {}
+        },
+        "reference_sha256": "132be61f49634f16eaa86574044f630d32b55b6a358b0b178bbed0bd3319cec9",
+        "hypothesis_sha256": "ee85469a6ecab0a33cb6f7cb9eff7660414aae940429ab7924c552d096ec316f",
+        "report_sha256": "af7dda7218452f13dc103e0e35c620bcd7bd2d74e711e585e132c346851416ba"
+      },
+      {
+        "clip": "first300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold050",
+        "score": {
+          "reference_speaker_seconds": 163.86000000000013,
+          "hypothesis_speaker_seconds": 163.71216600000017,
+          "missed_speaker_seconds": 19.14809699999998,
+          "false_alarm_speaker_seconds": 19.000263000000004,
+          "confused_speaker_seconds": 41.09779800000008,
+          "scored_uem_seconds": 281.95500000000004,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 25,
+          "jer_speaker_error_sum": 1.9028132240018656,
+          "der": 0.4836211277920176,
+          "jer": 0.4757033060004664,
+          "mapping": {}
+        },
+        "reference_sha256": "132be61f49634f16eaa86574044f630d32b55b6a358b0b178bbed0bd3319cec9",
+        "hypothesis_sha256": "165b253cc946c5f704612d2dce5854fed1fcdd74376126dc49696399876840b2",
+        "report_sha256": "7d4f3f6a0b5aabff76127f69e6e8a96f8211fa963b3deb5075e4f57f02ce8169"
+      },
+      {
+        "clip": "first300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold065",
+        "score": {
+          "reference_speaker_seconds": 163.86000000000013,
+          "hypothesis_speaker_seconds": 163.66286500000018,
+          "missed_speaker_seconds": 19.14809699999998,
+          "false_alarm_speaker_seconds": 18.950962000000033,
+          "confused_speaker_seconds": 28.01746900000009,
+          "scored_uem_seconds": 281.95500000000004,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 17,
+          "jer_speaker_error_sum": 1.329678440529141,
+          "der": 0.4034940070792143,
+          "jer": 0.33241961013228527,
+          "mapping": {}
+        },
+        "reference_sha256": "132be61f49634f16eaa86574044f630d32b55b6a358b0b178bbed0bd3319cec9",
+        "hypothesis_sha256": "6af62389b14fb9479a4773ea798439861bc76770f0dfc83017c48226c1cbfda4",
+        "report_sha256": "d6d76bc77b1f8952a8a7fa71b1909e12e3baee1d5dfb3dcb7837d64fa35794bf"
+      },
+      {
+        "clip": "first300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold075",
+        "score": {
+          "reference_speaker_seconds": 163.86000000000013,
+          "hypothesis_speaker_seconds": 163.77787100000023,
+          "missed_speaker_seconds": 18.810602999999958,
+          "false_alarm_speaker_seconds": 18.728474000000034,
+          "confused_speaker_seconds": 10.3735310000001,
+          "scored_uem_seconds": 281.95500000000004,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 12,
+          "jer_speaker_error_sum": 1.4274462347104477,
+          "der": 0.2923996582448435,
+          "jer": 0.35686155867761193,
+          "mapping": {}
+        },
+        "reference_sha256": "132be61f49634f16eaa86574044f630d32b55b6a358b0b178bbed0bd3319cec9",
+        "hypothesis_sha256": "d192f05f14e7ae025e3cbab86e7c674b4c4bbf3da9718f7e2bf5b344238665a5",
+        "report_sha256": "f54b4b37e6f6bf96e57aa7273a9bbe174dba632bc2d0de4749337c4d07648938"
+      },
+      {
+        "clip": "first300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold085",
+        "score": {
+          "reference_speaker_seconds": 163.86000000000013,
+          "hypothesis_speaker_seconds": 163.8116190000002,
+          "missed_speaker_seconds": 18.810602999999958,
+          "false_alarm_speaker_seconds": 18.762222000000037,
+          "confused_speaker_seconds": 10.3735310000001,
+          "scored_uem_seconds": 281.95500000000004,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 10,
+          "jer_speaker_error_sum": 1.4274462347104477,
+          "der": 0.2926056145490056,
+          "jer": 0.35686155867761193,
+          "mapping": {}
+        },
+        "reference_sha256": "132be61f49634f16eaa86574044f630d32b55b6a358b0b178bbed0bd3319cec9",
+        "hypothesis_sha256": "b1a19234b7cbae65ecd38db08121947b5d134074a1822ae778257e280c002204",
+        "report_sha256": "780f626571148065ec000d530591c1c9a331c323a0773dd811152c31682f63c7"
+      },
+      {
+        "clip": "next300",
+        "protocol": "legacy_segments",
+        "hypothesis": "production5",
+        "score": {
+          "reference_speaker_seconds": 252.70300000000015,
+          "hypothesis_speaker_seconds": 106.62400000000025,
+          "missed_speaker_seconds": 149.35299999999984,
+          "false_alarm_speaker_seconds": 3.274000000000001,
+          "confused_speaker_seconds": 21.268,
+          "scored_uem_seconds": 260.27800000000013,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 6,
+          "jer_speaker_error_sum": 2.782566118603551,
+          "der": 0.6881398321349558,
+          "jer": 0.6956415296508878,
+          "mapping": {}
+        },
+        "reference_sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0",
+        "hypothesis_sha256": "53a4972dc02e018761e4d7e873ae2d797ca85cd0dbe4a984d88336d3c8262763",
+        "report_sha256": "4f991c45a1bc300c90f86fc18aea540392019188793a59086042ca7d3075c605"
+      },
+      {
+        "clip": "next300",
+        "protocol": "legacy_segments",
+        "hypothesis": "matched10",
+        "score": {
+          "reference_speaker_seconds": 252.70300000000015,
+          "hypothesis_speaker_seconds": 129.0110000000002,
+          "missed_speaker_seconds": 125.71699999999989,
+          "false_alarm_speaker_seconds": 2.0250000000000057,
+          "confused_speaker_seconds": 0.3760000000000048,
+          "scored_uem_seconds": 260.27800000000013,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 3,
+          "jer_speaker_error_sum": 2.3936791228828325,
+          "der": 0.5069904195834628,
+          "jer": 0.5984197807207081,
+          "mapping": {}
+        },
+        "reference_sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0",
+        "hypothesis_sha256": "9a88e7815d57c9764e475d0d092eb4eb067600f8a430d3e58ddc07360340c7ed",
+        "report_sha256": "861cb1072fa38841f2857cb6b804f2965ad9b166014f64a5eebcbf16b964f4ac"
+      },
+      {
+        "clip": "next300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold050",
+        "score": {
+          "reference_speaker_seconds": 252.7030000000001,
+          "hypothesis_speaker_seconds": 208.07211800000016,
+          "missed_speaker_seconds": 49.62139899999991,
+          "false_alarm_speaker_seconds": 4.990516999999965,
+          "confused_speaker_seconds": 96.97380800000013,
+          "scored_uem_seconds": 260.27800000000013,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 31,
+          "jer_speaker_error_sum": 2.438014121166289,
+          "der": 0.5998572395262421,
+          "jer": 0.6095035302915722,
+          "mapping": {}
+        },
+        "reference_sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0",
+        "hypothesis_sha256": "ece9f7ab5d83f9106aa5f599e43a6f10f7d27426a4cba0b9348da7522fa22663",
+        "report_sha256": "9d7226ebc9d0bc3fbef9cab5d187a37743823f9ba51eff6220c8658956f0a6a9"
+      },
+      {
+        "clip": "next300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold065",
+        "score": {
+          "reference_speaker_seconds": 252.7030000000001,
+          "hypothesis_speaker_seconds": 207.33083400000015,
+          "missed_speaker_seconds": 49.46720599999992,
+          "false_alarm_speaker_seconds": 4.09503999999998,
+          "confused_speaker_seconds": 89.08496200000015,
+          "scored_uem_seconds": 260.27800000000013,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 18,
+          "jer_speaker_error_sum": 2.2582724965275265,
+          "der": 0.564485613546337,
+          "jer": 0.5645681241318816,
+          "mapping": {}
+        },
+        "reference_sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0",
+        "hypothesis_sha256": "a232e001e9e6ccd57d59a59e7d3da59a623c9ef556039fa829841e0fc507a845",
+        "report_sha256": "0b188b5da2147397cb786a5dcbbf4ee8f2f476f748dc9274bb9471b85effd680"
+      },
+      {
+        "clip": "next300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold075",
+        "score": {
+          "reference_speaker_seconds": 252.7030000000001,
+          "hypothesis_speaker_seconds": 208.2795520000002,
+          "missed_speaker_seconds": 49.1262659999999,
+          "false_alarm_speaker_seconds": 4.702817999999972,
+          "confused_speaker_seconds": 50.79829700000013,
+          "scored_uem_seconds": 260.27800000000013,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 14,
+          "jer_speaker_error_sum": 1.9621472739589725,
+          "der": 0.4140329992125142,
+          "jer": 0.4905368184897431,
+          "mapping": {}
+        },
+        "reference_sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0",
+        "hypothesis_sha256": "fa62c369c6dcaec9b38ccc2928209ae3730e3d92f1eafaf00778dde851cb3ce5",
+        "report_sha256": "f7e55387532061df1c01aabfac130991ee31fee74da3d6e5852facb9912216e6"
+      },
+      {
+        "clip": "next300",
+        "protocol": "legacy_segments",
+        "hypothesis": "native10-threshold085",
+        "score": {
+          "reference_speaker_seconds": 252.70300000000015,
+          "hypothesis_speaker_seconds": 208.12991600000018,
+          "missed_speaker_seconds": 49.0757729999999,
+          "false_alarm_speaker_seconds": 4.502688999999975,
+          "confused_speaker_seconds": 50.68579400000013,
+          "scored_uem_seconds": 260.27800000000013,
+          "reference_speakers": 4,
+          "hypothesis_speakers": 8,
+          "jer_speaker_error_sum": 2.084561559244832,
+          "der": 0.4125960356624177,
+          "jer": 0.521140389811208,
+          "mapping": {}
+        },
+        "reference_sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0",
+        "hypothesis_sha256": "fa13851bce29731acfeba4275e534af03560856608cebd85b69504ca4e86e5dd",
+        "report_sha256": "f39bcea238260cd2d4bf9221f94ccecf07c375bb95f50eb266e230d2564826de"
+      },
+      {
+        "clip": "next300",
+        "protocol": "standard_only_words",
+        "hypothesis": "production5",
+        "score": {
+          "reference_speaker_seconds": 220.9099999999997,
+          "hypothesis_speaker_seconds": 106.94000000000024,
+          "missed_speaker_seconds": 118.35999999999952,
+          "false_alarm_speaker_seconds": 4.39000000000005,
+          "confused_speaker_seconds": 21.515999999999934,
+          "scored_uem_seconds": 264.3799999999999,
+          "reference_speakers": 3,
+          "hypothesis_speakers": 6,
+          "jer_speaker_error_sum": 1.5974643798264738,
+          "der": 0.6530532796161319,
+          "jer": 0.5324881266088246,
+          "mapping": {}
+        },
+        "reference_sha256": "7ecec70c4529747893e5acb63c2e5f9306cfec7c6e28a8654a7c1581eb0d2f01",
+        "hypothesis_sha256": "53a4972dc02e018761e4d7e873ae2d797ca85cd0dbe4a984d88336d3c8262763",
+        "report_sha256": "fe4cd539dd84a1579985e7dfe36b261cbf8d83408d97749f9ef9a0692a495d83"
+      },
+      {
+        "clip": "next300",
+        "protocol": "standard_only_words",
+        "hypothesis": "matched10",
+        "score": {
+          "reference_speaker_seconds": 220.9099999999997,
+          "hypothesis_speaker_seconds": 129.9430000000002,
+          "missed_speaker_seconds": 93.69599999999949,
+          "false_alarm_speaker_seconds": 2.728999999999992,
+          "confused_speaker_seconds": 0.18599999999996442,
+          "scored_uem_seconds": 264.3799999999999,
+          "reference_speakers": 3,
+          "hypothesis_speakers": 3,
+          "jer_speaker_error_sum": 1.1580740589960803,
+          "der": 0.43733194513602625,
+          "jer": 0.38602468633202675,
+          "mapping": {}
+        },
+        "reference_sha256": "7ecec70c4529747893e5acb63c2e5f9306cfec7c6e28a8654a7c1581eb0d2f01",
+        "hypothesis_sha256": "9a88e7815d57c9764e475d0d092eb4eb067600f8a430d3e58ddc07360340c7ed",
+        "report_sha256": "d207d493fd4ade2ded69f09bef4f1917946303d9cf984377b0a0df739e530cd2"
+      },
+      {
+        "clip": "next300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold050",
+        "score": {
+          "reference_speaker_seconds": 220.9099999999997,
+          "hypothesis_speaker_seconds": 206.20239999999964,
+          "missed_speaker_seconds": 24.372948999999963,
+          "false_alarm_speaker_seconds": 9.665348999999878,
+          "confused_speaker_seconds": 93.79925699999981,
+          "scored_uem_seconds": 264.3799999999999,
+          "reference_speakers": 3,
+          "hypothesis_speakers": 31,
+          "jer_speaker_error_sum": 1.3990690031335489,
+          "der": 0.5786861391516899,
+          "jer": 0.4663563343778496,
+          "mapping": {}
+        },
+        "reference_sha256": "7ecec70c4529747893e5acb63c2e5f9306cfec7c6e28a8654a7c1581eb0d2f01",
+        "hypothesis_sha256": "ece9f7ab5d83f9106aa5f599e43a6f10f7d27426a4cba0b9348da7522fa22663",
+        "report_sha256": "62265819078c85fc758988578025c912647eb210ac53d1fb0ccd9be9dbb38278"
+      },
+      {
+        "clip": "next300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold065",
+        "score": {
+          "reference_speaker_seconds": 220.9099999999997,
+          "hypothesis_speaker_seconds": 205.31332599999968,
+          "missed_speaker_seconds": 24.707025999999942,
+          "false_alarm_speaker_seconds": 9.110351999999907,
+          "confused_speaker_seconds": 86.33090399999998,
+          "scored_uem_seconds": 264.3799999999999,
+          "reference_speakers": 3,
+          "hypothesis_speakers": 19,
+          "jer_speaker_error_sum": 1.2110594461945103,
+          "der": 0.5438788737494906,
+          "jer": 0.40368648206483676,
+          "mapping": {}
+        },
+        "reference_sha256": "7ecec70c4529747893e5acb63c2e5f9306cfec7c6e28a8654a7c1581eb0d2f01",
+        "hypothesis_sha256": "a232e001e9e6ccd57d59a59e7d3da59a623c9ef556039fa829841e0fc507a845",
+        "report_sha256": "7fe8c9fdc4d2f7e4cef5a1f5bc585bef7a2eb6037753a67e025b62c524fe85e1"
+      },
+      {
+        "clip": "next300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold075",
+        "score": {
+          "reference_speaker_seconds": 220.9099999999997,
+          "hypothesis_speaker_seconds": 206.2576719999996,
+          "missed_speaker_seconds": 24.202681999999967,
+          "false_alarm_speaker_seconds": 9.550353999999867,
+          "confused_speaker_seconds": 47.03904399999982,
+          "scored_uem_seconds": 264.3799999999999,
+          "reference_speakers": 3,
+          "hypothesis_speakers": 14,
+          "jer_speaker_error_sum": 0.8734347699158376,
+          "der": 0.3657239599837027,
+          "jer": 0.2911449233052792,
+          "mapping": {}
+        },
+        "reference_sha256": "7ecec70c4529747893e5acb63c2e5f9306cfec7c6e28a8654a7c1581eb0d2f01",
+        "hypothesis_sha256": "fa62c369c6dcaec9b38ccc2928209ae3730e3d92f1eafaf00778dde851cb3ce5",
+        "report_sha256": "a9c9492143003bbb1c22775a931e53d3ae66eff6724d0d43f96cc0d1f18079ef"
+      },
+      {
+        "clip": "next300",
+        "protocol": "standard_only_words",
+        "hypothesis": "native10-threshold085",
+        "score": {
+          "reference_speaker_seconds": 220.9099999999997,
+          "hypothesis_speaker_seconds": 206.12634599999964,
+          "missed_speaker_seconds": 24.196158999999952,
+          "false_alarm_speaker_seconds": 9.412504999999872,
+          "confused_speaker_seconds": 46.069044999999846,
+          "scored_uem_seconds": 264.3799999999999,
+          "reference_speakers": 3,
+          "hypothesis_speakers": 8,
+          "jer_speaker_error_sum": 0.8634287317621643,
+          "der": 0.36067950296500734,
+          "jer": 0.28780957725405476,
+          "mapping": {}
+        },
+        "reference_sha256": "7ecec70c4529747893e5acb63c2e5f9306cfec7c6e28a8654a7c1581eb0d2f01",
+        "hypothesis_sha256": "fa13851bce29731acfeba4275e534af03560856608cebd85b69504ca4e86e5dd",
+        "report_sha256": "b734c6e6831e0a9ec98eb389e5ade1dfe62eb713464b7edc81ae672b202e4d01"
+      }
+    ],
+    "artifact_sha256": "f0d32d1e75006938ceeece80f213b7b8918515a4460f2ea8a52b7fc36a9aee71",
+    "local_artifact": "/private/tmp/vantranscribe-ami-eval/reference-audit/summary.json"
+  },
+  "matched_context_provenance": {
+    "acceptance": "not_claimed",
+    "only_existing_source_changes": [
+      {
+        "file": "engine.rs",
+        "original_sha256": "3648b05ab71386ae1bb315798c4d06350bc27dc57ac98dd3f6946d91cbd77299",
+        "experimental_sha256": "baf543be9f0c62b5db918ee2b1a8ab75f1e5ce5da2af7c79b3beaa7e87ad6eaa",
+        "diff": "--- production/engine.rs\n+++ experiment/engine.rs\n@@ -12,7 +12,7 @@\n };\n use vt_core::TrackKind;\n const RATE: u32 = 16000;\n-const WINDOW: usize = 80000;\n+const WINDOW: usize = 160000;\n const SHIFT: usize = 40000;\n const MAX_TURNS: usize = 32768;\n const MAX_EMBEDDINGS: usize = 8192;\n"
+      }
+    ],
+    "binary_sha256": "7a7226860ae77b6473d3e893ddbcc777a8eaebc32f0f6011ee3d7e7d91725d73",
+    "source_copy": "/private/tmp/vantranscribe-diarize10-probe",
+    "context": "offline10s; ownershipstride2.5s unchanged; allproductionclustering/Unknown/short/overlap/constraints retained",
+    "artifact_sha256": "a4249b67a1a0ea1d96d475f385cdf2d78f3ad31fb029ee907dbee8d502f36f72",
+    "local_artifact": "/private/tmp/vantranscribe-ami-eval/context10-matched/provenance.json"
+  },
+  "schema_version": 1,
+  "date": "2026-11-07",
+  "acceptance": "not_claimed",
+  "source_licences": {
+    "june21": "Apache-2.0, verified in conversion-owner and original training-owner cards",
+    "nemotron": "NVIDIA Open Model License Agreement2025-10-24; official source README/owner card, NOT Apache/CC-BY",
+    "ami": "CC-BY-4.0 official AMI source; secondary words-only protocol BUTSpeechFIT research references"
+  },
+  "archives": {
+    "june21": {
+      "bytes": 506956414,
+      "sha256": "455f40e556aa2b20ac9d3bffd603b58002075c1193b4070938540c11efe0a4da"
+    },
+    "nemotron560": {
+      "bytes": 463945051,
+      "sha256": "78e2b79fcf7271553a74402a76b771b09ea40117a39566a79f52235b23db6358"
+    }
+  },
+  "conclusions": [
+    "No production configuration/default/cacheactivation was changed.",
+    "Current exact-modelfeature configuration matches official examples; official endpoints/fp32 do not rescue far-fieldrecognition.",
+    "June21Zipformer improves both rawdevelopmentandholdout WER substantially with lowerresources thanNemotron; candidate production VAD/setup integration still requires a separate change.",
+    "Matched10scontext improves offlineDER whilekeeping productUnknown/short/overlap/clusteringpolicy; live5s policy was notchanged.",
+    "Nativecanonical clustering sweep also changes policy and is diagnostic only, not calibrated defaultrecommendation.",
+    "Preserve originalsegmentbasedscores; secondarystandardonlywordsscores use identicalhypotheses and exactofficialintervalgeometry.",
+    "Holdout300\u2013600has3lexicalspeakers,4whenincludingvocalannotations; this corpus does not satisfy in-house4speaker/gallery50acceptance."
+  ]
+}

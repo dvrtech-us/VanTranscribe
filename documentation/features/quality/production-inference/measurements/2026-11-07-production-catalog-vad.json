@@ -1,0 +1,940 @@
+{
+  "acceptance": "not_claimed",
+  "clips": [
+    {
+      "corpus": {
+        "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+        "derivation": "Official mono Array1-01 source cropped [0,300) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+        "id": "ami-manual-1.6.2-ES2002a-array1-01-0-300",
+        "license": "CC-BY-4.0",
+        "recording_id": "ES2002a-array1-01-0-300",
+        "source_urls": [
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+          "https://groups.inf.ed.ac.uk/ami/download/"
+        ]
+      },
+      "duration_ms": 300000,
+      "records": [
+        {
+          "api": "StreamingRecognizer::with_vad(verified_model_dir,Some(pinned_vad))",
+          "event_counts": {
+            "events": 0,
+            "final_events": 0,
+            "native_timing_bounds_validated": true,
+            "word_timings": 0
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 6,
+              "rss_max_bytes": 264192000,
+              "cpu_sample_mean_percent": 15.878571428571428
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 822.296709,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": true,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 15.458582999999999,
+              "p50": 0.05875,
+              "p95": 0.101125,
+              "p99": 7.670625
+            },
+            "processing_wall_ms": 4298.813334,
+            "real_time_factor": 0.014329377780000001
+          },
+          "vad_enabled": true,
+          "wer": {
+            "deletions": 514,
+            "hypothesis_words": 0,
+            "insertions": 0,
+            "reference_words": 514,
+            "substitutions": 0,
+            "wer": 1.0
+          },
+          "events_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "api": "StreamingRecognizer::new(verified_model_dir)",
+          "event_counts": {
+            "events": 5,
+            "final_events": 2,
+            "native_timing_bounds_validated": true,
+            "word_timings": 5
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 9,
+              "rss_max_bytes": 266403840,
+              "cpu_sample_mean_percent": 17.985714285714284
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 798.143083,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": false,
+              "vad_threads": 0
+            },
+            "name": "streaming_zipformer_ungated",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 9.263541,
+              "p50": 0.008124999999999999,
+              "p95": 7.342084,
+              "p99": 7.4941249999999995
+            },
+            "processing_wall_ms": 7096.017667,
+            "real_time_factor": 0.023653392223333333
+          },
+          "vad_enabled": false,
+          "wer": {
+            "deletions": 512,
+            "hypothesis_words": 2,
+            "insertions": 0,
+            "reference_words": 514,
+            "substitutions": 0,
+            "wer": 0.9961089494163424
+          },
+          "events_sha256": "61e9590e4d3ef6b68e0ae1a9ac2d999d478dc23ed7faee85069f9f6e2e1c2741"
+        },
+        {
+          "api": "StreamingRecognizer::with_vad(verified_model_dir,Some(pinned_vad))",
+          "event_counts": {
+            "events": 184,
+            "final_events": 34,
+            "native_timing_bounds_validated": true,
+            "word_timings": 1208
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 6,
+              "rss_max_bytes": 568754176,
+              "cpu_sample_mean_percent": 16.357142857142858
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 726.999167,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": true,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 38.719333,
+              "p50": 0.057791999999999996,
+              "p95": 0.115542,
+              "p99": 8.592917
+            },
+            "processing_wall_ms": 4960.263916,
+            "real_time_factor": 0.016534213053333333
+          },
+          "vad_enabled": true,
+          "wer": {
+            "deletions": 309,
+            "hypothesis_words": 207,
+            "insertions": 2,
+            "reference_words": 514,
+            "substitutions": 43,
+            "wer": 0.688715953307393
+          },
+          "events_sha256": "6817b25de45ef726f2a3e869caee1f53f09b1deb0b2c525d0da76fa1574c5668"
+        },
+        {
+          "api": "StreamingRecognizer::new(verified_model_dir)",
+          "event_counts": {
+            "events": 332,
+            "final_events": 55,
+            "native_timing_bounds_validated": true,
+            "word_timings": 2153
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 10,
+              "rss_max_bytes": 610058240,
+              "cpu_sample_mean_percent": 18.802857142857142
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 691.7891659999999,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": false,
+              "vad_threads": 0
+            },
+            "name": "streaming_zipformer_ungated",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 10.599499999999999,
+              "p50": 0.009084,
+              "p95": 8.451165999999999,
+              "p99": 8.875708
+            },
+            "processing_wall_ms": 8294.013417,
+            "real_time_factor": 0.027646711390000002
+          },
+          "vad_enabled": false,
+          "wer": {
+            "deletions": 158,
+            "hypothesis_words": 366,
+            "insertions": 10,
+            "reference_words": 514,
+            "substitutions": 101,
+            "wer": 0.5233463035019456
+          },
+          "events_sha256": "06a169534da52f4e16a9f40c847a45d517e0326379a7f910c2f8ee8b4634431b"
+        }
+      ]
+    },
+    {
+      "corpus": {
+        "attribution": "AMI Meeting Corpus, AMI Consortium; University of Edinburgh/CSTR and participating institutions. https://groups.inf.ed.ac.uk/ami/corpus/",
+        "derivation": "Official mono Array1-01 source cropped [300,600) seconds; samples unchanged PCM16. RTTM derived from each A-D segments XML transcriber_start/end, clipped and same-speaker-unioned; not a prebuilt official RTTM. Whole-window text uses non-punctuation <w> only, word midpoint inside window, ordered by actual word start then speaker and end; overlaps have no unique serial order. All segment annotations included, including non-lexical speech regions. No invented timing or speaker labels.",
+        "id": "ami-manual-1.6.2-ES2002a-array1-01-300-600",
+        "license": "CC-BY-4.0",
+        "recording_id": "ES2002a-array1-01-300-600",
+        "source_urls": [
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusMirror/amicorpus/ES2002a/audio/ES2002a.Array1-01.wav",
+          "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+          "https://groups.inf.ed.ac.uk/ami/download/"
+        ]
+      },
+      "duration_ms": 300000,
+      "records": [
+        {
+          "api": "StreamingRecognizer::with_vad(verified_model_dir,Some(pinned_vad))",
+          "event_counts": {
+            "events": 35,
+            "final_events": 12,
+            "native_timing_bounds_validated": true,
+            "word_timings": 59
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 8,
+              "rss_max_bytes": 553779200,
+              "cpu_sample_mean_percent": 16.975
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 864.151708,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": true,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 16.350666999999998,
+              "p50": 0.060541000000000005,
+              "p95": 0.12975,
+              "p99": 8.364625
+            },
+            "processing_wall_ms": 6079.729541,
+            "real_time_factor": 0.020265765136666666
+          },
+          "vad_enabled": true,
+          "wer": {
+            "deletions": 751,
+            "hypothesis_words": 22,
+            "insertions": 0,
+            "reference_words": 773,
+            "substitutions": 6,
+            "wer": 0.9793014230271668
+          },
+          "events_sha256": "21d81c6810290e51d73e900402095f283a37767840b1757de7a03439eb375e20"
+        },
+        {
+          "api": "StreamingRecognizer::new(verified_model_dir)",
+          "event_counts": {
+            "events": 69,
+            "final_events": 15,
+            "native_timing_bounds_validated": true,
+            "word_timings": 332
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 9,
+              "rss_max_bytes": 544096256,
+              "cpu_sample_mean_percent": 18.004761904761907
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 888.4450830000001,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": false,
+              "vad_threads": 0
+            },
+            "name": "streaming_zipformer_ungated",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 10.140833,
+              "p50": 0.008333,
+              "p95": 7.556417000000001,
+              "p99": 7.758958
+            },
+            "processing_wall_ms": 7346.69225,
+            "real_time_factor": 0.024488974166666667
+          },
+          "vad_enabled": false,
+          "wer": {
+            "deletions": 714,
+            "hypothesis_words": 59,
+            "insertions": 0,
+            "reference_words": 773,
+            "substitutions": 17,
+            "wer": 0.9456662354463131
+          },
+          "events_sha256": "002b7bd8f7f5ecb284a635c689c9f7284389ace310ded545f0571817c23e50a8"
+        },
+        {
+          "api": "StreamingRecognizer::with_vad(verified_model_dir,Some(pinned_vad))",
+          "event_counts": {
+            "events": 337,
+            "final_events": 45,
+            "native_timing_bounds_validated": true,
+            "word_timings": 3011
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 8,
+              "rss_max_bytes": 671481856,
+              "cpu_sample_mean_percent": 18.473214285714285
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 712.833458,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": true,
+              "vad_threads": 1
+            },
+            "name": "streaming_zipformer_vad",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 17.417458,
+              "p50": 0.060375,
+              "p95": 0.134542,
+              "p99": 8.799334
+            },
+            "processing_wall_ms": 6543.852708,
+            "real_time_factor": 0.02181284236
+          },
+          "vad_enabled": true,
+          "wer": {
+            "deletions": 410,
+            "hypothesis_words": 368,
+            "insertions": 5,
+            "reference_words": 773,
+            "substitutions": 76,
+            "wer": 0.6351875808538163
+          },
+          "events_sha256": "2fff1492b18ef190ffb62df140333522acda0c4bc63afdb03ba9c26aa2d1bd12"
+        },
+        {
+          "api": "StreamingRecognizer::new(verified_model_dir)",
+          "event_counts": {
+            "events": 463,
+            "final_events": 60,
+            "native_timing_bounds_validated": true,
+            "word_timings": 3653
+          },
+          "gain": 1,
+          "model": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+          "observations": {
+            "clock": "monotonic_session_ms",
+            "latency": [],
+            "metadata": {
+              "machine": "Mac16,7",
+              "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+              "os": "Darwin 27.2.0 arm64",
+              "profile": "release",
+              "provider": "cpu",
+              "source": "actual sequential production core inference runner"
+            },
+            "sample_summary": {
+              "count": 10,
+              "rss_max_bytes": 673431552,
+              "cpu_sample_mean_percent": 19.708571428571428
+            }
+          },
+          "source_samples_unchanged": true,
+          "timing": {
+            "audio_ms": 300000.0,
+            "constructor_load_ms": 681.0959170000001,
+            "extra": {
+              "paced": false,
+              "thread_budget": 2,
+              "vad_enabled": false,
+              "vad_threads": 0
+            },
+            "name": "streaming_zipformer_ungated",
+            "native_accept_call_ms": {
+              "count": 15000,
+              "max": 10.153250000000002,
+              "p50": 0.011250000000000001,
+              "p95": 8.427708,
+              "p99": 8.789833
+            },
+            "processing_wall_ms": 8271.396208,
+            "real_time_factor": 0.027571320693333335
+          },
+          "vad_enabled": false,
+          "wer": {
+            "deletions": 263,
+            "hypothesis_words": 513,
+            "insertions": 3,
+            "reference_words": 773,
+            "substitutions": 122,
+            "wer": 0.5019404915912031
+          },
+          "events_sha256": "ae5d367880285f5696522ebadcb58ba40d6eefac78484a269d0b73eef961d633"
+        }
+      ]
+    }
+  ],
+  "control": {
+    "attribution": "k2-fsa/sherpa-onnx official streaming Zipformer release test_wavs/0.wav; existing explicitly authorized public control",
+    "license_note": "Public model-release fixture retained with upstream release attribution; no separate waveform licence claim is made.",
+    "paced": true,
+    "records": [
+      {
+        "api": "StreamingRecognizer::with_vad(verified_model_dir,Some(pinned_vad))",
+        "event_counts": {
+          "events": 18,
+          "final_events": 1,
+          "native_timing_bounds_validated": true,
+          "word_timings": 174
+        },
+        "gain": 1,
+        "model": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+        "observations": {
+          "clock": "monotonic_session_ms",
+          "latency": [],
+          "metadata": {
+            "machine": "Mac16,7",
+            "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+            "os": "Darwin 27.2.0 arm64",
+            "profile": "release",
+            "provider": "cpu",
+            "source": "actual sequential production core inference runner"
+          },
+          "sample_summary": {
+            "count": 8,
+            "rss_max_bytes": 678412288
+          }
+        },
+        "source_samples_unchanged": true,
+        "timing": {
+          "audio_ms": 6625.0,
+          "constructor_load_ms": 821.266792,
+          "extra": {
+            "paced": true,
+            "thread_budget": 2,
+            "vad_enabled": true,
+            "vad_threads": 1
+          },
+          "name": "streaming_zipformer_vad",
+          "native_accept_call_ms": {
+            "count": 332,
+            "max": 37.711332999999996,
+            "p50": 0.33629200000000004,
+            "p95": 31.368417,
+            "p99": 34.914417
+          },
+          "processing_wall_ms": 6661.2786670000005,
+          "real_time_factor": 1.0054760252075472
+        },
+        "vad_enabled": true,
+        "wer": null,
+        "paced_core_delivery_delay_max_ms": 41.27749999999969,
+        "events_sha256": "2ff69e480308b953a829e20768065cd083591f497cd7e501708d834448f96f67"
+      },
+      {
+        "api": "StreamingRecognizer::new(verified_model_dir)",
+        "event_counts": {
+          "events": 17,
+          "final_events": 1,
+          "native_timing_bounds_validated": true,
+          "word_timings": 174
+        },
+        "gain": 1,
+        "model": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+        "observations": {
+          "clock": "monotonic_session_ms",
+          "latency": [],
+          "metadata": {
+            "machine": "Mac16,7",
+            "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+            "os": "Darwin 27.2.0 arm64",
+            "profile": "release",
+            "provider": "cpu",
+            "source": "actual sequential production core inference runner"
+          },
+          "sample_summary": {
+            "count": 8,
+            "rss_max_bytes": 678412288
+          }
+        },
+        "source_samples_unchanged": true,
+        "timing": {
+          "audio_ms": 6625.0,
+          "constructor_load_ms": 816.259333,
+          "extra": {
+            "paced": true,
+            "thread_budget": 2,
+            "vad_enabled": false,
+            "vad_threads": 0
+          },
+          "name": "streaming_zipformer_ungated",
+          "native_accept_call_ms": {
+            "count": 332,
+            "max": 43.831625,
+            "p50": 0.181792,
+            "p95": 31.783958000000002,
+            "p99": 34.179291
+          },
+          "processing_wall_ms": 6642.297041,
+          "real_time_factor": 1.0026108741132076
+        },
+        "vad_enabled": false,
+        "wer": null,
+        "paced_core_delivery_delay_max_ms": 44.816749999999956,
+        "events_sha256": "88fb5d2dd0a47ab4fa4dc952dbb9dd732e1d92d260633c628ac342ff0d29d65e"
+      },
+      {
+        "api": "StreamingRecognizer::with_vad(verified_model_dir,Some(pinned_vad))",
+        "event_counts": {
+          "events": 19,
+          "final_events": 1,
+          "native_timing_bounds_validated": true,
+          "word_timings": 191
+        },
+        "gain": 1,
+        "model": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+        "observations": {
+          "clock": "monotonic_session_ms",
+          "latency": [],
+          "metadata": {
+            "machine": "Mac16,7",
+            "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+            "os": "Darwin 27.2.0 arm64",
+            "profile": "release",
+            "provider": "cpu",
+            "source": "actual sequential production core inference runner"
+          },
+          "sample_summary": {
+            "count": 8,
+            "rss_max_bytes": 649625600
+          }
+        },
+        "source_samples_unchanged": true,
+        "timing": {
+          "audio_ms": 6625.0,
+          "constructor_load_ms": 677.393125,
+          "extra": {
+            "paced": true,
+            "thread_budget": 2,
+            "vad_enabled": true,
+            "vad_threads": 1
+          },
+          "name": "streaming_zipformer_vad",
+          "native_accept_call_ms": {
+            "count": 332,
+            "max": 38.627167,
+            "p50": 0.241167,
+            "p95": 30.116667,
+            "p99": 34.558
+          },
+          "processing_wall_ms": 6675.2491660000005,
+          "real_time_factor": 1.007584779773585
+        },
+        "vad_enabled": true,
+        "wer": null,
+        "paced_core_delivery_delay_max_ms": 41.35699999999997,
+        "events_sha256": "990dc8fc6540a6eaccebcb60e2e4f21c346288978a4981494f0d5a367f4d903e"
+      },
+      {
+        "api": "StreamingRecognizer::new(verified_model_dir)",
+        "event_counts": {
+          "events": 18,
+          "final_events": 1,
+          "native_timing_bounds_validated": true,
+          "word_timings": 183
+        },
+        "gain": 1,
+        "model": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+        "observations": {
+          "clock": "monotonic_session_ms",
+          "latency": [],
+          "metadata": {
+            "machine": "Mac16,7",
+            "notes": "ps %cpu / logical CPU count, RSS KiB*1024 sampled no more often than1second between native calls; estimates, not interval CPU or peakRSS; no capture/UI target latency measurement. resource_probe_unavailable=false",
+            "os": "Darwin 27.2.0 arm64",
+            "profile": "release",
+            "provider": "cpu",
+            "source": "actual sequential production core inference runner"
+          },
+          "sample_summary": {
+            "count": 8,
+            "rss_max_bytes": 648495104
+          }
+        },
+        "source_samples_unchanged": true,
+        "timing": {
+          "audio_ms": 6625.0,
+          "constructor_load_ms": 671.8455829999999,
+          "extra": {
+            "paced": true,
+            "thread_budget": 2,
+            "vad_enabled": false,
+            "vad_threads": 0
+          },
+          "name": "streaming_zipformer_ungated",
+          "native_accept_call_ms": {
+            "count": 332,
+            "max": 39.456417,
+            "p50": 0.14925,
+            "p95": 30.386209,
+            "p99": 34.503708
+          },
+          "processing_wall_ms": 6652.320041,
+          "real_time_factor": 1.004123779773585
+        },
+        "vad_enabled": false,
+        "wer": null,
+        "paced_core_delivery_delay_max_ms": 44.041957999999795,
+        "events_sha256": "01b5726282d8a9e25276babbd588e4121ec2037bcf46d15bf589ee61702243ea"
+      }
+    ],
+    "reference_scoring": "No control transcript reference supplied; no WER invented.",
+    "source": {
+      "path": "/private/tmp/vantranscribe-stt-fixture.wav",
+      "sha256": "6bc58a4efdf20daac252b6b1502632601a71efe0308f6757dc1eda34891a7e4f"
+    },
+    "source_urls": [
+      "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+    ],
+    "all_four_final_texts_equal": true
+  },
+  "limitations": [
+    "Native packetemissiondelay is not productUI/capture latency.",
+    "No in-house four-speaker/gallery50 or sustainedhardwareacceptance.",
+    "No candidate selection/default activation or input normalization is performed."
+  ],
+  "models": [
+    {
+      "files": [
+        {
+          "bytes": 13107,
+          "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/manifest.json",
+          "sha256": "2f90df8b3d5e124bd135d41a3dc39cb5b296a2e4fc4853bc65916b859369076f"
+        },
+        {
+          "bytes": 2093080,
+          "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
+          "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+        },
+        {
+          "bytes": 70108816,
+          "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+          "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+        },
+        {
+          "bytes": 259416,
+          "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
+          "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+        },
+        {
+          "bytes": 5048,
+          "path": "/private/tmp/vantranscribe-stt-models/sherpa-onnx-streaming-zipformer-en-2023-06-26/tokens.txt",
+          "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+        }
+      ],
+      "manifest": {
+        "acquisition_terms": "Public download; no account, API key or access-form acceptance required.",
+        "archive_sha256": "639e25b578e9e997131402199419c13a941f8e4e198e2da1ce57dbf5cf401282",
+        "attribution": "Streaming English Zipformer model: Zengwei Yao / icefall contributors. ONNX export: csukuangfj / sherpa-onnx contributors. Training corpus: LibriSpeech.",
+        "conversion": "Canonical sherpa-onnx 2023-06-26 ONNX export of Zengwei/icefall-asr-librispeech-streaming-zipformer-2023-05-17; INT8 encoder/joiner and FP32 decoder. Export script is in the pinned upstream archive; no local conversion.",
+        "files": {
+          "decoder-epoch-99-avg-1-chunk-16-left-128.onnx": {
+            "bytes": 2093080,
+            "sha256": "85914f840b71110487ece7a30ebd0bd4b8fb5c2623215bba3aa5ab4c138fc591"
+          },
+          "encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx": {
+            "bytes": 70108816,
+            "sha256": "5022b2eca5b19d1bc104fcf33e26bc32604b7df553cd2e1f62e31dc7b05e9c87"
+          },
+          "joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx": {
+            "bytes": 259416,
+            "sha256": "abd5e30f3f16fc510605c6029dba33f10e4386bd75c5bdc30cf94076864db10d"
+          },
+          "tokens.txt": {
+            "bytes": 5048,
+            "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+          }
+        },
+        "id": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+        "license": "Apache-2.0",
+        "license_text": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for use, reproduction,\n      and distribution as defined by Sections 1 through 9 of this document.\n\n      \"Licensor\" shall mean the copyright owner or entity authorized by\n      the copyright owner that is granting the License.\n\n      \"Legal Entity\" shall mean the union of the acting entity and all\n      other entities that control, are controlled by, or are under common\n      control with that entity. For the purposes of this definition,\n      \"control\" means (i) the power, direct or indirect, to cause the\n      direction or management of such entity, whether by contract or\n      otherwise, or (ii) ownership of fifty percent (50%) or more of the\n      outstanding shares, or (iii) beneficial ownership of such entity.\n\n      \"You\" (or \"Your\") shall mean an individual or Legal Entity\n      exercising permissions granted by this License.\n\n      \"Source\" form shall mean the preferred form for making modifications,\n      including but not limited to software source code, documentation\n      source, and configuration files.\n\n      \"Object\" form shall mean any form resulting from mechanical\n      transformation or translation of a Source form, including but\n      not limited to compiled object code, generated documentation,\n      and conversions to other media types.\n\n      \"Work\" shall mean the work of authorship, whether in Source or\n      Object form, made available under the License, as indicated by a\n      copyright notice that is included in or attached to the work\n      (an example is provided in the Appendix below).\n\n      \"Derivative Works\" shall mean any work, whether in Source or Object\n      form, that is based on (or derived from) the Work and for which the\n      editorial revisions, annotations, elaborations, or other modifications\n      represent, as a whole, an original work of authorship. For the purposes\n      of this License, Derivative Works shall not include works that remain\n      separable from, or merely link (or bind by name) to the interfaces of,\n      the Work and Derivative Works thereof.\n\n      \"Contribution\" shall mean any work of authorship, including\n      the original version of the Work and any modifications or additions\n      to that Work or Derivative Works thereof, that is intentionally\n      submitted to Licensor for inclusion in the Work by the copyright owner\n      or by an individual or Legal Entity authorized to submit on behalf of\n      the copyright owner. For the purposes of this definition, \"submitted\"\n      means any form of electronic, verbal, or written communication sent\n      to the Licensor or its representatives, including but not limited to\n      communication on electronic mailing lists, source code control systems,\n      and issue tracking systems that are managed by, or on behalf of, the\n      Licensor for the purpose of discussing and improving the Work, but\n      excluding communication that is conspicuously marked or otherwise\n      designated in writing by the copyright owner as \"Not a Contribution.\"\n\n      \"Contributor\" shall mean Licensor and any individual or Legal Entity\n      on behalf of whom a Contribution has been received by Licensor and\n      subsequently incorporated within the Work.\n\n   2. Grant of Copyright License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      copyright license to reproduce, prepare Derivative Works of,\n      publicly display, publicly perform, sublicense, and distribute the\n      Work and such Derivative Works in Source or Object form.\n\n   3. Grant of Patent License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      (except as stated in this section) patent license to make, have made,\n      use, offer to sell, sell, import, and otherwise transfer the Work,\n      where such license applies only to those patent claims licensable\n      by such Contributor that are necessarily infringed by their\n      Contribution(s) alone or by combination of their Contribution(s)\n      with the Work to which such Contribution(s) was submitted. If You\n      institute patent litigation against any entity (including a\n      cross-claim or counterclaim in a lawsuit) alleging that the Work\n      or a Contribution incorporated within the Work constitutes direct\n      or contributory patent infringement, then any patent licenses\n      granted to You under this License for that Work shall terminate\n      as of the date such litigation is filed.\n\n   4. Redistribution. You may reproduce and distribute copies of the\n      Work or Derivative Works thereof in any medium, with or without\n      modifications, and in Source or Object form, provided that You\n      meet the following conditions:\n\n      (a) You must give any other recipients of the Work or\n          Derivative Works a copy of this License; and\n\n      (b) You must cause any modified files to carry prominent notices\n          stating that You changed the files; and\n\n      (c) You must retain, in the Source form of any Derivative Works\n          that You distribute, all copyright, patent, trademark, and\n          attribution notices from the Source form of the Work,\n          excluding those notices that do not pertain to any part of\n          the Derivative Works; and\n\n      (d) If the Work includes a \"NOTICE\" text file as part of its\n          distribution, then any Derivative Works that You distribute must\n          include a readable copy of the attribution notices contained\n          within such NOTICE file, excluding those notices that do not\n          pertain to any part of the Derivative Works, in at least one\n          of the following places: within a NOTICE text file distributed\n          as part of the Derivative Works; within the Source form or\n          documentation, if provided along with the Derivative Works; or,\n          within a display generated by the Derivative Works, if and\n          wherever such third-party notices normally appear. The contents\n          of the NOTICE file are for informational purposes only and\n          do not modify the License. You may add Your own attribution\n          notices within Derivative Works that You distribute, alongside\n          or as an addendum to the NOTICE text from the Work, provided\n          that such additional attribution notices cannot be construed\n          as modifying the License.\n\n      You may add Your own copyright statement to Your modifications and\n      may provide additional or different license terms and conditions\n      for use, reproduction, or distribution of Your modifications, or\n      for any such Derivative Works as a whole, provided Your use,\n      reproduction, and distribution of the Work otherwise complies with\n      the conditions stated in this License.\n\n   5. Submission of Contributions. Unless You explicitly state otherwise,\n      any Contribution intentionally submitted for inclusion in the Work\n      by You to the Licensor shall be under the terms and conditions of\n      this License, without any additional terms or conditions.\n      Notwithstanding the above, nothing herein shall supersede or modify\n      the terms of any separate license agreement you may have executed\n      with Licensor regarding such Contributions.\n\n   6. Trademarks. This License does not grant permission to use the trade\n      names, trademarks, service marks, or product names of the Licensor,\n      except as required for reasonable and customary use in describing the\n      origin of the Work and reproducing the content of the NOTICE file.\n\n   7. Disclaimer of Warranty. Unless required by applicable law or\n      agreed to in writing, Licensor provides the Work (and each\n      Contributor provides its Contributions) on an \"AS IS\" BASIS,\n      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or\n      implied, including, without limitation, any warranties or conditions\n      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A\n      PARTICULAR PURPOSE. You are solely responsible for determining the\n      appropriateness of using or redistributing the Work and assume any\n      risks associated with Your exercise of permissions under this License.\n\n   8. Limitation of Liability. In no event and under no legal theory,\n      whether in tort (including negligence), contract, or otherwise,\n      unless required by applicable law (such as deliberate and grossly\n      negligent acts) or agreed to in writing, shall any Contributor be\n      liable to You for damages, including any direct, indirect, special,\n      incidental, or consequential damages of any character arising as a\n      result of this License or out of the use or inability to use the\n      Work (including but not limited to damages for loss of goodwill,\n      work stoppage, computer failure or malfunction, or any and all\n      other commercial damages or losses), even if such Contributor\n      has been advised of the possibility of such damages.\n\n   9. Accepting Warranty or Additional Liability. While redistributing\n      the Work or Derivative Works thereof, You may choose to offer,\n      and charge a fee for, acceptance of support, warranty, indemnity,\n      or other liability obligations and/or rights consistent with this\n      License. However, in accepting such obligations, You may act only\n      on Your own behalf and on Your sole responsibility, not on behalf\n      of any other Contributor, and only if You agree to indemnify,\n      defend, and hold each Contributor harmless for any liability\n      incurred by, or claims asserted against, such Contributor by reason\n      of your accepting any such warranty or additional liability.\n\n   END OF TERMS AND CONDITIONS\n\n   APPENDIX: How to apply the Apache License to your work.\n\n      To apply the Apache License to your work, attach the following\n      boilerplate notice, with the fields enclosed by brackets \"[]\"\n      replaced with your own identifying information. (Don't include\n      the brackets!)  The text should be enclosed in the appropriate\n      comment syntax for the file format. We also recommend that a\n      file or class name and description of purpose be included on the\n      same \"printed page\" as the copyright notice for easier\n      identification within third-party archives.\n\n   Copyright [yyyy] [name of copyright owner]\n\n   Licensed under the Apache License, Version 2.0 (the \"License\");\n   you may not use this file except in compliance with the License.\n   You may obtain a copy of the License at\n\n       http://www.apache.org/licenses/LICENSE-2.0\n\n   Unless required by applicable law or agreed to in writing, software\n   distributed under the License is distributed on an \"AS IS\" BASIS,\n   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n   See the License for the specific language governing permissions and\n   limitations under the License.\n",
+        "source": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2"
+      }
+    },
+    {
+      "files": [
+        {
+          "bytes": 13153,
+          "path": "/private/tmp/vantranscribe-ami-eval/verified-live-models/sherpa-onnx-streaming-zipformer-en-2023-06-21/manifest.json",
+          "sha256": "297d79aa6238527ae09ed3a6ffe8f59bf18f232564a917e2b7632285df0e51fe"
+        },
+        {
+          "bytes": 2092566,
+          "path": "/private/tmp/vantranscribe-ami-eval/verified-live-models/sherpa-onnx-streaming-zipformer-en-2023-06-21/decoder-epoch-99-avg-1.onnx",
+          "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+        },
+        {
+          "bytes": 187823992,
+          "path": "/private/tmp/vantranscribe-ami-eval/verified-live-models/sherpa-onnx-streaming-zipformer-en-2023-06-21/encoder-epoch-99-avg-1.int8.onnx",
+          "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+        },
+        {
+          "bytes": 259335,
+          "path": "/private/tmp/vantranscribe-ami-eval/verified-live-models/sherpa-onnx-streaming-zipformer-en-2023-06-21/joiner-epoch-99-avg-1.int8.onnx",
+          "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+        },
+        {
+          "bytes": 5048,
+          "path": "/private/tmp/vantranscribe-ami-eval/verified-live-models/sherpa-onnx-streaming-zipformer-en-2023-06-21/tokens.txt",
+          "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+        }
+      ],
+      "manifest": {
+        "acquisition_terms": "Public download; no account, API key or access-form acceptance required.",
+        "archive_sha256": "455f40e556aa2b20ac9d3bffd603b58002075c1193b4070938540c11efe0a4da",
+        "attribution": "Streaming English Zipformer model: marcoyang / icefall contributors. ONNX export: csukuangfj / sherpa-onnx contributors. Training corpora: LibriSpeech and GigaSpeech.",
+        "conversion": "Canonical sherpa-onnx 2023-06-21 ONNX export of marcoyang/icefall-libri-giga-pruned-transducer-stateless7-streaming-2023-04-04 (https://github.com/k2-fsa/icefall/pull/984); INT8 encoder/joiner and FP32 decoder. Publisher model cards and the pinned archive README identify Apache-2.0; no local conversion.",
+        "files": {
+          "decoder-epoch-99-avg-1.onnx": {
+            "bytes": 2092566,
+            "sha256": "9da02b77cb08826756ec6a88635f35a40374e4164e7c6359121a9145958a6ceb"
+          },
+          "encoder-epoch-99-avg-1.int8.onnx": {
+            "bytes": 187823992,
+            "sha256": "32c98281c7bd8b63e3e142d007251b37f120572e8fdea9a4f5a79ce22b10ec4f"
+          },
+          "joiner-epoch-99-avg-1.int8.onnx": {
+            "bytes": 259335,
+            "sha256": "831477d390e59a61f1b6a6f763b9903e6c6366ff6034f1ddba613be82637122f"
+          },
+          "tokens.txt": {
+            "bytes": 5048,
+            "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+          }
+        },
+        "id": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+        "license": "Apache-2.0",
+        "license_text": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for use, reproduction,\n      and distribution as defined by Sections 1 through 9 of this document.\n\n      \"Licensor\" shall mean the copyright owner or entity authorized by\n      the copyright owner that is granting the License.\n\n      \"Legal Entity\" shall mean the union of the acting entity and all\n      other entities that control, are controlled by, or are under common\n      control with that entity. For the purposes of this definition,\n      \"control\" means (i) the power, direct or indirect, to cause the\n      direction or management of such entity, whether by contract or\n      otherwise, or (ii) ownership of fifty percent (50%) or more of the\n      outstanding shares, or (iii) beneficial ownership of such entity.\n\n      \"You\" (or \"Your\") shall mean an individual or Legal Entity\n      exercising permissions granted by this License.\n\n      \"Source\" form shall mean the preferred form for making modifications,\n      including but not limited to software source code, documentation\n      source, and configuration files.\n\n      \"Object\" form shall mean any form resulting from mechanical\n      transformation or translation of a Source form, including but\n      not limited to compiled object code, generated documentation,\n      and conversions to other media types.\n\n      \"Work\" shall mean the work of authorship, whether in Source or\n      Object form, made available under the License, as indicated by a\n      copyright notice that is included in or attached to the work\n      (an example is provided in the Appendix below).\n\n      \"Derivative Works\" shall mean any work, whether in Source or Object\n      form, that is based on (or derived from) the Work and for which the\n      editorial revisions, annotations, elaborations, or other modifications\n      represent, as a whole, an original work of authorship. For the purposes\n      of this License, Derivative Works shall not include works that remain\n      separable from, or merely link (or bind by name) to the interfaces of,\n      the Work and Derivative Works thereof.\n\n      \"Contribution\" shall mean any work of authorship, including\n      the original version of the Work and any modifications or additions\n      to that Work or Derivative Works thereof, that is intentionally\n      submitted to Licensor for inclusion in the Work by the copyright owner\n      or by an individual or Legal Entity authorized to submit on behalf of\n      the copyright owner. For the purposes of this definition, \"submitted\"\n      means any form of electronic, verbal, or written communication sent\n      to the Licensor or its representatives, including but not limited to\n      communication on electronic mailing lists, source code control systems,\n      and issue tracking systems that are managed by, or on behalf of, the\n      Licensor for the purpose of discussing and improving the Work, but\n      excluding communication that is conspicuously marked or otherwise\n      designated in writing by the copyright owner as \"Not a Contribution.\"\n\n      \"Contributor\" shall mean Licensor and any individual or Legal Entity\n      on behalf of whom a Contribution has been received by Licensor and\n      subsequently incorporated within the Work.\n\n   2. Grant of Copyright License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      copyright license to reproduce, prepare Derivative Works of,\n      publicly display, publicly perform, sublicense, and distribute the\n      Work and such Derivative Works in Source or Object form.\n\n   3. Grant of Patent License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      (except as stated in this section) patent license to make, have made,\n      use, offer to sell, sell, import, and otherwise transfer the Work,\n      where such license applies only to those patent claims licensable\n      by such Contributor that are necessarily infringed by their\n      Contribution(s) alone or by combination of their Contribution(s)\n      with the Work to which such Contribution(s) was submitted. If You\n      institute patent litigation against any entity (including a\n      cross-claim or counterclaim in a lawsuit) alleging that the Work\n      or a Contribution incorporated within the Work constitutes direct\n      or contributory patent infringement, then any patent licenses\n      granted to You under this License for that Work shall terminate\n      as of the date such litigation is filed.\n\n   4. Redistribution. You may reproduce and distribute copies of the\n      Work or Derivative Works thereof in any medium, with or without\n      modifications, and in Source or Object form, provided that You\n      meet the following conditions:\n\n      (a) You must give any other recipients of the Work or\n          Derivative Works a copy of this License; and\n\n      (b) You must cause any modified files to carry prominent notices\n          stating that You changed the files; and\n\n      (c) You must retain, in the Source form of any Derivative Works\n          that You distribute, all copyright, patent, trademark, and\n          attribution notices from the Source form of the Work,\n          excluding those notices that do not pertain to any part of\n          the Derivative Works; and\n\n      (d) If the Work includes a \"NOTICE\" text file as part of its\n          distribution, then any Derivative Works that You distribute must\n          include a readable copy of the attribution notices contained\n          within such NOTICE file, excluding those notices that do not\n          pertain to any part of the Derivative Works, in at least one\n          of the following places: within a NOTICE text file distributed\n          as part of the Derivative Works; within the Source form or\n          documentation, if provided along with the Derivative Works; or,\n          within a display generated by the Derivative Works, if and\n          wherever such third-party notices normally appear. The contents\n          of the NOTICE file are for informational purposes only and\n          do not modify the License. You may add Your own attribution\n          notices within Derivative Works that You distribute, alongside\n          or as an addendum to the NOTICE text from the Work, provided\n          that such additional attribution notices cannot be construed\n          as modifying the License.\n\n      You may add Your own copyright statement to Your modifications and\n      may provide additional or different license terms and conditions\n      for use, reproduction, or distribution of Your modifications, or\n      for any such Derivative Works as a whole, provided Your use,\n      reproduction, and distribution of the Work otherwise complies with\n      the conditions stated in this License.\n\n   5. Submission of Contributions. Unless You explicitly state otherwise,\n      any Contribution intentionally submitted for inclusion in the Work\n      by You to the Licensor shall be under the terms and conditions of\n      this License, without any additional terms or conditions.\n      Notwithstanding the above, nothing herein shall supersede or modify\n      the terms of any separate license agreement you may have executed\n      with Licensor regarding such Contributions.\n\n   6. Trademarks. This License does not grant permission to use the trade\n      names, trademarks, service marks, or product names of the Licensor,\n      except as required for reasonable and customary use in describing the\n      origin of the Work and reproducing the content of the NOTICE file.\n\n   7. Disclaimer of Warranty. Unless required by applicable law or\n      agreed to in writing, Licensor provides the Work (and each\n      Contributor provides its Contributions) on an \"AS IS\" BASIS,\n      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or\n      implied, including, without limitation, any warranties or conditions\n      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A\n      PARTICULAR PURPOSE. You are solely responsible for determining the\n      appropriateness of using or redistributing the Work and assume any\n      risks associated with Your exercise of permissions under this License.\n\n   8. Limitation of Liability. In no event and under no legal theory,\n      whether in tort (including negligence), contract, or otherwise,\n      unless required by applicable law (such as deliberate and grossly\n      negligent acts) or agreed to in writing, shall any Contributor be\n      liable to You for damages, including any direct, indirect, special,\n      incidental, or consequential damages of any character arising as a\n      result of this License or out of the use or inability to use the\n      Work (including but not limited to damages for loss of goodwill,\n      work stoppage, computer failure or malfunction, or any and all\n      other commercial damages or losses), even if such Contributor\n      has been advised of the possibility of such damages.\n\n   9. Accepting Warranty or Additional Liability. While redistributing\n      the Work or Derivative Works thereof, You may choose to offer,\n      and charge a fee for, acceptance of support, warranty, indemnity,\n      or other liability obligations and/or rights consistent with this\n      License. However, in accepting such obligations, You may act only\n      on Your own behalf and on Your sole responsibility, not on behalf\n      of any other Contributor, and only if You agree to indemnify,\n      defend, and hold each Contributor harmless for any liability\n      incurred by, or claims asserted against, such Contributor by reason\n      of your accepting any such warranty or additional liability.\n\n   END OF TERMS AND CONDITIONS\n\n   APPENDIX: How to apply the Apache License to your work.\n\n      To apply the Apache License to your work, attach the following\n      boilerplate notice, with the fields enclosed by brackets \"[]\"\n      replaced with your own identifying information. (Don't include\n      the brackets!)  The text should be enclosed in the appropriate\n      comment syntax for the file format. We also recommend that a\n      file or class name and description of purpose be included on the\n      same \"printed page\" as the copyright notice for easier\n      identification within third-party archives.\n\n   Copyright [yyyy] [name of copyright owner]\n\n   Licensed under the Apache License, Version 2.0 (the \"License\");\n   you may not use this file except in compliance with the License.\n   You may obtain a copy of the License at\n\n       http://www.apache.org/licenses/LICENSE-2.0\n\n   Unless required by applicable law or agreed to in writing, software\n   distributed under the License is distributed on an \"AS IS\" BASIS,\n   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n   See the License for the specific language governing permissions and\n   limitations under the License.\n",
+        "source": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2"
+      }
+    }
+  ],
+  "runner": {
+    "binary": {
+      "bytes": 28618784,
+      "path": "/Volumes/dev/repos/personal/VanTranscribe/target/release/xtask",
+      "sha256": "b2ef7ab8925706309bb32c75225422ee363adc606714988004de779e059db01f"
+    },
+    "settings": "actualproductionAPI;sourceclock20mspackets;Mictrack;rawgain1;productionendpoints.8s/15s;greedy2STTthreads;VAD1thread;sequentialfreshengines;noOSdevices/network/defaultchange"
+  },
+  "schema_version": 1,
+  "sources": [
+    {
+      "bytes": 1672,
+      "path": "/private/tmp/vantranscribe-ami-eval/production-live-comparison.json",
+      "sha256": "f3beafc7a6e377391105a3f9954120ccf65a0725ce2f4b2e295f3aff5d76c81e"
+    },
+    {
+      "bytes": 643854,
+      "path": "/private/tmp/vantranscribe-refinement-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/silero_vad.onnx",
+      "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+    },
+    {
+      "bytes": 212044,
+      "path": "/private/tmp/vantranscribe-stt-fixture.wav",
+      "sha256": "6bc58a4efdf20daac252b6b1502632601a71efe0308f6757dc1eda34891a7e4f"
+    },
+    {
+      "bytes": 4159,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/inference-input.json",
+      "sha256": "9ba03e629a61bd19df800c879b656b175ffee4cd489f2a7102b8bf5ccd84bca6"
+    },
+    {
+      "bytes": 9600044,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/audio.wav",
+      "sha256": "644f4491147f83709ed8403076106a9ac08d8c0ad936dac05e1e8f84305c01bb"
+    },
+    {
+      "bytes": 2422,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.txt",
+      "sha256": "dee0878f7abb9936396cedffc52232809a6e57b2d93402cd444c91511766f8de"
+    },
+    {
+      "bytes": 4022,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/reference.rttm",
+      "sha256": "4939f43f65afdcdeb71c0f0d768822ac9eb02e523af38c086da8e6eccdca7468"
+    },
+    {
+      "bytes": 46,
+      "path": "/private/tmp/vantranscribe-ami-eval/first300/regions.uem",
+      "sha256": "dc75135da9c295a62135e0c207a86ee00cad165efda129fabc13ba329d5344d3"
+    },
+    {
+      "bytes": 4152,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/inference-input.json",
+      "sha256": "ca14297e7da833abc3d65e49568000c58561f50a3a4b77595313e41ae1fcc325"
+    },
+    {
+      "bytes": 9600044,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/audio.wav",
+      "sha256": "eedab93da8ad5096cc1267c3a8a2193deb654629fae5ae170756f4d293a9a3a6"
+    },
+    {
+      "bytes": 3596,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.txt",
+      "sha256": "55c7432f274091782687d96080ee55af19ad08058c96a67bf506a482d255f0d1"
+    },
+    {
+      "bytes": 6827,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/reference.rttm",
+      "sha256": "e385b30031584c6dd6dfd859359414d49f5ec43a210ef5d09f1f63379c64cba0"
+    },
+    {
+      "bytes": 48,
+      "path": "/private/tmp/vantranscribe-ami-eval/next300/regions.uem",
+      "sha256": "efdc01dd82b0c26c56d3b8840732f7f8b669b1ae7a640fdcf054ce68954c6f58"
+    }
+  ],
+  "local_artifact": "/private/tmp/vantranscribe-ami-eval/production-live-comparison-v1",
+  "results_sha256": "d5e00067f286efa313bee497ebc8bd2f6624f494c34e39bfa53810eee0461ca6",
+  "interpretation": [
+    "Candidatebenefit survivesproductionVAD but material13\u201317pointWERpenalty remains.",
+    "No normalization/default/cacheactivation occurs.",
+    "Bounds checks do not certify forcedalignmentaccuracy.",
+    "Pacedcontrolpacketdeliverydelay excludesUI/capture/semanticmodelbufferlatency."
+  ]
+}

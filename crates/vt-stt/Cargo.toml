@@ -1,0 +1,23 @@
+[package]
+name = "vt-stt"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.89"
+description = "Local streaming Zipformer, offline Parakeet refinement and explicit model installation"
+
+[dependencies]
+vt-core = { path = "../vt-core" }
+sherpa-onnx = "=2.0.1"
+reqwest = { version = "0.12.28", default-features = false, features = ["blocking", "rustls-tls"] }
+tokio = { version = "1.54", features = ["rt", "time", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10.9"
+thiserror = "2.0"
+tar = "0.4.44"
+bzip2 = "0.6"
+tempfile = "3.23"
+
+[lints.rust]
+unsafe_code = "forbid"

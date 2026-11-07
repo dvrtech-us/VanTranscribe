@@ -1,0 +1,21 @@
+[package]
+name = "vt-record"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Durable native-rate audio chunks and recording recovery for VanTranscribe"
+
+[dependencies]
+vt-core.workspace = true
+flacenc.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+claxon.workspace = true
+
+[lints]
+workspace = true

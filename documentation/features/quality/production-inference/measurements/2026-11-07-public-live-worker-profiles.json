@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "date_central": "2026-11-07",
+  "acceptance": "not_claimed",
+  "purpose": "Functional AppService live-worker validation of legacy Small/0.5 and fresh Standard/0.2 profiles after the separately reviewed application activation decision.",
+  "privacy": {
+    "input": "Existing public model-owner WAV only; no private meeting data",
+    "capture": "Paced Python fake NDJSON helper; no input/output devices",
+    "network": "No network or downloads",
+    "storage": "New temporary application root/database; verified caches and public WAV hardlinked without modification",
+    "automatic_refinement_and_summary": false
+  },
+  "source": {
+    "path": "/private/tmp/vantranscribe-stt-fixture.wav",
+    "sha256": "6bc58a4efdf20daac252b6b1502632601a71efe0308f6757dc1eda34891a7e4f",
+    "origin": "Official k2-fsa/sherpa-onnx June26 model archive test_wavs/0.wav",
+    "source_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2",
+    "attribution": "k2-fsa/sherpa-onnx model-owner public test fixture",
+    "license_note": "Model-owner Apache-2.0 distribution; no independent corpus accuracy acceptance claimed from this clean control",
+    "sample_rate": 16000,
+    "mono_frames": 106000,
+    "duration_ms": 6625,
+    "copies_emitted_as_tracks": ["mic", "system"],
+    "source_unchanged_after": true
+  },
+  "command": "cargo test --locked -p vt-session live_speaker_tests:: -- --ignored --nocapture --test-threads=1",
+  "validation": {
+    "result": "passed",
+    "passed": 2,
+    "failed": 0,
+    "filtered_out": 140,
+    "test_execution_wall_seconds": 24.87,
+    "build": "debug test profile; native CPU models; Darwin arm64",
+    "configured_threads": {"stt": 2, "vad": 1, "speaker_segmentation": 1, "speaker_embedding": 1},
+    "strict_clippy": "cargo clippy --locked -p vt-session --all-targets -- -D warnings: passed",
+    "initial_assertion_correction": "The first run passed Small and reached sealed Standard provenance, then failed a test-only f32 .2 vs f64 .2 exact comparison. The final test compares f64::from(expected f32); both final cases pass. No production code changed for this correction."
+  },
+  "cases": [
+    {
+      "model": "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+      "selection": "Legacy Small directory retained; no explicit preference inserted",
+      "manifest_sha256": "2f90df8b3d5e124bd135d41a3dc39cb5b296a2e4fc4853bc65916b859369076f",
+      "requested_vad_threshold": 0.5,
+      "frames_per_track": 106000,
+      "segments": 2,
+      "final_words_both_tracks": 36,
+      "speaker_turns": 4,
+      "backlog_max_lag_ms": 290,
+      "shedding_events": 0,
+      "inference_gaps": 0
+    },
+    {
+      "model": "sherpa-onnx-streaming-zipformer-en-2023-06-21",
+      "selection": "Fresh Standard directory without legacy Small or explicit preference",
+      "manifest_sha256": "297d79aa6238527ae09ed3a6ffe8f59bf18f232564a917e2b7632285df0e51fe",
+      "requested_vad_threshold": 0.2,
+      "frames_per_track": 106000,
+      "segments": 2,
+      "final_words_both_tracks": 36,
+      "speaker_turns": 4,
+      "backlog_max_lag_ms": 290,
+      "shedding_events": 0,
+      "inference_gaps": 0
+    }
+  ],
+  "asserted_for_both": [
+    "Native STT/VAD and independent speaker workers ready before paced source feed",
+    "Sealed active live run complete; exactly one run; no automatic batch replacement",
+    "Stored requested model, exact f32 VAD threshold, VAD requested, enabled, CPU provider/two STT threads/runtime and archive/file pins match selected profile",
+    "Both tracks emit final words bounded by source and segment times; no partial IDs persisted",
+    "Remote Mic Me is labelled channel_prior; System has independent speaker turns and word assignments",
+    "No embedding vectors exposed in serialized detail",
+    "Every archived FLAC hash verified and decoded PCM24 exactly equals original public source, with all 106000 frames on each track",
+    "No non-ready audio chunks, inference gaps, shedding events or truncated backlog audit",
+    "Public source byte-identical after test and playback never started"
+  ],
+  "code_sha256": {
+    "crates/vt-session/src/live_speaker_tests.rs": "ff0df94cb00127590cb4e144133fabbdf5c2da20b3f2d77382b1eb3d5ba137b7",
+    "crates/vt-session/src/live_models.rs": "2cbad8c263fae0c468fbe2670861612eaefb8462c1a835a41888c11edf41bbef",
+    "crates/vt-session/src/session.rs": "1069e691b9bdeef42fb4852cd8da40e6dad5d58a4c0d6b8bcf3c3bdbec21f12f",
+    "crates/vt-session/src/processing.rs": "57fa59f188e3b1db7d61caef63b52b5a816df74bc72a315f26a7a1dfbbec45b0",
+    "test_binary": "d42ac6b0375781a12ad720c36d7fd5a9efbc5055a76a9e2958e6431ab70c8024"
+  },
+  "limits": [
+    "One clean 6.625-second public utterance duplicated across tracks, not a real multi-party conversation",
+    "No WER or DER scored in this integration test; retain the independent AMI train/holdout evidence",
+    "No GUI rendering, real-device capture/output, capture-to-visible latency or sustained thermal/long-call qualification",
+    "Backlog maximum is a bounded source-watermark audit observation, not a user-visible latency measurement",
+    "Does not satisfy the separate in-house four-speaker, gallery-of-50 or hardware acceptance gates"
+  ]
+}

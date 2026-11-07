@@ -1,0 +1,12 @@
+// Exact release bundle identifiers only. Shared by the native helper and Rust.
+VT_MEETING_APP("us.zoom.xos", "Zoom", "meeting")
+VT_MEETING_APP("com.microsoft.teams2", "Microsoft Teams", "meeting")
+VT_MEETING_APP("com.microsoft.teams", "Microsoft Teams (classic)", "meeting")
+VT_MEETING_APP("com.tinyspeck.slackmacgap", "Slack", "meeting")
+VT_MEETING_APP("Cisco-Systems.Spark", "Webex", "meeting")
+VT_MEETING_APP("com.cisco.webexmeetingsapp", "Webex Meetings", "meeting")
+VT_MEETING_APP("com.google.Chrome", "Google Chrome", "browser")
+VT_MEETING_APP("com.apple.Safari", "Safari", "browser")
+VT_MEETING_APP("com.microsoft.edgemac", "Microsoft Edge", "browser")
+VT_MEETING_APP("org.mozilla.firefox", "Firefox", "browser")
+VT_MEETING_APP("com.brave.Browser", "Brave", "browser")

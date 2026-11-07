@@ -1,0 +1,21 @@
+VanTranscribe offline refinement models
+
+Parakeet-TDT 0.6B v3: Copyright NVIDIA Corporation.
+Original model: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
+License: Creative Commons Attribution 4.0 International (CC-BY-4.0).
+Full terms are included in CC-BY-4.0.txt.
+ONNX conversion and INT8 quantization: Fangjun Kuang / sherpa-onnx contributors.
+Conversion: https://github.com/k2-fsa/sherpa-onnx/tree/master/scripts/nemo/parakeet-tdt-0.6b-v3
+VanTranscribe uses the canonical converted and quantized release without local
+weight modification or training. Model weights are an explicit separate download.
+
+Silero VAD: Copyright (c) 2020-present Silero Team. MIT license.
+https://github.com/snakers4/silero-vad
+Full terms are included in silero-vad-LICENSE.txt.
+
+Native sherpa-onnx: Apache-2.0 (sherpa-onnx-LICENSE.txt).
+ONNX Runtime: MIT (onnxruntime-LICENSE.txt).
+
+The install manifest records source URLs, full license texts, attribution,
+conversion details, acquisition terms, and pinned SHA-256 hashes of all weights.
+No account, access form, or API key is required for these public release assets.

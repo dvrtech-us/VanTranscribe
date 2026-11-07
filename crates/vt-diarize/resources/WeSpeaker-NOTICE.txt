@@ -1,0 +1,24 @@
+WeSpeaker English VoxCeleb ResNet34 research model
+
+Original speaker model: WeSpeaker / WeNet community, trained on VoxCeleb.
+Sherpa-compatible ONNX metadata/conversion: k2-fsa/sherpa-onnx contributors.
+Downloaded official ONNX bytes are used unchanged; VanTranscribe applies no
+weight modification and does not bundle or redistribute these model weights.
+
+Model source:
+https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34.onnx
+Original model and attribution:
+https://github.com/wenet-e2e/wespeaker
+https://huggingface.co/Wespeaker/wespeaker-voxceleb-resnet34
+
+The upstream pretrained-model documentation states that VoxCeleb-trained model
+weights follow Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://github.com/wenet-e2e/wespeaker/blob/master/docs/pretrained.md#model-license
+https://creativecommons.org/licenses/by/4.0/
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+The upstream Hugging Face model-card metadata separately declares Apache-2.0.
+WeSpeaker source code also uses Apache-2.0. Retain that accompanying license
+text in Apache-2.0.txt as well as this weights attribution and CC BY notice.
+These notices record the upstream difference rather than resolving or
+overriding either publisher statement. No endorsement is implied.

@@ -1,0 +1,9 @@
+[package]
+name = "vt-core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Shared audio geometry and timeline contracts for VanTranscribe"
+
+[lints.rust]
+unsafe_code = "forbid"
