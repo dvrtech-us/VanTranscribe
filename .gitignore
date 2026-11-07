@@ -12,3 +12,4 @@ core
 /models/
 /test-results/
 /playwright-report/
+/dist/
