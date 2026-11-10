@@ -596,3 +596,167 @@ fn correction_clears_effective_word_alignment_but_preserves_raw_completed_histor
     assert_eq!(service.search("Correctedword").unwrap().len(), 1);
     assert!(service.search("Originalword").unwrap().is_empty());
 }
+
+fn refined_segment(track: TrackKind, start_ms: u64, text: &str) -> RefinedSegment {
+    RefinedSegment {
+        track,
+        start_ms,
+        end_ms: start_ms + 400,
+        text: text.into(),
+        words: vec![vt_stt::WordTiming {
+            text: text.into(),
+            start_ms,
+            end_ms: start_ms + 400,
+        }],
+    }
+}
+
+/// Runs the steps `refinement_job` takes after speaker separation (settle the
+/// separation outcome, label Parakeet segments, publish, mark ready) for a
+/// separation that failed with `error`. Parakeet output is synthetic.
+fn refine_after_separation_error(
+    service: &AppService,
+    id: &str,
+    mode: &str,
+    error: anyhow::Error,
+) -> (String, MeetingDetail) {
+    let root = service.root();
+    let recording = vt_record::Recording::create(root, id).unwrap();
+    store::create_meeting(root, id, "Capacity fallback fixture", mode).unwrap();
+    store::save_segment(root, id, &segment("live", "Liveword draft")).unwrap();
+    store::complete_live_run(root, id).unwrap();
+    recording.finish().unwrap();
+    store::set_status(root, id, "processing", None).unwrap();
+    let run = store::create_run(root, id, "refine", "{}").unwrap();
+    let turns = crate::speaker_pipeline::settle(service, id, &run.id, Err(error)).unwrap();
+    let in_person = store::meeting_mode(root, id).unwrap() == vt_diarize::MeetingMode::InPerson;
+    let segments = [
+        refined_segment(TrackKind::Mic, 100, "Micword"),
+        refined_segment(TrackKind::System, 900, "Systemword"),
+    ]
+    .into_iter()
+    .flat_map(|segment| prepared_segment(segment, turns.as_deref(), in_person))
+    .collect::<Vec<_>>();
+    store::append_run_segments(root, &run.id, &segments).unwrap();
+    store::publish_run(root, id, &run.id).unwrap();
+    store::set_status(root, id, "ready", None).unwrap();
+    (run.id, service.detail(id).unwrap())
+}
+
+#[test]
+fn speaker_capacity_during_separation_publishes_complete_refined_transcript_with_limit_warning() {
+    use vt_diarize::{CapacityLimit, DiarizeError};
+    let (_temp, service) = service();
+    for (id, mode, limit) in [
+        ("capacity-remote", "remote", CapacityLimit::Clusters),
+        ("capacity-in-person", "in_person", CapacityLimit::Embeddings),
+    ] {
+        // Detection must survive context added by intermediate layers.
+        let error = anyhow::Error::from(DiarizeError::Capacity(limit)).context("separating");
+        let (run, detail) = refine_after_separation_error(&service, id, mode, error);
+        assert_eq!(detail.meeting.status, "ready");
+        assert_eq!(detail.meeting.error, None);
+        assert_eq!(detail.active_run_id.as_deref(), Some(run.as_str()));
+        assert!(
+            detail
+                .runs
+                .iter()
+                .any(|r| r.id == run && r.kind == "refine" && r.status == "complete")
+        );
+        let lines = detail
+            .segments
+            .iter()
+            .map(|s| (s.text.as_str(), s.speaker.as_str()))
+            .collect::<Vec<_>>();
+        if mode == "remote" {
+            assert_eq!(lines, [("Micword", "Me"), ("Systemword", "Them")]);
+        } else {
+            assert_eq!(lines, [("Micword", "Unknown"), ("Systemword", "Unknown")]);
+        }
+        assert!(
+            detail.speaker_turns.is_empty(),
+            "no turns from the failed attempt may be published"
+        );
+        let warnings = detail.diarization.expect("run warning").warnings;
+        assert_eq!(
+            warnings,
+            [crate::speaker_pipeline::capacity_warning(
+                limit,
+                mode == "in_person",
+                false
+            )]
+        );
+        assert!(warnings[0].contains(&format!("(limit: {limit})")));
+    }
+    let remote = service.detail("capacity-remote").unwrap();
+    assert_eq!(
+        remote.diarization.unwrap().warnings[0],
+        "Speaker separation could not finish for this recording (limit: clusters). The refined transcript is complete. The transcript is labelled by channel (Me / Them)."
+    );
+}
+
+#[test]
+fn constraint_capacity_and_other_separation_errors_still_fail_the_refinement() {
+    use vt_diarize::{CapacityLimit, DiarizeError};
+    let cases: [(&str, anyhow::Error, &str); 3] = [
+        (
+            "constraints",
+            DiarizeError::Capacity(CapacityLimit::Constraints).into(),
+            "limit: constraints",
+        ),
+        (
+            "invalid",
+            DiarizeError::Invalid("synthetic engine failure").into(),
+            "synthetic engine failure",
+        ),
+        (
+            "cancelled",
+            anyhow::anyhow!(
+                "Processing cancelled. The previous transcript and notes were preserved."
+            ),
+            "Processing cancelled",
+        ),
+    ];
+    for (id, error, message) in cases {
+        let (_temp, service) = service();
+        let mut recording = record(&service, id);
+        let block = AudioBlock::new(
+            StreamFormat::new(8000, 1).unwrap(),
+            FramePosition {
+                epoch: 0,
+                first_frame: 0,
+                host_time_ns: 0,
+            },
+            vec![0.125; 1600],
+        )
+        .unwrap();
+        recording.write_chunk(TrackKind::Mic, &block).unwrap();
+        recording.finish().unwrap();
+        let old = old_transcript(&service, id);
+        service.runtime.lock().unwrap().refinement_model.installed = true;
+        reserve(&service, id, "refine", Start::Manual).unwrap();
+        let run = store::create_run(service.root(), id, "refine", "{}").unwrap();
+        let error = crate::speaker_pipeline::settle(&service, id, &run.id, Err(error)).unwrap_err();
+        assert!(error.to_string().contains(message), "{error}");
+        let db = store::open(service.root()).unwrap();
+        let written: i64 = db
+            .query_row(
+                "SELECT (SELECT COUNT(*) FROM app_speaker_run_state WHERE run_id=?1)+(SELECT COUNT(*) FROM app_speaker_turns WHERE run_id=?1)+(SELECT COUNT(*) FROM app_run_speaker_keys WHERE run_id=?1)",
+                [&run.id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            written, 0,
+            "a hard failure must not write fallback speaker state"
+        );
+        drop(db);
+        // `refinement_job` abandons the run and the worker finishes with the error.
+        store::abandon_run(service.root(), &run.id).unwrap();
+        finish(&service, id, Err(error));
+        let detail = service.detail(id).unwrap();
+        assert_eq!(detail.meeting.status, "failed");
+        assert!(detail.meeting.error.unwrap().contains(message));
+        assert_preserved(&service, id, &old);
+    }
+}

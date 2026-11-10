@@ -23,10 +23,10 @@ pub(crate) use speakers::revoke_constraint as revoke_speaker_constraint;
 pub use speakers::{
     DiarizationInfo, SpeakerAssignment, SpeakerConstraint, SpeakerInfo, SpeakerReview,
 };
+pub(crate) use speakers::{LiveSaveBudget, save_live_updates_with as save_live_diarization_with};
 pub(crate) use speakers::{
     add_constraint as add_speaker_constraint, constraints as speaker_constraints,
-    mode as meeting_mode, rename as rename_speaker,
-    save_live_updates as save_live_diarization_updates, save_result as save_diarization_result,
+    mode as meeting_mode, rename as rename_speaker, save_result as save_diarization_result,
 };
 pub(crate) use speakers::{
     forget_person_links, link_voice_person, set_shared_room as set_speaker_shared_room,
@@ -147,6 +147,58 @@ pub(crate) fn open(root: &Path) -> Result<Connection> {
     db.busy_timeout(Duration::from_secs(5))?;
     db.pragma_update(None, "foreign_keys", "ON")?;
     Ok(db)
+}
+
+/// SQLite (primary, extended) result codes carried anywhere in an error chain.
+pub(crate) fn sqlite_codes(error: &anyhow::Error) -> Option<(rusqlite::ErrorCode, i32)> {
+    error
+        .chain()
+        .find_map(|cause| match cause.downcast_ref::<rusqlite::Error>()? {
+            rusqlite::Error::SqliteFailure(failure, _) => {
+                Some((failure.code, failure.extended_code))
+            }
+            _ => None,
+        })
+}
+
+/// Lock contention, as opposed to corruption, I/O, constraint or logic errors.
+/// Includes SQLITE_BUSY_SNAPSHOT (517), which bypasses the busy handler.
+pub(crate) fn sqlite_busy(error: &anyhow::Error) -> bool {
+    matches!(
+        sqlite_codes(error),
+        Some((
+            rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked,
+            _
+        ))
+    )
+}
+
+fn sqlite_code_name(extended: i32) -> String {
+    use rusqlite::ffi;
+    match extended {
+        ffi::SQLITE_BUSY => "SQLITE_BUSY".into(),
+        ffi::SQLITE_BUSY_RECOVERY => "SQLITE_BUSY_RECOVERY".into(),
+        ffi::SQLITE_BUSY_SNAPSHOT => "SQLITE_BUSY_SNAPSHOT".into(),
+        ffi::SQLITE_BUSY_TIMEOUT => "SQLITE_BUSY_TIMEOUT".into(),
+        ffi::SQLITE_LOCKED => "SQLITE_LOCKED".into(),
+        ffi::SQLITE_LOCKED_SHAREDCACHE => "SQLITE_LOCKED_SHAREDCACHE".into(),
+        ffi::SQLITE_LOCKED_VTAB => "SQLITE_LOCKED_VTAB".into(),
+        other => format!("SQLite result {}", other & 0xff),
+    }
+}
+
+/// Error text plus the SQLite extended result code when one is present.
+/// "database is locked" alone cannot distinguish a busy-timeout expiry from a
+/// WAL snapshot upgrade failure; the extended code can.
+pub(crate) fn describe_error(error: &anyhow::Error) -> String {
+    let text = error.to_string();
+    match sqlite_codes(error) {
+        Some((_, extended)) => format!(
+            "{text} (SQLite extended code {extended} {})",
+            sqlite_code_name(extended)
+        ),
+        None => text,
+    }
 }
 
 pub(crate) fn initialize(root: &Path) -> Result<()> {
@@ -1217,3 +1269,35 @@ mod speaker_regressions;
 #[cfg(test)]
 #[path = "store_tests.rs"]
 mod tests;
+
+/// Speaker-separation fallback for a refine run whose separation stopped at a
+/// capacity limit: carries the previous published run's speaker keys, timed
+/// turns, user overrides and pending reviews onto the running `run` (the same
+/// copy as `retain_speaker_annotations`) and appends `warning(retained)` to the
+/// run's speaker warnings. Writes nothing from the failed separation attempt.
+pub(crate) fn retain_speakers_after_failed_separation(
+    root: &Path,
+    meeting: &str,
+    run: &str,
+    warning: impl FnOnce(bool) -> String,
+) -> Result<Option<Vec<vt_diarize::SpeakerTurn>>> {
+    let mut db = open(root)?;
+    let tx = db.transaction()?;
+    let turns = speakers::copy_previous(&tx, meeting, run)?;
+    let saved: Option<String> = tx
+        .query_row(
+            "SELECT warnings_json FROM app_speaker_run_state WHERE run_id=?1",
+            [run],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let mut warnings: Vec<String> = saved
+        .as_deref()
+        .map(serde_json::from_str)
+        .transpose()?
+        .unwrap_or_default();
+    warnings.push(warning(!turns.is_empty()));
+    tx.execute("INSERT INTO app_speaker_run_state(run_id,embedding_version,calibrated,warnings_json) VALUES (?1,?2,0,?3) ON CONFLICT(run_id) DO UPDATE SET warnings_json=excluded.warnings_json",params![run,vt_diarize::EMBEDDING_VERSION,serde_json::to_string(&warnings)?])?;
+    tx.commit()?;
+    Ok((!turns.is_empty()).then_some(turns))
+}

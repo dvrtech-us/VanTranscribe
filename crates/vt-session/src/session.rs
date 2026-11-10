@@ -461,16 +461,26 @@ fn spawn_inference_worker(
     work: impl FnOnce() -> Result<()> + Send + 'static,
 ) -> Option<std::thread::JoinHandle<Result<()>>> {
     let finished = service.clone();
+    let thread_name = name.to_owned();
     match std::thread::Builder::new().name(name.into()).spawn(move|| {
         let result=work();
         let mut controller=finished.backlog.lock().unwrap_or_else(|e|e.into_inner());
-        if result.is_err() {controller.defer_pending(worker,"worker_failed");controller.warn("A live inference worker failed. Raw audio is preserved; refine saved audio after stopping.");}
+        if let Err(error)=&result {controller.defer_pending(worker,"worker_failed");controller.warn("A live inference worker failed. Raw audio is preserved; refine saved audio after stopping.");controller.warn(&worker_failure_warning(&thread_name,error));}
         controller.stopped(worker);
         result
     }) {
         Ok(worker)=>Some(worker),
         Err(_)=>{let mut controller=service.backlog.lock().unwrap_or_else(|e|e.into_inner());controller.stopped(worker);controller.warn("A live inference worker could not start. Raw audio is preserved.");None}
     }
+}
+/// The fatal cause, including any SQLite extended result code, bounded so a
+/// long error chain cannot crowd the inference health report.
+pub(crate) fn worker_failure_warning(name: &str, error: &anyhow::Error) -> String {
+    let mut cause = store::describe_error(error);
+    if cause.chars().count() > 300 {
+        cause = cause.chars().take(300).collect::<String>() + "…";
+    }
+    format!("Live inference worker {name} stopped: {cause}")
 }
 fn infer_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>) -> Result<()> {
     if !service.inference_allowed(backlog::Worker::Stt) {
@@ -570,8 +580,26 @@ fn speaker_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>)
         let fake = service.test_workers.lock().unwrap().clone();
         #[cfg(test)]
         if let Some(fake) = fake {
+            // Optional synthetic turns exercise the real live publisher without models.
+            let mut publisher = fake
+                .speaker_turns
+                .as_ref()
+                .map(|_| {
+                    crate::speaker_pipeline::LivePublisher::new(
+                        service.clone(),
+                        &id,
+                        fake.live_save,
+                    )
+                })
+                .transpose()?;
             return consume_inference(&service, backlog::Worker::Speakers, rx, |message| {
                 (fake.accept)(backlog::Worker::Speakers, &message)?;
+                if let (Some(publisher), Some(turns), Inference::Audio { generation, .. }) =
+                    (publisher.as_mut(), fake.speaker_turns.as_ref(), &message)
+                    && service.inference_current(*generation)
+                {
+                    publisher.publish(*generation, turns(&message)?)?;
+                }
                 Ok(())
             });
         }
@@ -610,12 +638,12 @@ fn speaker_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>)
         Ok(())
     })();
     if let Err(error) = &outcome {
-        let _ = store::speaker_warning(&service.root, &id, &error.to_string());
+        let _ = store::speaker_warning(&service.root, &id, &store::describe_error(error));
     }
     if let Ok(mut runtime) = service.runtime.lock() {
         runtime.live_processing.diarization_active = false;
         if let Err(error) = &outcome {
-            runtime.live_processing.diarization_warning = Some(error.to_string());
+            runtime.live_processing.diarization_warning = Some(store::describe_error(error));
         }
     }
     outcome
@@ -1466,6 +1494,10 @@ fn stage_final(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "live_speaker_persistence_tests.rs"]
+mod live_speaker_persistence_tests;
 
 #[cfg(test)]
 mod regression_tests {

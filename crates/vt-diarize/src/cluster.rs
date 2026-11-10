@@ -2,6 +2,7 @@ use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
 const MAX_CLUSTERS: usize = 64;
 const MAX_EXEMPLARS: usize = 20;
+use crate::diagnostics::TrackDiagnostics;
 use crate::models::{ASSIGN, MARGIN, MERGE};
 #[derive(Clone, Default)]
 pub(crate) struct ConstraintGraph {
@@ -78,6 +79,7 @@ struct Cluster {
 }
 #[derive(Clone)]
 pub(crate) struct Clusters {
+    stats: TrackDiagnostics,
     prefix: String,
     groups: Vec<Cluster>,
     next: u32,
@@ -133,6 +135,7 @@ fn prune(group: &mut Cluster) {
 impl Clusters {
     pub(crate) fn new(prefix: &str, constraints: &[PairConstraint]) -> Self {
         Self {
+            stats: TrackDiagnostics::default(),
             prefix: prefix.into(),
             groups: Vec::new(),
             next: 1,
@@ -161,12 +164,15 @@ impl Clusters {
             })
         })
     }
+    /// Returns `None` when the embedding is deliberately left unattributed
+    /// (an ambiguous margin failure with best >= MERGE); the caller must
+    /// surface that turn as Unknown/uncertain with no speaker id.
     pub(crate) fn assign(
         &mut self,
         turn: &str,
         embedding: Vec<f32>,
         duration: u64,
-    ) -> Result<(String, f32, bool)> {
+    ) -> Result<Option<(String, f32, bool)>> {
         let singleton = BTreeSet::from([turn.to_string()]);
         let mut required = self
             .groups
@@ -216,12 +222,42 @@ impl Clusters {
                 *score >= ASSIGN && score - scores.get(1).map(|s| s.1).unwrap_or(-1.) >= MARGIN
             })
         };
+        // Margin failure: best >= ASSIGN but too close to the runner-up.
+        let margin_failure = match (required.is_empty(), selected, scores.first(), scores.get(1)) {
+            (true, None, Some(&(best_i, best)), Some(&(second_i, _))) if best >= ASSIGN => {
+                Some((best, best_i, second_i))
+            }
+            _ => None,
+        };
+        if let Some((best, best_i, second_i)) = margin_failure {
+            let centroids = cosine(
+                &mean(&self.groups[best_i].examples),
+                &mean(&self.groups[second_i].examples),
+            );
+            self.stats.record_margin_failure(best, centroids);
+            // A high-similarity but ambiguous window is left unattributed: no
+            // cluster is opened and no exemplar, member or speech time is added.
+            // Opening a singleton on it would make the next window of the same
+            // voice ambiguous again. Constraint anchors keep the old behaviour so
+            // must-link/cannot-link checks always see them in a cluster.
+            if best >= MERGE && !self.graph.roots.contains_key(turn) {
+                self.stats.ambiguous_unattributed += 1;
+                return Ok(None);
+            }
+        }
         let (index, score) = if let Some(selected) = selected {
+            self.stats.assigned_existing += 1;
             selected
         } else {
             if self.groups.len() >= MAX_CLUSTERS {
-                return Err(DiarizeError::Capacity);
+                self.stats.capacity_refused = true;
+                return Err(DiarizeError::Capacity(CapacityLimit::Clusters));
             }
+            self.stats.record_open(
+                self.groups.is_empty(),
+                scores.first().map(|s| s.1),
+                scores.get(1).map(|s| s.1),
+            );
             let id = format!("{}:speaker-{}", self.prefix, self.next);
             self.next += 1;
             self.groups.push(Cluster {
@@ -232,12 +268,21 @@ impl Clusters {
             });
             (self.groups.len() - 1, 1.)
         };
+        self.stats.peak_clusters = self.stats.peak_clusters.max(self.groups.len() as u32);
         let group = &mut self.groups[index];
         group.examples.push(embedding);
         group.members.insert(turn.into());
         group.speech_ms += duration;
         prune(group);
-        Ok((group.id.clone(), score, group.speech_ms >= 3000))
+        Ok(Some((group.id.clone(), score, group.speech_ms >= 3000)))
+    }
+    /// Counters only; singleton count is derived from current membership.
+    pub(crate) fn diagnostics(&self) -> TrackDiagnostics {
+        let mut d = self.stats.clone();
+        d.clusters = self.groups.len() as u32;
+        d.singleton_clusters = self.groups.iter().filter(|g| g.members.len() == 1).count() as u32;
+        d.embeddings_assigned = d.assigned_existing + d.opened_total;
+        d
     }
     fn merge_pair(&mut self, a: usize, b: usize) -> SpeakerMerge {
         let removed = self.groups.remove(b);

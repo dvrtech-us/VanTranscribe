@@ -1558,3 +1558,109 @@ fn legacy_speaker_identities_receive_idempotent_memory_columns_without_key_acces
         .unwrap();
     assert!(check.is_none());
 }
+
+/// Diagnosis of the live speaker worker's "database is locked": in WAL mode a
+/// DEFERRED transaction that has read cannot upgrade to a writer once another
+/// connection has committed. SQLite returns SQLITE_BUSY_SNAPSHOT (517) at once,
+/// without invoking the busy handler, with the generic "database is locked" text.
+#[test]
+fn deferred_read_then_write_after_a_concurrent_commit_fails_with_busy_snapshot() {
+    let temp = fixture();
+    let root = temp.path();
+    let mut a = open(root).unwrap();
+    let b = open(root).unwrap();
+    let mode: String = a
+        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mode, "wal");
+    let tx = a.transaction().unwrap();
+    let _: String = tx
+        .query_row(
+            "SELECT title FROM app_meetings WHERE id='speakers'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    b.execute(
+        "UPDATE app_meetings SET duration_ms=duration_ms+1 WHERE id='speakers'",
+        [],
+    )
+    .unwrap();
+    let started = std::time::Instant::now();
+    let error = tx
+        .execute(
+            "UPDATE app_meetings SET title='late' WHERE id='speakers'",
+            [],
+        )
+        .unwrap_err();
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "the busy handler is not invoked"
+    );
+    assert_eq!(error.to_string(), "database is locked");
+    assert_eq!(
+        error.sqlite_error_code(),
+        Some(rusqlite::ErrorCode::DatabaseBusy)
+    );
+    assert!(matches!(
+        &error,
+        rusqlite::Error::SqliteFailure(failure, _)
+            if failure.extended_code == rusqlite::ffi::SQLITE_BUSY_SNAPSHOT
+            && failure.extended_code == 517
+    ));
+    let error = anyhow::Error::from(error);
+    assert!(sqlite_busy(&error));
+    assert_eq!(
+        describe_error(&error),
+        "database is locked (SQLite extended code 517 SQLITE_BUSY_SNAPSHOT)"
+    );
+}
+
+#[test]
+fn live_updates_succeed_while_another_connection_commits_continuously() {
+    let temp = fixture();
+    let root = temp.path().to_path_buf();
+    let live = detail(&root, "speakers").unwrap().active_run_id.unwrap();
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let writer = {
+        let root = root.clone();
+        let stop = stop.clone();
+        std::thread::spawn(move || {
+            // Mirrors the recorder (autocommit, synchronous=FULL, no retry) at a
+            // far higher rate than its ~1 commit/s. A loop with no pause at all
+            // starves any SQLite busy waiter and is not a realistic writer.
+            let db = open(&root).unwrap();
+            db.pragma_update(None, "synchronous", "FULL").unwrap();
+            let mut commits = 0u64;
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                db.execute(
+                    "UPDATE app_meetings SET duration_ms=duration_ms+1 WHERE id='speakers'",
+                    [],
+                )
+                .unwrap();
+                commits += 1;
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            commits
+        })
+    };
+    let mut failures = Vec::new();
+    for i in 0..150u64 {
+        let update = result(vec![turn(
+            &format!("system:turn-{i}"),
+            "system",
+            i * 1000,
+            i * 1000 + 900,
+            &[if i % 2 == 0 { "system:a" } else { "system:b" }],
+        )]);
+        if let Err(error) = speakers::save_live_updates(&root, "speakers", &live, &update) {
+            failures.push(describe_error(&error));
+        }
+    }
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let commits = writer.join().unwrap();
+    assert!(failures.is_empty(), "{failures:?}");
+    assert!(commits > 0);
+    let saved = speakers::read_turns(&open(&root).unwrap(), &live).unwrap();
+    assert_eq!(saved.len(), 150);
+}

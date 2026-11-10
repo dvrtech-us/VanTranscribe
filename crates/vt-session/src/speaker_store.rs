@@ -395,15 +395,67 @@ pub(crate) fn save_result(
     save_result_inner(root, meeting, run, result, reconcile, true)
 }
 
+/// Bounded lock-contention budget for one live speaker publication. The worst
+/// case is `attempts * busy_timeout` plus the doubling backoff between attempts,
+/// which must stay well below `backlog::LAG_LIMIT_MS` (10 s).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LiveSaveBudget {
+    pub busy_timeout: Duration,
+    pub attempts: u32,
+    pub backoff: Duration,
+}
+impl LiveSaveBudget {
+    /// 3 x 1.5 s + 100 ms + 200 ms = 4.8 s worst case.
+    pub(crate) const PRODUCTION: Self = Self {
+        busy_timeout: Duration::from_millis(1_500),
+        attempts: 3,
+        backoff: Duration::from_millis(100),
+    };
+}
+
 /// Incremental live publication writes only the supplied bounded update. It
 /// avoids resolving/scanning the complete meeting history inside the write lock.
+#[cfg(test)]
 pub(crate) fn save_live_updates(
     root: &Path,
     meeting: &str,
     run: &str,
     result: &DiarizationResult,
 ) -> Result<()> {
-    save_result_inner(root, meeting, run, result, false, false).map(|_| ())
+    save_live_updates_with(root, meeting, run, result, LiveSaveBudget::PRODUCTION)
+}
+
+/// Live saves take the write lock at BEGIN (IMMEDIATE) so a concurrent commit
+/// makes them wait in the busy handler, rather than fail on a WAL read-snapshot
+/// upgrade (SQLITE_BUSY_SNAPSHOT, which never invokes the busy handler). The
+/// body holds the lock only for point lookups and upserts of this update. On
+/// lock contention the transaction and connection are dropped and the whole
+/// save is retried; upserts make that idempotent. Other errors return at once.
+pub(crate) fn save_live_updates_with(
+    root: &Path,
+    meeting: &str,
+    run: &str,
+    result: &DiarizationResult,
+    budget: LiveSaveBudget,
+) -> Result<()> {
+    let mut attempt = 1;
+    loop {
+        let outcome = (|| -> Result<()> {
+            let mut db = open(root)?;
+            db.busy_timeout(budget.busy_timeout)?;
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            save_result_body(&tx, meeting, run, result, false, false)?;
+            tx.commit()?;
+            Ok(())
+        })();
+        match outcome {
+            Err(error) if attempt < budget.attempts.max(1) && sqlite_busy(&error) => {
+                std::thread::sleep(budget.backoff.saturating_mul(1 << (attempt - 1).min(8)));
+                attempt += 1;
+            }
+            other => return other,
+        }
+    }
 }
 
 /// Constraint ambiguity is review metadata, never an invented assignment. Keep
@@ -518,7 +570,20 @@ fn save_result_inner(
 ) -> Result<Vec<SpeakerTurn>> {
     let mut db = open(root)?;
     let tx = db.transaction()?;
-    ensure_run(&tx, meeting, run)?;
+    let turns = save_result_body(&tx, meeting, run, result, reconcile, need_resolved_turns)?;
+    tx.commit()?;
+    Ok(turns)
+}
+
+fn save_result_body(
+    tx: &Connection,
+    meeting: &str,
+    run: &str,
+    result: &DiarizationResult,
+    reconcile: bool,
+    need_resolved_turns: bool,
+) -> Result<Vec<SpeakerTurn>> {
+    ensure_run(tx, meeting, run)?;
     let running: bool = tx.query_row(
         "SELECT status='running' FROM app_processing_runs WHERE id=?1",
         [run],
@@ -537,7 +602,7 @@ fn save_result_inner(
         )?;
         let old = previous
             .as_deref()
-            .map(|id| read_turns(&tx, id))
+            .map(|id| read_turns(tx, id))
             .transpose()?
             .unwrap_or_default();
         let unique_old_ids = old
@@ -547,7 +612,7 @@ fn save_result_inner(
         let mut identities = BTreeMap::new();
         let named = unique_old_ids
             .iter()
-            .map(|id| identity_cached(&tx, id, &mut identities))
+            .map(|id| identity_cached(tx, id, &mut identities))
             .collect::<Result<Vec<_>>>()?
             .into_iter()
             .filter_map(|(id, _, name)| name.map(|name| (id, name)))
@@ -600,7 +665,7 @@ fn save_result_inner(
                 continue;
             }
             insert_identity_review(
-                &tx,
+                tx,
                 run,
                 &review.kind,
                 &previous,
@@ -614,9 +679,9 @@ fn save_result_inner(
                 continue;
             }
             let previous = vec![id.clone()];
-            let current = candidates_for_previous(&tx, meeting, &previous, result)?;
+            let current = candidates_for_previous(tx, meeting, &previous, result)?;
             insert_identity_review(
-                &tx,
+                tx,
                 run,
                 "unmatched_name",
                 &previous,
@@ -650,14 +715,14 @@ fn save_result_inner(
                 if previous.is_empty() {
                     continue;
                 }
-                let current = candidates_for_previous(&tx, meeting, &previous, result)?;
-                insert_identity_review(&tx, run, &kind, &previous, &current, &reason)?;
+                let current = candidates_for_previous(tx, meeting, &previous, result)?;
+                insert_identity_review(tx, run, &kind, &previous, &current, &reason)?;
                 reviewed.extend(previous);
             }
         }
     }
     for review in &result.constraint_reviews {
-        save_constraint_review(&tx, meeting, run, review)?;
+        save_constraint_review(tx, meeting, run, review)?;
     }
     let mut prepared_keys = BTreeSet::new();
     for turn in &result.turns {
@@ -683,7 +748,7 @@ fn save_result_inner(
                     id.clone()
                 } else {
                     create_identity_with_reuse(
-                        &tx,
+                        tx,
                         meeting,
                         &turn.track,
                         local.ends_with(":me"),
@@ -713,13 +778,11 @@ fn save_result_inner(
         tx.execute("INSERT INTO app_speaker_turns(run_id,id,track,start_ms,end_ms,speaker_ids_json,label,provenance,score,overlap,uncertain,provisional) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12) ON CONFLICT(run_id,id) DO UPDATE SET speaker_ids_json=excluded.speaker_ids_json,label=excluded.label,provenance=excluded.provenance,score=excluded.score,overlap=excluded.overlap,uncertain=excluded.uncertain,provisional=excluded.provisional",params![run,turn.id,turn.track,turn.start_ms as i64,turn.end_ms as i64,serde_json::to_string(&ids)?,turn.label,turn.provenance,turn.score,turn.overlap,turn.uncertain,turn.provisional])?;
     }
     tx.execute("INSERT INTO app_speaker_run_state(run_id,embedding_version,calibrated,warnings_json,segmentation_context_json) VALUES (?1,?2,?3,?4,?5) ON CONFLICT(run_id) DO UPDATE SET embedding_version=excluded.embedding_version,calibrated=excluded.calibrated,warnings_json=excluded.warnings_json,segmentation_context_json=excluded.segmentation_context_json",params![run,result.embedding_version,result.calibrated,serde_json::to_string(&result.warnings)?,result.segmentation_context.as_ref().map(serde_json::to_string).transpose()?])?;
-    let turns = if need_resolved_turns {
-        read_turns(&tx, run)?
+    Ok(if need_resolved_turns {
+        read_turns(tx, run)?
     } else {
         Vec::new()
-    };
-    tx.commit()?;
-    Ok(turns)
+    })
 }
 
 pub(crate) fn resolve_review(

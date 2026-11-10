@@ -621,8 +621,15 @@ pub(crate) type FakeAccept = dyn Fn(Worker, &crate::session::Inference) -> Resul
     + Send
     + Sync;
 #[cfg(test)]
+pub(crate) type FakeTurns =
+    dyn Fn(&crate::session::Inference) -> Result<Vec<vt_diarize::SpeakerTurn>> + Send + Sync;
+#[cfg(test)]
 pub(crate) struct TestWorkers {
     pub stt: bool,
     pub speakers: bool,
     pub accept: Arc<FakeAccept>,
+    /// When set, the fake speaker worker publishes these turns through the real
+    /// live publisher using `live_save` as its lock-contention budget.
+    pub speaker_turns: Option<Arc<FakeTurns>>,
+    pub live_save: store::LiveSaveBudget,
 }

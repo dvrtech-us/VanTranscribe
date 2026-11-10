@@ -30,6 +30,8 @@ struct Track {
     window_frame: u64,
     serial: u64,
     clusters: Clusters,
+    diag_windows: u32,
+    diag_turns: u32,
 }
 impl Track {
     fn new(name: &str, config: &DiarizerConfig) -> Self {
@@ -43,6 +45,8 @@ impl Track {
             window_frame: 0,
             serial: 0,
             clusters: Clusters::new(name, &[]),
+            diag_windows: 0,
+            diag_turns: 0,
         }
     }
 }
@@ -57,12 +61,13 @@ pub struct Diarizer {
     records: Vec<Record>,
     overlap_links: Vec<(String, Vec<String>)>,
     mic_clustered: bool,
+    diag: Diagnostics,
 }
 impl Diarizer {
     pub fn new(model_dir: &Path, config: DiarizerConfig) -> Result<Self> {
         models::verify(model_dir, true)?;
         if config.constraints.len() > 4096 || config.temporal_constraints.len() > 4096 {
-            return Err(DiarizeError::Capacity);
+            return Err(DiarizeError::Capacity(CapacityLimit::Constraints));
         }
         if config.live_speaker_prior.is_some_and(|n| n == 0 || n > 64) {
             return Err(DiarizeError::Invalid("speaker prior must be1–64"));
@@ -112,7 +117,18 @@ impl Diarizer {
             records: Vec::new(),
             overlap_links: Vec::new(),
             mic_clustered,
+            diag: Diagnostics::default(),
         })
+    }
+    /// Counters survive errors and `finish`; fixed size, no audio or embeddings.
+    pub fn diagnostics(&self) -> Diagnostics {
+        let mut d = self.diag.clone();
+        for (src, dst) in self.tracks.iter().zip([&mut d.mic, &mut d.system]) {
+            *dst = src.clusters.diagnostics();
+            dst.windows = src.diag_windows;
+            dst.turns = src.diag_turns;
+        }
+        d
     }
     /// Feed independently clocked mono chunks of at most two seconds. No STT
     /// segment, word, text, identity gallery or network is consulted here.
@@ -129,7 +145,12 @@ impl Diarizer {
             ));
         }
         let result = self.accept_inner(track, mono, rate, start_ms);
-        if result.is_err() {
+        if let Err(error) = &result {
+            if let Some(limit) = error.capacity_limit() {
+                self.diag.capacity_limit = Some(limit);
+                self.diag.capacity_track = Some(track.as_str().into());
+                self.diag.capacity_at_ms = Some(self.tracks[index(track)].last_end);
+            }
             self.failed = true;
             for state in &mut self.tracks {
                 state.audio.clear();
@@ -238,6 +259,8 @@ impl Diarizer {
         if actual == 0 {
             return Ok(vec![]);
         }
+        state.diag_windows += 1;
+        self.diag.windows += 1;
         let emit = if flushing && actual < window {
             actual
         } else {
@@ -289,9 +312,11 @@ impl Diarizer {
                 continue;
             }
             if self.turns.len() + output.len() >= MAX_TURNS {
-                return Err(DiarizeError::Capacity);
+                return Err(DiarizeError::Capacity(CapacityLimit::Turns));
             }
             state.serial += 1;
+            self.diag.turns += 1;
+            state.diag_turns += 1;
             let id = format!("{}:turn-{}", track.as_str(), state.serial);
             let clip = b.min(emit);
             let origin = state.origin.unwrap();
@@ -327,21 +352,28 @@ impl Diarizer {
                                 .ok_or(DiarizeError::Engine)?,
                         )?;
                         if self.records.len() >= MAX_EMBEDDINGS {
-                            return Err(DiarizeError::Capacity);
+                            return Err(DiarizeError::Capacity(CapacityLimit::Embeddings));
                         }
+                        self.diag.embeddings += 1;
                         self.records.push(Record {
                             turn: id.clone(),
                             embedding: embedding.clone(),
                             duration: end_ms - start_ms,
                         });
-                        let (speaker, similarity, visible) =
-                            state.clusters.assign(&id, embedding, end_ms - start_ms)?;
-                        speaker_ids.push(speaker.clone());
-                        score = Some(similarity);
-                        provisional = !visible;
-                        if visible {
-                            label =
-                                format!("Speaker {}", speaker.rsplit('-').next().unwrap_or("?"));
+                        // `None` leaves the turn unattributed: no speaker id,
+                        // no score, label "Unknown", uncertain (empty ids).
+                        if let Some((speaker, similarity, visible)) =
+                            state.clusters.assign(&id, embedding, end_ms - start_ms)?
+                        {
+                            speaker_ids.push(speaker.clone());
+                            score = Some(similarity);
+                            provisional = !visible;
+                            if visible {
+                                label = format!(
+                                    "Speaker {}",
+                                    speaker.rsplit('-').next().unwrap_or("?")
+                                );
+                            }
                         }
                         provenance = if self.config.phase == Phase::Live {
                             "live-cluster"
@@ -417,13 +449,22 @@ impl Diarizer {
         }
         self.reset_track(TrackKind::Mic)?;
         self.reset_track(TrackKind::System)?;
-        let mut result = crate::finalize::finish(
+        let mut result = match crate::finalize::finish(
             self.turns.clone(),
             &self.records,
             &self.config,
             self.mic_clustered,
             &self.overlap_links,
-        )?;
+        ) {
+            Ok(result) => result,
+            Err(error) => {
+                if let Some(limit) = error.capacity_limit() {
+                    self.diag.capacity_limit = Some(limit);
+                    self.diag.capacity_track = Some("finalize".into());
+                }
+                return Err(error);
+            }
+        };
         result.segmentation_context = Some(self.config.phase.segmentation_context());
         self.finished = true;
         self.records.clear();

@@ -252,6 +252,8 @@ fn actual_session_sheds_slow_workers_but_persists_every_native_frame_and_run_aud
             }
             Ok(vec![])
         }),
+        speaker_turns: None,
+        live_save: store::LiveSaveBudget::PRODUCTION,
     }));
     let _release = Release {
         gate: gate.clone(),
@@ -529,6 +531,8 @@ fn audit_failure_graph(refuse_warning: bool) {
         stt: true,
         speakers: false,
         accept: Arc::new(|_, _| Ok(vec![])),
+        speaker_turns: None,
+        live_save: store::LiveSaveBudget::PRODUCTION,
     }));
     app.runtime.lock().unwrap().model.installed = true; // Test consumer replaces model setup.
     let gate = Arc::new((Mutex::new(true), Condvar::new()));

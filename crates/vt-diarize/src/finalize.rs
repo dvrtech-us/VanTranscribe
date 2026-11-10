@@ -280,15 +280,19 @@ fn replay(records: &[Record], plan: &Plan, prior: Option<usize>) -> ReplayResult
     let mut scores = BTreeMap::new();
     for record in records.iter().filter(|r| !plan.masked.contains(&r.turn)) {
         let i = usize::from(!record.turn.starts_with("mic:"));
-        let (_, score, _) = clusters[i]
+        // `None`: ambiguous window left unattributed; `speaker_for` then finds
+        // no cluster and the turn is emitted as Unknown/uncertain below.
+        if let Some((_, score, _)) = clusters[i]
             .assign(&record.turn, record.embedding.clone(), record.duration)
             .map_err(|error| match error {
                 DiarizeError::Constraint => {
                     ReplayFailure::Constraint(BTreeSet::from([record.turn.clone()]))
                 }
                 other => ReplayFailure::Hard(other),
-            })?;
-        scores.insert(record.turn.clone(), score);
+            })?
+        {
+            scores.insert(record.turn.clone(), score);
+        }
     }
     let mut merges = Vec::new();
     for (i, cluster) in clusters.iter_mut().enumerate() {

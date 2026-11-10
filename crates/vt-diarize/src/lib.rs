@@ -2,6 +2,7 @@
 //! Explicit enrollment recomputes bounded source embeddings for a separately
 //! consented, encrypted store owned by the session; this crate never persists them.
 mod cluster;
+mod diagnostics;
 mod engine;
 mod finalize;
 mod models;
@@ -13,6 +14,7 @@ pub use voice_embedding::{
 pub use voice_profile::VoiceEmbeddingProfile;
 #[cfg(test)]
 mod tests;
+pub use diagnostics::{CapacityLimit, Diagnostics, TrackDiagnostics};
 pub use engine::Diarizer;
 pub use models::{
     EMBEDDING, EMBEDDING_SOURCE, EMBEDDING_VERSION, MODEL_ID, MODEL_NOTICE, ModelManager,
@@ -30,8 +32,10 @@ pub enum DiarizeError {
     Engine,
     #[error("Diarization cancelled.")]
     Cancelled,
-    #[error("Diarization capacity reached; previous results must not be published as complete.")]
-    Capacity,
+    #[error(
+        "Diarization capacity reached; previous results must not be published as complete. (limit: {0})"
+    )]
+    Capacity(CapacityLimit),
     #[error("Speaker constraints conflict or refer to unavailable turns.")]
     Constraint,
     #[error("Explicit model acquisition acknowledgement is required.")]
@@ -42,6 +46,14 @@ pub enum DiarizeError {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+}
+impl DiarizeError {
+    pub fn capacity_limit(&self) -> Option<CapacityLimit> {
+        match self {
+            Self::Capacity(l) => Some(*l),
+            _ => None,
+        }
+    }
 }
 pub type Result<T> = std::result::Result<T, DiarizeError>;
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]

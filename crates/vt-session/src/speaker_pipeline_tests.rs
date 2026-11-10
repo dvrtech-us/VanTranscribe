@@ -655,6 +655,187 @@ fn public_refinement_case(with_pending_constraint: bool) {
 }
 
 #[test]
+fn refinement_publication_uses_speaker_turns_only_when_separation_is_configured() {
+    publish_refined_recording(false);
+    publish_refined_recording(true);
+}
+
+fn publish_refined_recording(speakers: bool) {
+    use std::time::{Duration, Instant};
+    use vt_core::{AudioBlock, FramePosition, StreamFormat};
+    let fixture = Path::new("/private/tmp/vantranscribe-stt-fixture.wav");
+    let refinement =
+        Path::new("/private/tmp/vantranscribe-refinement-models").join(vt_stt::REFINEMENT_MODEL_ID);
+    let diarization =
+        Path::new("/private/tmp/vt-diarization-models/verified").join(vt_diarize::MODEL_ID);
+    assert!(
+        fixture.is_file() && refinement.is_dir() && (!speakers || diarization.is_dir()),
+        "explicit public fixture and pinned model caches must exist"
+    );
+    let temp = tempfile::TempDir::new_in("/private/tmp").unwrap();
+    let root = temp.path().join("data");
+    let models = root.join("models");
+    hardlink_models(&refinement, &models.join(vt_stt::REFINEMENT_MODEL_ID));
+    if speakers {
+        hardlink_models(&diarization, &models.join(vt_diarize::MODEL_ID));
+    }
+    let service = AppService::new(root, temp.path().join("never-launched-capture-helper")).unwrap();
+    {
+        let mut prefs = service.preferences.lock().unwrap();
+        prefs.auto_refine = false;
+        prefs.auto_summarize = false;
+        let mut audio = service.audio_preferences.lock().unwrap();
+        audio.diarization_enabled = speakers;
+        audio.echo_cancellation_enabled = false;
+    }
+    assert!(service.snapshot().unwrap().refinement_models.installed);
+    assert_eq!(
+        service.snapshot().unwrap().diarization_models.installed,
+        speakers
+    );
+    let wave = sherpa_onnx::Wave::read(fixture.to_str().unwrap()).unwrap();
+    let rate = wave.sample_rate() as u32;
+    let meeting = if speakers {
+        "public-refine-speakers"
+    } else {
+        "public-refine-no-speakers"
+    };
+    let mut recording = vt_record::Recording::create(service.root(), meeting).unwrap();
+    store::create_meeting(
+        service.root(),
+        meeting,
+        "Public refinement fixture",
+        "remote",
+    )
+    .unwrap();
+    let mut first = 0u64;
+    for packet in wave.samples().chunks(rate as usize) {
+        recording
+            .write_chunk(
+                vt_core::TrackKind::Mic,
+                &AudioBlock::new(
+                    StreamFormat::new(rate, 1).unwrap(),
+                    FramePosition {
+                        epoch: 0,
+                        first_frame: first,
+                        host_time_ns: first * 1_000_000_000 / u64::from(rate),
+                    },
+                    packet.to_vec(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        first += packet.len() as u64;
+    }
+    recording.finish().unwrap();
+    store::save_segment(
+        service.root(),
+        meeting,
+        &Segment {
+            id: "live-source".into(),
+            track: "mic".into(),
+            start_ms: 0,
+            end_ms: 500,
+            text: "Live transcript that refinement must not copy forward.".into(),
+            speaker: "Me".into(),
+            words: vec![],
+        },
+    )
+    .unwrap();
+    let live = store::detail(service.root(), meeting)
+        .unwrap()
+        .active_run_id
+        .unwrap();
+    store::complete_live_run(service.root(), meeting).unwrap();
+    store::set_status(service.root(), meeting, "ready", None).unwrap();
+    service.refine(meeting).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(180);
+    while service.snapshot().unwrap().processing.is_some() {
+        if Instant::now() >= deadline {
+            service.cancel_processing();
+            panic!("refinement did not finish");
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    let current = store::detail(service.root(), meeting).unwrap();
+    assert_eq!(
+        current.meeting.status, "ready",
+        "{:?}",
+        current.meeting.error
+    );
+    let active = current.active_run_id.clone().unwrap();
+    assert_ne!(active, live);
+    assert!(current.runs.iter().any(|run| {
+        run.id == active
+            && run.kind == "refine"
+            && run.status == "complete"
+            && run.engines_json.contains(vt_stt::REFINEMENT_MODEL_ID)
+    }));
+    assert!(
+        current
+            .runs
+            .iter()
+            .any(|run| run.id == live && run.kind == "live" && run.status == "complete")
+    );
+    let historical = service.detail_for_run(meeting, Some(&live)).unwrap();
+    assert_eq!(
+        historical.segments[0].text,
+        "Live transcript that refinement must not copy forward."
+    );
+    assert!(
+        current
+            .segments
+            .iter()
+            .all(|segment| segment.text != historical.segments[0].text)
+    );
+    assert!(current.segments.iter().any(|segment| {
+        segment
+            .words
+            .iter()
+            .any(|word| word.end_ms >= word.start_ms && !word.text.is_empty())
+    }));
+    assert_word_bounds(&current.segments);
+    if speakers {
+        assert!(
+            !current.speaker_turns.is_empty(),
+            "configured separation must persist diarizer turns"
+        );
+        assert!(
+            current
+                .speaker_turns
+                .iter()
+                .all(|turn| !turn.provenance.is_empty())
+        );
+        let labels = current
+            .speaker_turns
+            .iter()
+            .map(|turn| turn.label.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert!(
+            current.segments.iter().all(|segment| {
+                labels.contains(segment.speaker.as_str())
+                    || segment.speaker == "Unknown"
+                    || segment.speaker == "Overlap"
+            }),
+            "configured refinement must label segments from diarizer turns"
+        );
+    } else {
+        assert!(
+            current.speaker_turns.is_empty(),
+            "unconfigured refinement must not invent speaker clusters"
+        );
+        assert!(current.diarization.is_none());
+        assert!(
+            current
+                .segments
+                .iter()
+                .all(|segment| segment.speaker == "Me" || segment.speaker == "Them")
+        );
+    }
+    service.wait_for_shutdown();
+}
+
+#[test]
 fn disabled_speaker_model_preserves_existing_timed_user_names_on_new_transcript_run() {
     let temp = tempfile::TempDir::new().unwrap();
     let service =
@@ -923,5 +1104,84 @@ fn disabled_model_fallback_retains_pending_constraint_review_and_publishes_compl
                 |review| serde_json::to_value(review).unwrap()["constraint_id"] == constraint.id
             )
             .all(|review| review.status != "needs_review")
+    );
+}
+
+#[test]
+fn speaker_capacity_fallback_retains_previous_timed_user_names_and_reviews() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let service =
+        AppService::new(temp.path().to_path_buf(), temp.path().join("unused-helper")).unwrap();
+    let meeting = "capacity-retained-speaker";
+    let recording = vt_record::Recording::create(service.root(), meeting).unwrap();
+    store::create_meeting(
+        service.root(),
+        meeting,
+        "Capacity retention fixture",
+        "remote",
+    )
+    .unwrap();
+    let old = service.detail(meeting).unwrap().active_run_id.unwrap();
+    let derived = store::save_diarization_result(
+        service.root(),
+        meeting,
+        &old,
+        &DiarizationResult {
+            turns: vec![turn("old-voice", "Speaker 1", 0, 1500)],
+            speakers: vec![],
+            merges: vec![],
+            constraint_reviews: vec![],
+            segmentation_context: None,
+            embedding_version: "synthetic".into(),
+            calibrated: false,
+            warnings: vec![],
+        },
+        false,
+    )
+    .unwrap();
+    store::rename_speaker(service.root(), meeting, &derived[0].speaker_ids[0], "Alice").unwrap();
+    store::save_segment(
+        service.root(),
+        meeting,
+        &segment("Alpha", &[("Alpha", 100, 500)]),
+    )
+    .unwrap();
+    store::complete_live_run(service.root(), meeting).unwrap();
+    recording.finish().unwrap();
+    let previous = service.detail(meeting).unwrap();
+    let next = store::create_run(service.root(), meeting, "refine", "{}").unwrap();
+    let error = anyhow::Error::from(vt_diarize::DiarizeError::Capacity(
+        vt_diarize::CapacityLimit::Turns,
+    ));
+    let retained = settle(&service, meeting, &next.id, Err(error))
+        .unwrap()
+        .expect("previous timed turns are carried forward");
+    assert_eq!(retained[0].label, "Alice");
+    store::append_run_segments(
+        service.root(),
+        &next.id,
+        &[segment("Alpha", &[("Alpha", 100, 500)])],
+    )
+    .unwrap();
+    store::publish_run(service.root(), meeting, &next.id).unwrap();
+    let detail = service.detail(meeting).unwrap();
+    assert_eq!(detail.active_run_id.as_deref(), Some(next.id.as_str()));
+    assert_eq!(detail.segments[0].speaker, "Alice");
+    assert_eq!(detail.speaker_turns.len(), previous.speaker_turns.len());
+    assert_eq!(detail.speaker_reviews.len(), previous.speaker_reviews.len());
+    let warnings = detail.diarization.unwrap().warnings;
+    assert!(
+        warnings.iter().any(|warning| warning
+            == "Speaker separation could not finish for this recording (limit: turns). The refined transcript is complete. Speaker labels, names and corrections from the previous transcript were kept and applied by time."),
+        "{warnings:?}"
+    );
+    assert!(!warnings.iter().any(|warning| warning.contains("not rerun")));
+    assert_eq!(
+        service
+            .detail_for_run(meeting, Some(&old))
+            .unwrap()
+            .segments[0]
+            .speaker,
+        "Alice"
     );
 }

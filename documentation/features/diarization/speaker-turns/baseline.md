@@ -10,6 +10,8 @@
 - Emitted turns below one second receive Unknown and no speaker ID; they never inherit a preceding voice.
 - Overlap never updates a clean speaker exemplar. Two labels are retained only when supported by clean same-window speaker links; otherwise overlap remains explicit.
 - Remote microphone Me is a channel prior, not voice recognition. A microphone cannot-link present at construction overrides it with actual embeddings/clustering. A late correction without microphone embeddings produces Unknown regions and a pending review; system clusters never receive the prior. In-person microphone voices are clustered.
+- A margin failure (best at least 0.55 but not 0.10 ahead of the runner-up) with best at least 0.70 leaves the turn unattributed: no cluster is opened, the embedding joins no cluster, and the turn is emitted Unknown, uncertain, not provisional, with no speaker id or score. The embedding record is kept so `finish` replays the decision. With best below 0.70 a new cluster opens. Best below 0.55 or no candidate opens a cluster. A must-link or cannot-link endpoint always opens a cluster instead of being left unattributed.
+- An ambiguous window is never assigned to an existing cluster and never contributes an exemplar, member or speech time.
 - Scores are uncalibrated cosine similarities, not identity probabilities. Result calibrated is false.
 - User must-links override similarity and cannot-links block assignments/merges using transitive must-link components.
 - Missing, tied, under-covered, overlapping, contradictory or unavailable-evidence constraints produce individual reviews and mask affected connected regions Unknown; they do not abort the full transcript pipeline.
@@ -20,6 +22,10 @@
 - Unnamed diarization embeddings exist only in meeting-local memory. Result serialization contains no biometric vectors. Explicit named enrollment recomputes source vectors under the separate consent/encryption feature and never changes ordinary diarization persistence.
 - No download, capture permission, cloud processing or cross-meeting memory access occurs during inference construction. The bounded enrollment extractor opens no gallery or secret store.
 - Model setup is explicit, checks pinned sizes/hashes, preserves license notices, and never accepts a publisher account agreement.
+- A refinement stopped by a turns, embeddings or clusters capacity limit never saves partial separation output; it carries the previous run's speaker annotations onto the new run and records the limit in the run's speaker warnings.
+- A live speaker save that hits lock contention never stops the speaker worker; unsaved turns are retained and dropped turns become `persistence_failed` inference gaps. Engine errors and non-lock database errors still stop it, and it is not restarted.
+- `Diarizer::diagnostics()` holds counters only and does not change clustering. It reports `margin_failures`, `margin_failure_best_at_least_merge`, `margin_failure_centroid_hist` and `ambiguous_unattributed`.
+- The 64-cluster limit still returns `DiarizeError::Capacity(CapacityLimit::Clusters)`; the margin rule reduces but does not remove it (still reached on a 95-minute single-microphone in-person call).
 
 ## Defaults and bounds
 
@@ -37,6 +43,7 @@
 | Minimum eligible clean turn / visible cluster | 1000 ms / 3000 ms |
 | Experimental assign / merge / margin | 0.55 / 0.70 / 0.10 |
 | Speaker state | 64 clusters/track, 20 exemplars/cluster |
+| Live speaker save | IMMEDIATE transaction; 3 attempts, 1.5 s busy timeout, 100/200 ms backoff (4.8 s worst case); at most 2048 unsaved turns carried |
 | Replay embeddings / turn metadata | 8192 / 32768 per meeting |
 | Constraint count | 4096 pairs and 4096 temporal constraints |
 | Temporal matching | unique maximum overlap, at least 50% anchor coverage |
@@ -50,8 +57,9 @@
 | --- | --- | --- |
 | Missing/corrupt model hash/manifest | Error | Yes |
 | Missing model-setup acknowledgement | Error | Setup only |
-| Capacity reached | Error | Yes; no silent truncation |
+| Capacity reached in `Diarizer` (turns, embeddings, clusters, constraints) | Error from `Diarizer`; never silent truncation | Constraints: yes. Turns/embeddings/clusters during refinement: no; the refined transcript is published, previous speaker labels are retained (or channel/Unknown labels) and a run warning names the limit |
 | Constraint conflict/missing/ambiguous anchor | Needs review | No; publish timed transcript with affected voices Unknown and review metadata |
+| Ambiguous window (margin failure, best at least 0.70) | Uncertain | No; emitted Unknown with no speaker id, decided again by the `finish` replay |
 | Short/overlap/provisional speaker turn | Uncertain | No; explicit unknown/overlap metadata |
 | Uncalibrated profile | Experimental | Always visible; no calibrated identity claim |
 

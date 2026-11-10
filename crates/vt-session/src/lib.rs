@@ -1226,6 +1226,8 @@ mod live_speaker_tests;
 #[cfg(test)]
 mod maintenance_integration_tests;
 #[cfg(test)]
+mod real_call_replay_tests;
+#[cfg(test)]
 mod summary_tests;
 #[cfg(test)]
 mod tests;

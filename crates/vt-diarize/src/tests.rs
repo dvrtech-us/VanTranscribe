@@ -26,9 +26,9 @@ fn normalized_embeddings_reject_bad_native_values() {
 #[test]
 fn same_voice_accumulates_three_seconds_before_visibility() {
     let mut c = Clusters::new("mic", &[]);
-    let (a, _, visible) = c.assign("a", vec![1., 0.], 1500).unwrap();
+    let (a, _, visible) = c.assign("a", vec![1., 0.], 1500).unwrap().unwrap();
     assert!(!visible);
-    let (b, _, visible) = c.assign("b", vec![1., 0.], 1500).unwrap();
+    let (b, _, visible) = c.assign("b", vec![1., 0.], 1500).unwrap().unwrap();
     assert_eq!(a, b);
     assert!(visible);
 }
@@ -37,29 +37,35 @@ fn track_namespaces_and_capacity_are_bounded() {
     let mut mic = Clusters::new("mic", &[]);
     let mut system = Clusters::new("system", &[]);
     assert_ne!(
-        mic.assign("a", vec![1., 0.], 1500).unwrap().0,
-        system.assign("b", vec![1., 0.], 1500).unwrap().0
+        mic.assign("a", vec![1., 0.], 1500).unwrap().unwrap().0,
+        system.assign("b", vec![1., 0.], 1500).unwrap().unwrap().0
     );
     let mut c = Clusters::new("mic", &[]);
     for n in 0..64 {
         let mut basis = vec![0.; 65];
         basis[n] = 1.;
-        c.assign(&format!("t{n}"), basis, 1000).unwrap();
+        c.assign(&format!("t{n}"), basis, 1000).unwrap().unwrap();
     }
     let mut last = vec![0.; 65];
     last[64] = 1.;
     assert!(matches!(
         c.assign("overflow", last, 1000),
-        Err(DiarizeError::Capacity)
+        Err(DiarizeError::Capacity(CapacityLimit::Clusters))
     ));
 }
 #[test]
 fn second_best_margin_does_not_silently_assign_ambiguous_voice() {
+    // An ambiguous window is never given an existing speaker. Equidistant
+    // with best ~0.707 (>= MERGE): left unattributed. Equidistant with best
+    // ~0.65 (in [ASSIGN, MERGE)): a new provisional cluster, still not a or b.
     let mut c = Clusters::new("mic", &[]);
-    let a = c.assign("a", vec![1., 0.], 3000).unwrap().0;
-    let b = c.assign("b", vec![0., 1.], 3000).unwrap().0;
-    let v = normalize(vec![1., 1.]).unwrap();
-    let provisional = c.assign("ambiguous", v, 1500).unwrap();
+    let a = c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap().0;
+    let b = c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap().0;
+    let high = normalize(vec![1., 1., 0.]).unwrap();
+    assert!(c.assign("high", high, 1500).unwrap().is_none());
+    assert!(c.speaker_for("high").is_none());
+    let low = normalize(vec![0.65, 0.65, 0.394]).unwrap();
+    let provisional = c.assign("low", low, 1500).unwrap().unwrap();
     assert_ne!(provisional.0, a);
     assert_ne!(provisional.0, b);
     assert!(!provisional.2);
@@ -67,8 +73,16 @@ fn second_best_margin_does_not_silently_assign_ambiguous_voice() {
 #[test]
 fn cannot_link_prevents_identical_embeddings_from_merging() {
     let mut c = Clusters::new("mic", &[constraint(ConstraintKind::CannotLink)]);
-    let a = c.assign("mic:turn-1", vec![1., 0.], 3000).unwrap().0;
-    let b = c.assign("mic:turn-2", vec![1., 0.], 3000).unwrap().0;
+    let a = c
+        .assign("mic:turn-1", vec![1., 0.], 3000)
+        .unwrap()
+        .unwrap()
+        .0;
+    let b = c
+        .assign("mic:turn-2", vec![1., 0.], 3000)
+        .unwrap()
+        .unwrap()
+        .0;
     assert_ne!(a, b);
     assert!(c.refine(Some(1)).is_empty());
     c.check_constraints(&BTreeSet::from(["mic:turn-1".into(), "mic:turn-2".into()]))
@@ -77,8 +91,16 @@ fn cannot_link_prevents_identical_embeddings_from_merging() {
 #[test]
 fn must_link_wins_over_opposite_acoustic_embeddings() {
     let mut c = Clusters::new("mic", &[constraint(ConstraintKind::MustLink)]);
-    let a = c.assign("mic:turn-1", vec![1., 0.], 1500).unwrap().0;
-    let b = c.assign("mic:turn-2", vec![-1., 0.], 1500).unwrap().0;
+    let a = c
+        .assign("mic:turn-1", vec![1., 0.], 1500)
+        .unwrap()
+        .unwrap()
+        .0;
+    let b = c
+        .assign("mic:turn-2", vec![-1., 0.], 1500)
+        .unwrap()
+        .unwrap()
+        .0;
     assert_eq!(a, b);
 }
 #[test]
@@ -90,7 +112,7 @@ fn contradictory_constraints_fail_instead_of_guessing() {
             constraint(ConstraintKind::CannotLink),
         ],
     );
-    c.assign("mic:turn-1", vec![1., 0.], 1500).unwrap();
+    c.assign("mic:turn-1", vec![1., 0.], 1500).unwrap().unwrap();
     assert!(matches!(
         c.assign("mic:turn-2", vec![1., 0.], 1500),
         Err(DiarizeError::Constraint)
@@ -98,11 +120,16 @@ fn contradictory_constraints_fail_instead_of_guessing() {
 }
 #[test]
 fn agglomeration_uses_silhouette_without_erasing_all_speaker_separation() {
+    // c opens far from a (0.5 < ASSIGN); a then drifts toward c through two
+    // clear assignments, so refinement finds a >= MERGE pair to merge.
     let mut c = Clusters::new("mic", &[]);
-    c.assign("a", vec![1., 0.], 3000).unwrap();
-    c.assign("b", vec![0., 1.], 3000).unwrap();
-    c.assign("ambiguous", normalize(vec![1., 1.]).unwrap(), 1500)
-        .unwrap();
+    let deg = |d: f32| vec![d.to_radians().cos(), 0., d.to_radians().sin()];
+    c.assign("a1", deg(0.), 3000).unwrap().unwrap();
+    c.assign("c", deg(60.), 1500).unwrap().unwrap();
+    c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
+    c.assign("a2", deg(20.), 3000).unwrap().unwrap();
+    c.assign("a3", deg(25.), 3000).unwrap().unwrap();
+    assert_eq!(c.speakers("mic").len(), 3);
     let merges = c.refine(Some(2));
     assert!(!merges.is_empty());
     assert_eq!(c.speakers("mic").len(), 2);
@@ -287,10 +314,11 @@ fn must_link_can_join_multiple_existing_acoustic_clusters() {
         },
     ];
     let mut clusters = Clusters::new("mic", &constraints);
-    clusters.assign("a", vec![1., 0.], 3000).unwrap();
-    clusters.assign("b", vec![0., 1.], 3000).unwrap();
+    clusters.assign("a", vec![1., 0.], 3000).unwrap().unwrap();
+    clusters.assign("b", vec![0., 1.], 3000).unwrap().unwrap();
     clusters
         .assign("c", normalize(vec![1., 1.]).unwrap(), 3000)
+        .unwrap()
         .unwrap();
     assert_eq!(clusters.speaker_for("a"), clusters.speaker_for("b"));
     assert_eq!(clusters.speaker_for("b"), clusters.speaker_for("c"));
@@ -884,4 +912,309 @@ fn segmentation_context_is_explicit_serializable_and_legacy_results_remain_unkno
             .segmentation_context,
         current.segmentation_context
     );
+}
+
+#[test]
+fn diagnostics_count_open_reasons_and_survive_capacity() {
+    let mut c = Clusters::new("mic", &[]);
+    c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap(); // no candidate
+    c.assign("b", vec![0.95, 0.31, 0.], 3000).unwrap().unwrap(); // cos ~0.95, joins
+    c.assign("c", vec![0., 1., 0.], 3000).unwrap().unwrap(); // best below ASSIGN
+    let d = c.diagnostics();
+    assert_eq!(d.opened_no_candidate, 1);
+    assert_eq!(d.opened_below_assign, 1);
+    assert_eq!(d.assigned_existing, 1);
+    assert_eq!((d.opened_total, d.clusters, d.peak_clusters), (2, 2, 2));
+    assert_eq!(d.embeddings_assigned, 3);
+    assert_eq!(d.singleton_clusters, 1);
+    assert_eq!(d.best_below_assign_hist.iter().sum::<u32>(), 1);
+    let mut c = Clusters::new("mic", &[]);
+    for n in 0..64 {
+        let mut basis = vec![0.; 65];
+        basis[n] = 1.;
+        c.assign(&format!("t{n}"), basis, 1000).unwrap().unwrap();
+    }
+    let mut last = vec![0.; 65];
+    last[64] = 1.;
+    let err = c.assign("overflow", last, 1000).unwrap_err();
+    assert_eq!(err.capacity_limit(), Some(CapacityLimit::Clusters));
+    assert!(err.to_string().starts_with(
+        "Diarization capacity reached; previous results must not be published as complete."
+    ));
+    let d = c.diagnostics();
+    assert!(d.capacity_refused);
+    assert_eq!((d.peak_clusters, d.singleton_clusters), (64, 64));
+}
+#[test]
+fn diagnostics_record_margin_failures() {
+    let mut c = Clusters::new("mic", &[]);
+    c.assign("a", vec![1., 0., 0.], 3000).unwrap();
+    c.assign("b", vec![0., 1., 0.], 3000).unwrap();
+    // equidistant, best ~0.707 >= MERGE, margin 0: unattributed
+    c.assign("m", normalize(vec![1., 1., 0.]).unwrap(), 3000)
+        .unwrap();
+    // equidistant, best ~0.65 in [ASSIGN, MERGE): opens
+    c.assign("n", normalize(vec![0.65, 0.65, 0.394]).unwrap(), 3000)
+        .unwrap();
+    let d = c.diagnostics();
+    assert_eq!(d.margin_failures, 2);
+    assert_eq!(d.margin_failure_best_at_least_merge, 1);
+    assert_eq!(d.ambiguous_unattributed, 1);
+    assert_eq!(d.opened_margin_failure, 1);
+    assert_eq!(d.margin_failure_hist[0], 1);
+    assert_eq!(d.best_margin_failure_hist.iter().sum::<u32>(), 1);
+    // centroid cosine of a and b is 0 -> bucket [0, 0.1)
+    assert_eq!(d.margin_failure_centroid_hist[10], 2);
+    assert_eq!(d.embeddings_assigned, 3);
+    assert_eq!(d.clusters, 3);
+}
+
+// ---- ambiguous margin-failure rule (best >= MERGE is left unattributed) ----
+const DIM: usize = 128;
+struct Rng(u64);
+impl Rng {
+    fn uniform(&mut self) -> f32 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        (self.0 >> 40) as f32 / (1u64 << 24) as f32 * 2. - 1.
+    }
+    fn noisy(&mut self, center: &[f32], r: f32) -> Vec<f32> {
+        let e = (0..center.len())
+            .map(|_| self.uniform() + self.uniform() + self.uniform())
+            .collect::<Vec<_>>();
+        let n = e.iter().map(|x| x * x).sum::<f32>().sqrt();
+        normalize(center.iter().zip(&e).map(|(c, x)| c + x * r / n).collect()).unwrap()
+    }
+}
+/// Two unit voice centres with the given cosine, and their exact midpoint.
+fn voices(cos: f32) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+    let mut a = vec![0.; DIM];
+    a[0] = 1.;
+    let mut b = vec![0.; DIM];
+    b[0] = cos;
+    b[1] = (1. - cos * cos).sqrt();
+    let mid = normalize(a.iter().zip(&b).map(|(x, y)| x + y).collect()).unwrap();
+    (a, b, mid)
+}
+/// Alternating A, B, midpoint windows as finalize records/turns on "mic:".
+/// Midpoints start after five rounds: each voice speaks a little before the
+/// first ambiguous window, so its centroid is not a single noisy window.
+fn interleaved(
+    cos: f32,
+    rounds: usize,
+    noise: f32,
+    mid_noise: f32,
+) -> Vec<crate::finalize::Record> {
+    let (a, b, mid) = voices(cos);
+    let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+    let mut records = Vec::new();
+    for round in 0..rounds {
+        for (kind, center, r) in [("a", &a, noise), ("b", &b, noise), ("m", &mid, mid_noise)] {
+            if kind == "m" && round < 5 {
+                continue;
+            }
+            records.push(crate::finalize::Record {
+                turn: format!("mic:{kind}-{round}"),
+                embedding: if r == 0. {
+                    center.clone()
+                } else {
+                    rng.noisy(center, r)
+                },
+                duration: 1500,
+            });
+        }
+    }
+    records
+}
+fn turns_for(records: &[crate::finalize::Record]) -> Vec<SpeakerTurn> {
+    records
+        .iter()
+        .enumerate()
+        .map(|(i, r)| final_turn(&r.turn, i as u64 * 4000))
+        .collect()
+}
+fn in_person(phase: Phase) -> DiarizerConfig {
+    DiarizerConfig {
+        mode: MeetingMode::InPerson,
+        phase,
+        ..Default::default()
+    }
+}
+#[test]
+fn ambiguous_window_at_or_above_merge_opens_nothing_and_leaves_centroids_unchanged() {
+    let mut c = Clusters::new("mic", &[]);
+    c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap();
+    c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
+    let before = c.speakers("mic");
+    assert!(
+        c.assign("m", normalize(vec![1., 1., 0.]).unwrap(), 1500)
+            .unwrap()
+            .is_none()
+    );
+    let after = c.speakers("mic");
+    assert_eq!(before.len(), after.len());
+    for (x, y) in before.iter().zip(&after) {
+        assert_eq!((&x.id, x.speech_ms), (&y.id, y.speech_ms));
+    }
+    assert!(c.speaker_for("m").is_none());
+    // Centroids untouched: the exact original voices still score 1.0.
+    let (_, score, _) = c.assign("a2", vec![1., 0., 0.], 1000).unwrap().unwrap();
+    assert!((score - 1.).abs() < 1e-6);
+    let (_, score, _) = c.assign("b2", vec![0., 1., 0.], 1000).unwrap().unwrap();
+    assert!((score - 1.).abs() < 1e-6);
+    let d = c.diagnostics();
+    assert_eq!((d.ambiguous_unattributed, d.opened_margin_failure), (1, 0));
+}
+#[test]
+fn ambiguous_window_between_assign_and_merge_still_opens() {
+    let mut c = Clusters::new("mic", &[]);
+    c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap();
+    c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
+    let v = normalize(vec![0.65, 0.65, 0.394]).unwrap();
+    let opened = c.assign("m", v, 1500).unwrap().unwrap();
+    assert_eq!(c.speakers("mic").len(), 3);
+    assert_eq!(c.speaker_for("m"), Some(opened.0.as_str()));
+    assert_eq!(c.diagnostics().opened_margin_failure, 1);
+}
+#[test]
+fn genuinely_new_voice_still_opens_after_many_ambiguous_windows() {
+    let mut c = Clusters::new("mic", &[]);
+    c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap();
+    c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
+    for n in 0..200 {
+        let m = normalize(vec![1., 1., 0.]).unwrap();
+        assert!(c.assign(&format!("m{n}"), m, 1500).unwrap().is_none());
+    }
+    assert_eq!(c.speakers("mic").len(), 2);
+    let new = c.assign("new", vec![0., 0., 1.], 3000).unwrap().unwrap();
+    assert_eq!(c.speakers("mic").len(), 3);
+    assert_eq!(c.speaker_for("new"), Some(new.0.as_str()));
+    // a, b and the new voice all open with best < ASSIGN (orthogonal).
+    assert_eq!(c.diagnostics().opened_below_assign, 2);
+    assert_eq!(c.diagnostics().opened_total, 3);
+}
+#[test]
+fn long_noisy_two_voice_call_with_midpoints_stays_far_below_cap() {
+    let records = interleaved(0.3, 150, 0.6, 0.15);
+    assert!(records.len() >= 400);
+    let mut c = Clusters::new("mic", &[]);
+    for r in &records {
+        c.assign(&r.turn, r.embedding.clone(), r.duration).unwrap();
+    }
+    let d = c.diagnostics();
+    assert!(!d.capacity_refused);
+    assert!(d.peak_clusters <= 8, "peak {}", d.peak_clusters);
+    assert!(
+        d.ambiguous_unattributed > 100,
+        "{}",
+        d.ambiguous_unattributed
+    );
+    c.refine(None);
+    assert_eq!(c.speakers("mic").len(), 2);
+    let result = crate::finalize::finish(
+        turns_for(&records),
+        &records,
+        &in_person(Phase::Refined),
+        true,
+        &[],
+    )
+    .unwrap();
+    assert_eq!(result.speakers.len(), 2);
+}
+#[test]
+fn close_voices_keep_two_speakers_and_midpoints_surface_unknown_in_both_phases() {
+    let records = interleaved(0.65, 60, 0.6, 0.);
+    for phase in [Phase::Refined, Phase::Live] {
+        let result =
+            crate::finalize::finish(turns_for(&records), &records, &in_person(phase), true, &[])
+                .unwrap();
+        assert_eq!(result.speakers.len(), 2, "{phase:?}");
+        let mids = result
+            .turns
+            .iter()
+            .filter(|t| t.id.starts_with("mic:m-"))
+            .collect::<Vec<_>>();
+        assert_eq!(mids.len(), 55);
+        for t in mids {
+            assert!(t.speaker_ids.is_empty(), "{phase:?} {}", t.id);
+            assert_eq!(t.label, "Unknown");
+            assert!(t.uncertain && !t.provisional);
+            assert!(t.score.is_none());
+        }
+        // Voice windows themselves are attributed and confident.
+        let voiced = result
+            .turns
+            .iter()
+            .filter(|t| !t.id.starts_with("mic:m-"))
+            .filter(|t| !t.speaker_ids.is_empty() && !t.uncertain)
+            .count();
+        assert!(voiced >= 110, "{phase:?} {voiced}");
+    }
+}
+#[test]
+fn record_order_permutation_gives_same_refined_speaker_count() {
+    let records = interleaved(0.3, 150, 0.6, 0.15);
+    let turns = turns_for(&records);
+    let config = in_person(Phase::Refined);
+    let base = crate::finalize::finish(turns.clone(), &records, &config, true, &[]).unwrap();
+    for seed in [7u64, 99, 12345] {
+        let mut rng = Rng(seed);
+        let mut shuffled = records
+            .iter()
+            .map(|r| crate::finalize::Record {
+                turn: r.turn.clone(),
+                embedding: r.embedding.clone(),
+                duration: r.duration,
+            })
+            .collect::<Vec<_>>();
+        for i in (1..shuffled.len()).rev() {
+            let j = ((rng.uniform() + 1.) / 2. * (i + 1) as f32) as usize % (i + 1);
+            shuffled.swap(i, j);
+        }
+        let other = crate::finalize::finish(turns.clone(), &shuffled, &config, true, &[]).unwrap();
+        assert_eq!(other.speakers.len(), base.speakers.len(), "seed {seed}");
+    }
+    assert_eq!(base.speakers.len(), 2);
+}
+#[test]
+fn constraint_anchors_keep_old_behaviour_when_ambiguous() {
+    // A must-link anchor is never left unattributed: it opens as before so
+    // its partner can join and the constraint check sees both in one cluster.
+    let must = PairConstraint {
+        left_turn_id: "mic:m1".into(),
+        right_turn_id: "mic:m2".into(),
+        kind: ConstraintKind::MustLink,
+        provenance: "user".into(),
+    };
+    let mut c = Clusters::new("mic", &[must]);
+    c.assign("mic:a", vec![1., 0., 0.], 3000).unwrap().unwrap();
+    c.assign("mic:b", vec![0., 1., 0.], 3000).unwrap().unwrap();
+    let mid = normalize(vec![1., 1., 0.]).unwrap();
+    let m1 = c.assign("mic:m1", mid.clone(), 1500).unwrap().unwrap();
+    let m2 = c.assign("mic:m2", vec![0., 0., 1.], 1500).unwrap().unwrap();
+    assert_eq!(m1.0, m2.0);
+    assert!(c.assign("mic:free", mid.clone(), 1500).unwrap().is_none());
+    let seen = ["mic:a", "mic:b", "mic:m1", "mic:m2", "mic:free"]
+        .map(String::from)
+        .into_iter()
+        .collect();
+    c.check_constraints(&seen).unwrap();
+    // Cannot-link anchor: opens as before, and stays apart from its partner.
+    let cannot = PairConstraint {
+        left_turn_id: "mic:a".into(),
+        right_turn_id: "mic:m1".into(),
+        kind: ConstraintKind::CannotLink,
+        provenance: "user".into(),
+    };
+    let mut c = Clusters::new("mic", &[cannot]);
+    let a = c.assign("mic:a", vec![1., 0., 0.], 3000).unwrap().unwrap();
+    c.assign("mic:b", vec![0.2, 0.98, 0.], 3000)
+        .unwrap()
+        .unwrap();
+    // m1 sees only b (a is forbidden): one candidate, assigned normally.
+    let m1 = c.assign("mic:m1", mid, 1500).unwrap().unwrap();
+    assert_ne!(m1.0, a.0);
+    c.check_constraints(&["mic:a", "mic:m1"].map(String::from).into_iter().collect())
+        .unwrap();
 }

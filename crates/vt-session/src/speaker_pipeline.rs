@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::BTreeMap;
 use vt_diarize::{
     Anchor, ConstraintKind, DiarizationResult, Diarizer, DiarizerConfig, Phase, SpeakerTurn,
     TemporalConstraint,
@@ -39,20 +40,164 @@ fn configured(service: &AppService) -> bool {
         && vt_diarize::ModelManager::new(service.root.join("models")).installed()
 }
 
+/// Gap reason when live speaker turns were produced but could never be saved
+/// (database lock contention outlasted every retry, then the pending update
+/// overflowed or the recording ended). Refine saved audio to recover them.
+pub(crate) const PERSISTENCE_FAILED_GAP: &str = "persistence_failed";
+/// Live turns are incremental: each window emits new turns with fresh IDs and
+/// never re-emits earlier ones, so unsaved turns can be carried into the next
+/// save. This bounds memory if the database stays locked for a long time.
+pub(crate) const MAX_PENDING_LIVE_TURNS: usize = 2048;
+
+pub(crate) fn persistence_warning(cause: &str) -> String {
+    format!(
+        "Live speaker labels could not be saved yet; they are kept and retried with the next update. Raw audio is preserved. Cause: {cause}"
+    )
+}
+
+/// Saves live speaker updates. Lock contention never stops the worker: unsaved
+/// turns are retained (bounded) and written by the next successful save; any
+/// that must be dropped are recorded as `persistence_failed` inference gaps.
+pub(crate) struct LivePublisher {
+    service: Arc<AppService>,
+    id: String,
+    run: String,
+    budget: store::LiveSaveBudget,
+    pending: Vec<(u64, SpeakerTurn)>,
+}
+impl LivePublisher {
+    pub(crate) fn new(
+        service: Arc<AppService>,
+        id: &str,
+        budget: store::LiveSaveBudget,
+    ) -> Result<Self> {
+        let run = store::detail(&service.root, id)?
+            .active_run_id
+            .ok_or_else(|| anyhow::anyhow!("The recording transcript run is unavailable."))?;
+        Ok(Self {
+            service,
+            id: id.into(),
+            run,
+            budget,
+            pending: Vec::new(),
+        })
+    }
+    pub(crate) fn publish(&mut self, generation: u64, turns: Vec<SpeakerTurn>) -> Result<()> {
+        for turn in turns {
+            match self.pending.iter_mut().find(|(_, old)| old.id == turn.id) {
+                Some(slot) => *slot = (generation, turn),
+                None => self.pending.push((generation, turn)),
+            }
+        }
+        if !self.service.inference_allowed(backlog::Worker::Speakers) {
+            // Suspended inference never publishes; do not let the carry-forward
+            // grow while it is suspended.
+            self.shed_excess();
+            return Ok(());
+        }
+        if self.pending.is_empty() {
+            return Ok(());
+        }
+        let result = DiarizationResult {
+            turns: self.pending.iter().map(|(_, turn)| turn.clone()).collect(),
+            speakers: Vec::new(),
+            merges: Vec::new(),
+            constraint_reviews: Vec::new(),
+            segmentation_context: Some(Phase::Live.segmentation_context()),
+            embedding_version: vt_diarize::EMBEDDING_VERSION.into(),
+            calibrated: false,
+            warnings: vec!["Speaker labels are experimental and not verified identities.".into()],
+        };
+        match store::save_live_diarization_with(
+            &self.service.root,
+            &self.id,
+            &self.run,
+            &result,
+            self.budget,
+        ) {
+            Ok(()) => {
+                self.pending.clear();
+                Ok(())
+            }
+            Err(error) if store::sqlite_busy(&error) => {
+                let warning = persistence_warning(&store::describe_error(&error));
+                self.service
+                    .backlog
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .warn(&warning);
+                self.shed_excess();
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
+    }
+    /// Keeps the carry-forward bounded; the oldest unsaved turns become gaps.
+    fn shed_excess(&mut self) {
+        if self.pending.len() > MAX_PENDING_LIVE_TURNS {
+            let excess = self.pending.len() - MAX_PENDING_LIVE_TURNS;
+            let dropped = self.pending.drain(..excess).collect::<Vec<_>>();
+            self.record_gaps(&dropped);
+        }
+    }
+    /// The final reconciled result supersedes every live update.
+    fn superseded(&mut self) {
+        self.pending.clear();
+    }
+    fn record_gaps(&self, dropped: &[(u64, SpeakerTurn)]) {
+        let mut spans = BTreeMap::<(u64, &str), (u64, u64)>::new();
+        for (generation, turn) in dropped {
+            let span = spans
+                .entry((*generation, turn.track.as_str()))
+                .or_insert((turn.start_ms, turn.end_ms));
+            span.0 = span.0.min(turn.start_ms);
+            span.1 = span.1.max(turn.end_ms);
+        }
+        let mut controller = self
+            .service
+            .backlog
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        for ((generation, track), (start, end)) in spans {
+            let track = if track == "mic" {
+                TrackKind::Mic
+            } else {
+                TrackKind::System
+            };
+            controller.gap(
+                backlog::Worker::Speakers,
+                track,
+                generation,
+                start,
+                end,
+                PERSISTENCE_FAILED_GAP,
+            );
+        }
+    }
+}
+impl Drop for LivePublisher {
+    fn drop(&mut self) {
+        if !self.pending.is_empty() {
+            let dropped = std::mem::take(&mut self.pending);
+            self.record_gaps(&dropped);
+        }
+    }
+}
+
 pub(super) struct LiveSpeakers {
     service: Arc<AppService>,
     id: String,
     run: String,
     engine: Diarizer,
+    publisher: LivePublisher,
 }
 impl LiveSpeakers {
     pub(super) fn new(service: Arc<AppService>, id: &str) -> Result<Option<Self>> {
         if !service.inference_allowed(backlog::Worker::Speakers) || !configured(&service) {
             return Ok(None);
         }
-        let run = store::detail(&service.root, id)?
-            .active_run_id
-            .ok_or_else(|| anyhow::anyhow!("The recording transcript run is unavailable."))?;
+        let publisher = LivePublisher::new(service.clone(), id, store::LiveSaveBudget::PRODUCTION)?;
+        let run = publisher.run.clone();
         let engine = Diarizer::new(
             &vt_diarize::ModelManager::new(service.root.join("models")).model_dir(),
             DiarizerConfig {
@@ -71,31 +216,11 @@ impl LiveSpeakers {
             id: id.into(),
             run,
             engine,
+            publisher,
         }))
     }
-    fn publish(&self, turns: Vec<SpeakerTurn>) -> Result<()> {
-        if !self.service.inference_allowed(backlog::Worker::Speakers) || turns.is_empty() {
-            return Ok(());
-        }
-        store::save_live_diarization_updates(
-            &self.service.root,
-            &self.id,
-            &self.run,
-            &DiarizationResult {
-                turns,
-                speakers: Vec::new(),
-                merges: Vec::new(),
-                constraint_reviews: Vec::new(),
-                segmentation_context: Some(Phase::Live.segmentation_context()),
-                embedding_version: vt_diarize::EMBEDDING_VERSION.into(),
-                calibrated: false,
-                warnings: vec![
-                    "Speaker labels are experimental and not verified identities.".into(),
-                ],
-            },
-        )?;
-        Ok(())
-    }
+    /// Engine errors are fatal (the Diarizer is poisoned); persistence lock
+    /// contention is absorbed by the publisher and never reaches the worker.
     pub(super) fn accept(
         &mut self,
         track: TrackKind,
@@ -111,7 +236,7 @@ impl LiveSpeakers {
             .generation;
         let turns = self.engine.accept(track, samples, rate, start)?;
         if self.service.inference_current(generation) {
-            self.publish(turns)
+            self.publisher.publish(generation, turns)
         } else {
             Ok(())
         }
@@ -129,6 +254,7 @@ impl LiveSpeakers {
         let result = self.engine.finish()?;
         if self.service.inference_allowed(backlog::Worker::Speakers) {
             store::save_diarization_result(&self.service.root, &self.id, &self.run, &result, true)?;
+            self.publisher.superseded();
         }
         Ok(())
     }
@@ -169,6 +295,17 @@ pub(super) fn refine(
             ..Default::default()
         },
     )?;
+    // Capacity raised by `Diarizer::new` (too many saved constraints) stays fatal.
+    let separated = separate(service, id, echo_enabled, &mut engine);
+    settle(service, id, run, separated)
+}
+
+fn separate(
+    service: &AppService,
+    id: &str,
+    echo_enabled: bool,
+    engine: &mut Diarizer,
+) -> Result<DiarizationResult> {
     crate::echo_pipeline::saved(service, id, echo_enabled, |packet, fraction| {
         processing::progress(
             service,
@@ -197,14 +334,64 @@ pub(super) fn refine(
         "Reconciling speaker labels and corrections",
         0.42,
     );
-    let result = engine.finish()?;
-    Ok(Some(store::save_diarization_result(
-        &service.root,
-        id,
-        run,
-        &result,
-        true,
-    )?))
+    Ok(engine.finish()?)
+}
+
+/// Persists a completed separation, or applies the refinement policy for a
+/// failed one: a capacity limit reached while processing audio or finishing
+/// (turns, embeddings, clusters) must not cost the refined transcript, so the
+/// previous run's speaker annotations are carried forward exactly as when the
+/// speaker model is unavailable and a run warning names the limit. Nothing
+/// from the failed attempt is saved. Every other error is returned unchanged.
+pub(super) fn settle(
+    service: &AppService,
+    id: &str,
+    run: &str,
+    separated: Result<DiarizationResult>,
+) -> Result<Option<Vec<SpeakerTurn>>> {
+    let error = match separated {
+        Ok(result) => {
+            return Ok(Some(store::save_diarization_result(
+                &service.root,
+                id,
+                run,
+                &result,
+                true,
+            )?));
+        }
+        Err(error) => error,
+    };
+    let Some(limit) = recoverable_capacity(&error) else {
+        return Err(error);
+    };
+    let in_person = store::meeting_mode(&service.root, id)? == vt_diarize::MeetingMode::InPerson;
+    store::retain_speakers_after_failed_separation(&service.root, id, run, |retained| {
+        capacity_warning(limit, in_person, retained)
+    })
+}
+
+fn recoverable_capacity(error: &anyhow::Error) -> Option<vt_diarize::CapacityLimit> {
+    error
+        .downcast_ref::<vt_diarize::DiarizeError>()?
+        .capacity_limit()
+        .filter(|limit| *limit != vt_diarize::CapacityLimit::Constraints)
+}
+
+pub(super) fn capacity_warning(
+    limit: vt_diarize::CapacityLimit,
+    in_person: bool,
+    retained: bool,
+) -> String {
+    let labels = if retained {
+        "Speaker labels, names and corrections from the previous transcript were kept and applied by time."
+    } else if in_person {
+        "Speakers are shown as Unknown."
+    } else {
+        "The transcript is labelled by channel (Me / Them)."
+    };
+    format!(
+        "Speaker separation could not finish for this recording (limit: {limit}). The refined transcript is complete. {labels}"
+    )
 }
 
 fn label(turns: &[SpeakerTurn], track: &str, start: u64, end: u64) -> (String, Vec<String>) {

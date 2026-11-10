@@ -24,6 +24,7 @@
 - Strictly greater than ten seconds of lag with fresh input must persist two monotonic seconds before shedding; subsequent ordered stages are at least five seconds apart. Order is partial publication, configured speakers, live STT. Finals survive stage one; all raw capture survives inference shedding.
 - Source gaps, format/epoch changes and pause reset the lag basis and reject old generation tokens. Paused/stale source cannot escalate; no stage automatically reactivates during a recording.
 - Queue drops/resource shedding create bounded per-run inference evidence, never fabricated raw gaps. Audit persistence runs off the capture thread and finishes before run sealing. Historical evidence stays with its source run; later refinement is separate. `complete` seals only the audit ledger: periodic snapshots are false, mandatory final snapshots true. Missing expected or unsealed historical ledgers remain explicitly incomplete after restart, with no invented gap ranges. Final write failure appends a warning; if even warning persistence fails, a ready in-memory warning is retained and automatic jobs are skipped.
+- Live speaker turns that could not be saved because of database lock contention are recorded as inference gaps with reason `persistence_failed` (see [speaker turns](../../diarization/speaker-turns/speaker-turns.md)); the raw recording is unaffected.
 
 ## Flag rules
 
