@@ -255,7 +255,15 @@ fn refinement_job(service: &AppService, id: &str) -> Result<()> {
         .lock()
         .map(|p| p.echo_cancellation_enabled)
         .unwrap_or(false);
-    let engine = serde_json::json!({"engine":"sherpa-onnx","version":"2.0.1","model":vt_stt::REFINEMENT_MODEL_ID,"provider":"cpu","weights":vt_stt::REFINEMENT_FILES,"echo_engine":vt_dsp::AEC_ENGINE,"echo_requested":echo_enabled});
+    let weights = RefinementModelManager::new(service.root.join("models"))
+        .recorded_weights()
+        .unwrap_or_else(|_| {
+            vt_stt::REFINEMENT_FILES
+                .iter()
+                .map(|&(name, bytes, hash)| (name.to_owned(), bytes, hash.to_owned()))
+                .collect::<Vec<_>>()
+        });
+    let engine = serde_json::json!({"engine":"sherpa-onnx","version":"2.0.1","model":vt_stt::REFINEMENT_MODEL_ID,"provider":"cpu","weights":weights,"echo_engine":vt_dsp::AEC_ENGINE,"echo_requested":echo_enabled});
     let run = store::create_run(&service.root, id, "refine", &engine.to_string())?;
     let outcome = (|| -> Result<()> {
         let turns = crate::speaker_pipeline::refine(service, id, &run.id, echo_enabled)?;
