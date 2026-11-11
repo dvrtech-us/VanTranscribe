@@ -664,12 +664,23 @@ pub(crate) fn append_warning(target: &mut Option<String>, message: &str) {
 fn final_audit_failure(service: &AppService, id: &str) {
     // The ledger is optional evidence. Do not fail raw capture, and never
     // replace the existing source/capture warning with this separate failure.
-    let (persisted,existing)=match store::open(&service.root) {
-        Ok(db)=>match db.query_row("UPDATE app_meetings SET error=CASE WHEN COALESCE(error,'')='' THEN ?2 WHEN instr(error,?2)>0 THEN error ELSE error||char(10)||?2 END WHERE id=?1 RETURNING error",params![id,AUDIT_WARNING],|row|row.get::<_,String>(0)) {
-            Ok(warning)=>(true,Some(warning)),
-            Err(_)=>(false,db.query_row("SELECT error FROM app_meetings WHERE id=?1",[id],|row|row.get::<_,Option<String>>(0)).ok().flatten()),
-        },
-        Err(_)=>(false,None),
+    let saved = store::write(&service.root, |db| {
+        Ok(db.query_row("UPDATE app_meetings SET error=CASE WHEN COALESCE(error,'')='' THEN ?2 WHEN instr(error,?2)>0 THEN error ELSE error||char(10)||?2 END WHERE id=?1 RETURNING error",params![id,AUDIT_WARNING],|row|row.get::<_,String>(0))?)
+    });
+    let (persisted, existing) = match saved {
+        Ok(warning) => (true, Some(warning)),
+        Err(_) => (
+            false,
+            store::read(&service.root, |db| {
+                Ok(
+                    db.query_row("SELECT error FROM app_meetings WHERE id=?1", [id], |row| {
+                        row.get::<_, Option<String>>(0)
+                    })?,
+                )
+            })
+            .ok()
+            .flatten(),
+        ),
     };
     {
         let mut controller = service.backlog.lock().unwrap_or_else(|e| e.into_inner());
@@ -841,10 +852,12 @@ pub(crate) fn audio_stage_stopped_warning(reason: LiveStopReason) -> &'static st
     }
 }
 pub(crate) fn initialize(root: &std::path::Path) -> Result<()> {
-    store::open(root)?.execute_batch(include_str!(
-        "../../../documentation/features/capture/recording-health/sql/002-inference-health.sql"
-    ))?;
-    Ok(())
+    store::write(root, |db| {
+        db.execute_batch(include_str!(
+            "../../../documentation/features/capture/recording-health/sql/002-inference-health.sql"
+        ))?;
+        Ok(())
+    })
 }
 pub(crate) fn info(db: &Connection, run: &str) -> Result<Option<BacklogReport>> {
     let metadata = db
@@ -907,8 +920,11 @@ pub(crate) fn info(db: &Connection, run: &str) -> Result<Option<BacklogReport>> 
 }
 
 fn persist(service: &AppService, id: &str, run: &str, report: &BacklogReport) -> Result<()> {
-    store::open(&service.root)?.execute("INSERT INTO app_run_inference_health(run_id,meeting_id,info_json) VALUES (?1,?2,?3) ON CONFLICT(run_id) DO UPDATE SET info_json=excluded.info_json",params![run,id,serde_json::to_string(report)?])?;
-    Ok(())
+    let json = serde_json::to_string(report)?;
+    store::write(&service.root, |db| {
+        db.execute("INSERT INTO app_run_inference_health(run_id,meeting_id,info_json) VALUES (?1,?2,?3) ON CONFLICT(run_id) DO UPDATE SET info_json=excluded.info_json",params![run,id,json])?;
+        Ok(())
+    })
 }
 pub(crate) struct AuditWriter {
     stop: mpsc::SyncSender<()>,

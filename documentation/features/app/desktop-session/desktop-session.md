@@ -115,6 +115,10 @@ The Standard variant uses explicit live Silero threshold 0.2 when VAD is enabled
 
 Backlog snapshots distinguish partials, speaker work and live STT shedding from raw audio. Saved run-specific processing history remains visible only with the corresponding transcript version. Audit completion describes ledger sealing, not complete speech coverage. Unavailable/incomplete ledger writes are flagged; source audio stays independently retained. See [recording health](../../capture/recording-health/recording-health.md).
 
+### Database access from commands
+
+Commands that write while a recording may be running do not hold `runtime` across the write, because the capture loop takes it for every source-clock event: `rename`, `save_note`, the bleed-review calls, `rename_speaker`, `set_speaker_shared_room`, `add_speaker_constraint`, `resolve_speaker_review`, `revoke_speaker_constraint`, `correct_segment`, `resolve_correction`, `update_voice_memory`, `forget_person`, `delete_all_voiceprints`, `save_maintenance_policy` and the session-end health timing write. They check state under `runtime`, release it, then write. The meeting-detection settings commands release `runtime` but keep the `meeting_detection` lock across a small settings write (the capture loop never takes that lock). Recording start (`create_meeting_with_engines`), the final write of voice enrollment and `select_live_model` still write while holding `runtime`; none can run during capture, and such a write waits at most `HELD_LOCK_WRITE_WAIT` (5 s). See [database access](../../storage/database-access/database-access.md).
+
 ### Storage controls and resource health
 
 Settings exposes **Privacy and storage**, with audio kept by default and obsolete, unreferenced transcript versions eligible after seven days. Whole-meeting or audio-only removal requires a fresh preview and explicit confirmation. Automatic retention checks every 60 seconds while idle, and automatic attempts are at least an hour apart, including failed attempts. Playing/buffering saved audio defers automatic cleanup. Saving retention preferences makes the policy eligible for the next idle check; manual preview/cleanup remains available during retry backoff. Exported and backed-up copies remain outside deletion. See [Retention](../../storage/retention/retention.md) for confirmed intents, filesystem capabilities, crash recovery and protected history.
@@ -131,6 +135,7 @@ The interface displays available-space warnings and explicit source timing. Disk
 | Native helper build | `src-tauri/build.rs` | C/Swift compilation and app resource preparation |
 | `AppService`, `Runtime`, `RecordingView`, `Snapshot` | `crates/vt-session/src/lib.rs` | Session control, state snapshots, model setup and shutdown |
 | `TrackBuffer`, `record_session`, `infer_worker`, `transcribe_saved` | `crates/vt-session/src/session.rs` | Per-track publication, capture/inference workers and saved transcription |
+| `db::{Writer, write, write_with, read, OrderedMutex}` | `crates/vt-session/src/db.rs` | One shared write connection and snapshot reads for the main database; see [database access](../../storage/database-access/database-access.md) |
 | `Meeting`, `Segment`, `TranscriptWord`, `RunInfo`, `Correction`, `SummaryInfo`, store functions | `crates/vt-session/src/store.rs` | Immutable runs, legacy migration, overlays, search, grounded summaries, notes and exports |
 | `CaptureProcess`, `CaptureEvents`, `InputDevice`, `DeviceList` | `crates/vt-capture/src/lib.rs` | Bounded native event transport and input enumeration |
 | `CaptureEngine`, `Accumulator` | `native/macos/CaptureHelper.swift` | Aggregate/tap ownership, device transitions and worker publication |
@@ -224,7 +229,7 @@ Additional tables are detailed in the [processing-runs schema](../../storage/pro
 | `app_summaries` | Meeting/run FKs, input revision, provider/model/template, JSON/Markdown, stale flag, created time |
 | `app_summary_failures` | Meeting PK/FK with delete cascade and non-null summary-only error, independent of recording health |
 | `app_summary_sources` | Summary and run-scoped source-segment FKs protecting historical citations |
-| `app_search_fts` | FTS5 meeting/source/reference/text rows rebuilt within source-edit/publication transactions |
+| `app_search_fts` | FTS5 meeting/source/reference/text rows rebuilt within source-edit/publication transactions; during an active recording only note/title rows are written incrementally and other edits defer the rebuild until stop (see [database access](../../storage/database-access/database-access.md#search-index-during-a-recording)) |
 | `app_speaker_identities`, `app_run_speaker_keys` | Meeting/track identity, optional user name/alias/prior, shared-room flag, nullable person link and run-local cluster mapping |
 | `app_speaker_turns`, `app_speaker_run_state` | Run-scoped timed identity/provenance/overlap/uncertainty annotations and embedding-version/calibration warnings plus nullable `app_speaker_run_state.segmentation_context_json`; no vectors |
 | `app_speaker_constraints`, `app_speaker_turn_overrides`, `app_speaker_reviews` | Persisted user temporal constraints, explicit turn overrides and unresolved split/merge/constraint review |

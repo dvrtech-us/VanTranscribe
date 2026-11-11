@@ -43,7 +43,7 @@
 
 1. Validate explicit settings/consent and trusted source eligibility.
 2. Verify/extract the bounded mean into memory; no audio or unnamed embedding is written.
-3. Load or add the separate OS key outside runtime/detection locks and SQLite write transactions; reads and add-only writes both use the SecItem generic-password namespace.
+3. Load or add the separate OS key (`prepare_key`) outside runtime/detection locks and every database `read`/`write` closure; reads and add-only writes both use the SecItem generic-password namespace.
 4. Under the runtime/controller guards and one transaction, revalidate current authority/source and authenticate the stored verifier.
 5. Decrypt and validate only a matching existing exemplar set, append the confirmed sample, encrypt with a fresh nonce, persist person/consent/voiceprint/link/name atomically.
 6. On failure, roll back database changes and zeroize owned sensitive buffers.

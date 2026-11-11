@@ -193,20 +193,25 @@ fn validate_settings(mut settings: DetectionSettings) -> Result<DetectionSetting
 }
 
 fn load_value<T: serde::de::DeserializeOwned>(root: &Path, key: &str) -> Result<Option<T>> {
-    let value: Option<String> = store::open(root)?
-        .query_row(
-            "SELECT value_json FROM app_settings WHERE key=?1",
-            [key],
-            |row| row.get(0),
-        )
-        .optional()?;
+    let value: Option<String> = store::read(root, |db| {
+        Ok(db
+            .query_row(
+                "SELECT value_json FROM app_settings WHERE key=?1",
+                [key],
+                |row| row.get(0),
+            )
+            .optional()?)
+    })?;
     value
         .map(|value| serde_json::from_str(&value).map_err(Into::into))
         .transpose()
 }
 fn save_value(root: &Path, key: &str, value: &impl Serialize) -> Result<()> {
-    store::open(root)?.execute("INSERT INTO app_settings(key,value_json) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",rusqlite::params![key,serde_json::to_string(value)?])?;
-    Ok(())
+    let json = serde_json::to_string(value)?;
+    store::write(root, |db| {
+        db.execute("INSERT INTO app_settings(key,value_json) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",rusqlite::params![key,json])?;
+        Ok(())
+    })
 }
 impl DetectionState {
     pub(crate) fn load(root: &Path) -> Self {
@@ -737,20 +742,24 @@ impl AppService {
                 .meeting_detection
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Meeting detection state unavailable"))?;
+            // Allowed while recording: the settings write keeps the detection
+            // state locked (the capture loop never takes it) but not `runtime`.
+            drop(runtime);
             if expected_generation != state.context_generation {
                 bail!(
                     "The meeting detection page context changed. Refresh before saving detection settings."
                 );
             }
-            let mut db = store::open(&self.root)?;
-            let tx = db.transaction()?;
-            for (key, value) in [
+            let values = [
                 (SETTINGS_KEY, serde_json::to_string(&settings)?),
                 (MODE_KEY, serde_json::to_string(&state.mode)?),
-            ] {
-                tx.execute("INSERT INTO app_settings(key,value_json) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",rusqlite::params![key,value])?;
-            }
-            tx.commit()?;
+            ];
+            store::write(&self.root, |tx| {
+                for (key, value) in &values {
+                    tx.execute("INSERT INTO app_settings(key,value_json) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",rusqlite::params![key,value])?;
+                }
+                Ok(())
+            })?;
             state.settings = settings;
             state.mode_needs_repair = false;
             state.reset_evidence();
@@ -788,11 +797,13 @@ impl AppService {
                     "The meeting detection page context changed. Refresh before updating recording setup."
                 );
             }
-            if busy(&runtime) && mode != state.mode {
+            let busy = busy(&runtime);
+            drop(runtime);
+            if busy && mode != state.mode {
                 bail!("Finish active recording or processing before changing capture mode.");
             }
             if mode != state.mode || state.mode_needs_repair {
-                if busy(&runtime) {
+                if busy {
                     bail!("Finish active work before repairing or changing capture mode.");
                 }
                 save_value(&self.root, MODE_KEY, &mode)?;
@@ -820,6 +831,7 @@ impl AppService {
                 .meeting_detection
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Meeting detection state unavailable"))?;
+            drop(runtime);
             let id = state
                 .episodes
                 .iter()
@@ -961,8 +973,9 @@ impl AppService {
         };
         // Exists on the committed recorder manifest: even quiet PCM counts.
         // No permission/clock/status message alone is evidence of saved audio.
-        let db = store::open(&self.root).ok()?;
-        db.query_row("SELECT status='failed',EXISTS(SELECT 1 FROM audio_chunks WHERE meeting_id=?1 AND state='ready' AND frame_count>0) FROM app_meetings WHERE id=?1",[&id],|row|Ok(StartEvidence{meeting_id:id.clone(),failed:row.get(0)?,ready:row.get(1)?})).ok()
+        store::read(&self.root, |db| {
+            Ok(db.query_row("SELECT status='failed',EXISTS(SELECT 1 FROM audio_chunks WHERE meeting_id=?1 AND state='ready' AND frame_count>0) FROM app_meetings WHERE id=?1",[&id],|row|Ok(StartEvidence{meeting_id:id.clone(),failed:row.get(0)?,ready:row.get(1)?}))?)
+        }).ok()
     }
     #[cfg(test)]
     fn apply_detection(self: &Arc<Self>, snapshot: MeetingAppSnapshot) {

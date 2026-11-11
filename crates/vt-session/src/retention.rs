@@ -139,13 +139,9 @@ fn prune_receipts(db: &Connection) -> Result<()> {
     Ok(())
 }
 fn prune(root: &Path) -> Result<()> {
-    let mut db = store::open(root)?;
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-    prune_receipts(&tx)?;
-    tx.commit()?;
-    Ok(())
+    store::write(root, |tx| prune_receipts(tx))
 }
-fn terminal(db: &mut Connection, p: &Payload, state: &str, error: Option<&str>) -> Result<()> {
+fn terminal(root: &Path, p: &Payload, state: &str, error: Option<&str>) -> Result<()> {
     let compact = Payload {
         format_version: p.format_version,
         preview: p.preview.clone(),
@@ -153,14 +149,14 @@ fn terminal(db: &mut Connection, p: &Payload, state: &str, error: Option<&str>) 
         entries: vec![],
         run_ids: vec![],
     };
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-    let changed=tx.execute("UPDATE app_retention_intents SET state=?2,error=?3,payload_json=?4 WHERE token=?1 AND NOT EXISTS(SELECT 1 FROM app_retention_gate WHERE token=app_retention_intents.token)",params![p.preview.token,state,error,serde_json::to_string(&compact)?])?;
-    if changed != 1 {
-        bail!("Retention receipt is missing or protected by a deletion gate.");
-    }
-    prune_receipts(&tx)?;
-    tx.commit()?;
-    Ok(())
+    let compact = serde_json::to_string(&compact)?;
+    store::write(root, |tx| {
+        let changed=tx.execute("UPDATE app_retention_intents SET state=?2,error=?3,payload_json=?4 WHERE token=?1 AND NOT EXISTS(SELECT 1 FROM app_retention_gate WHERE token=app_retention_intents.token)",params![p.preview.token,state,error,compact])?;
+        if changed != 1 {
+            bail!("Retention receipt is missing or protected by a deletion gate.");
+        }
+        prune_receipts(tx)
+    })
 }
 
 fn valid_id(id: &str) -> Result<()> {
@@ -295,11 +291,15 @@ fn pending(db: &Connection, meeting: &str) -> Result<bool> {
 /// Block recorder recovery, playback and inference while true: ready chunks can
 /// be temporarily moved and must never be converted to missing-audio gaps.
 pub(crate) fn has_pending(root: &Path, meeting: &str) -> Result<bool> {
-    pending(&store::open(root)?, meeting)
+    store::read(root, |db| pending(db, meeting))
 }
 pub(crate) fn audio_available(root: &Path, meeting: &str) -> Result<bool> {
-    let db = store::open(root)?;
-    if pending(&db, meeting)? {
+    store::read(root, |db| audio_available_in(db, meeting))
+}
+/// `audio_available` on an open connection or transaction, for callers that
+/// are already inside a database closure.
+fn audio_available_in(db: &Connection, meeting: &str) -> Result<bool> {
+    if pending(db, meeting)? {
         return Ok(false);
     }
     let exists: bool = db.query_row(
@@ -481,28 +481,38 @@ fn make_plan(
 ) -> Result<DeletionPreview> {
     valid_id(meeting)?;
     let dir = capability(root)?;
-    let mut db = store::open(root)?;
-    idle(&db, meeting)?;
-    if pending(&db, meeting)? {
-        bail!("This meeting has pending retention recovery or trash cleanup.");
-    }
+    // Database reads and file inspection alternate in the same order as
+    // before; the file work runs between reads, never inside one.
+    store::read(root, |db| {
+        idle(db, meeting)?;
+        if pending(db, meeting)? {
+            bail!("This meeting has pending retention recovery or trash cleanup.");
+        }
+        Ok(())
+    })?;
     let _lock = lock_meeting(&dir, meeting, None)?;
-    let foreign_key_tables = graph(&db)?;
-    validate_manifest(&db, meeting)?;
+    let foreign_key_tables = store::read(root, |db| {
+        let tables = graph(db)?;
+        validate_manifest(db, meeting)?;
+        Ok(tables)
+    })?;
     let moves = moves_for(&dir, meeting, kind)?;
     let mut entries = Vec::new();
     for p in &moves {
         inspect(&dir, p, 0, &mut entries)?;
     }
-    let runs = if kind == "meeting" {
-        u64::try_from(db.query_row(
-            "SELECT count(*) FROM app_processing_runs WHERE meeting_id=?1",
-            [meeting],
-            |r| r.get::<_, i64>(0),
-        )?)?
-    } else {
-        run_ids.len() as u64
-    };
+    let (runs, fingerprint) = store::read(root, |db| {
+        let runs = if kind == "meeting" {
+            u64::try_from(db.query_row(
+                "SELECT count(*) FROM app_processing_runs WHERE meeting_id=?1",
+                [meeting],
+                |r| r.get::<_, i64>(0),
+            )?)?
+        } else {
+            run_ids.len() as u64
+        };
+        Ok((runs, fingerprint(db, meeting)?))
+    })?;
     let bytes = entries.iter().try_fold(0_u64, |sum, e| {
         sum.checked_add(e.bytes)
             .context("Owned file size total overflow")
@@ -515,7 +525,7 @@ fn make_plan(
         files: entries.iter().filter(|e| !e.directory).count() as u64,
         bytes,
         runs,
-        fingerprint: fingerprint(&db, meeting)?,
+        fingerprint,
         protected_runs: protected.0,
         protected_active: protected.1,
         protected_references: protected.2,
@@ -528,11 +538,13 @@ fn make_plan(
         entries,
         run_ids,
     };
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-    prune_receipts(&tx)?;
-    tx.execute("DELETE FROM app_retention_intents WHERE token IN(SELECT i.token FROM app_retention_intents i WHERE i.meeting_id=?1 AND i.state='preview' AND NOT EXISTS(SELECT 1 FROM app_retention_gate g WHERE g.token=i.token) ORDER BY julianday(i.created_at) DESC,i.rowid DESC LIMIT -1 OFFSET ?2)",params![meeting,MAX_PREVIEWS_PER_MEETING-1])?;
-    tx.execute("INSERT INTO app_retention_intents(token,meeting_id,kind,state,payload_json,created_at) VALUES(?1,?2,?3,'preview',?4,?5)",params![preview.token,meeting,kind,serde_json::to_string(&payload)?,Utc::now().to_rfc3339()])?;
-    tx.commit()?;
+    let payload = serde_json::to_string(&payload)?;
+    store::write(root, |tx| {
+        prune_receipts(tx)?;
+        tx.execute("DELETE FROM app_retention_intents WHERE token IN(SELECT i.token FROM app_retention_intents i WHERE i.meeting_id=?1 AND i.state='preview' AND NOT EXISTS(SELECT 1 FROM app_retention_gate g WHERE g.token=i.token) ORDER BY julianday(i.created_at) DESC,i.rowid DESC LIMIT -1 OFFSET ?2)",params![meeting,MAX_PREVIEWS_PER_MEETING-1])?;
+        tx.execute("INSERT INTO app_retention_intents(token,meeting_id,kind,state,payload_json,created_at) VALUES(?1,?2,?3,'preview',?4,?5)",params![preview.token,meeting,kind,payload,Utc::now().to_rfc3339()])?;
+        Ok(())
+    })?;
     Ok(preview)
 }
 pub(crate) fn plan(root: &Path, meeting: &str, kind: DeletionKind) -> Result<DeletionPreview> {
@@ -566,14 +578,16 @@ fn load(db: &Connection, token: &str) -> Result<(String, Payload)> {
 }
 pub(crate) fn meeting_for_token(root: &Path, token: &str) -> Result<String> {
     uuid::Uuid::parse_str(token).context("Invalid deletion token")?;
-    let meeting: String = store::open(root)?
-        .query_row(
-            "SELECT meeting_id FROM app_retention_intents WHERE token=?1",
-            [token],
-            |r| r.get(0),
-        )
-        .optional()?
-        .context("Deletion preview expired or is no longer available. Review a fresh preview.")?;
+    let meeting: String = store::read(root, |db| {
+        Ok(db
+            .query_row(
+                "SELECT meeting_id FROM app_retention_intents WHERE token=?1",
+                [token],
+                |r| r.get(0),
+            )
+            .optional()?)
+    })?
+    .context("Deletion preview expired or is no longer available. Review a fresh preview.")?;
     valid_id(&meeting)?;
     Ok(meeting)
 }
@@ -584,11 +598,10 @@ fn inventory(dir: &Dir, p: &Payload) -> Result<Vec<Entry>> {
     }
     Ok(entries)
 }
-pub(crate) fn commit(root: &Path, token: &str) -> Result<MaintenanceReport> {
-    let mut db = store::open(root)?;
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-    uuid::Uuid::parse_str(token).context("Invalid deletion token")?;
-    let created: Option<String> = tx
+/// The preview checks a confirmation must pass: a live, unexpired preview of
+/// an idle meeting with no pending retention work.
+fn confirmable(db: &Connection, token: &str) -> Result<Payload> {
+    let created: Option<String> = db
         .query_row(
             "SELECT created_at FROM app_retention_intents WHERE token=?1",
             [token],
@@ -598,7 +611,7 @@ pub(crate) fn commit(root: &Path, token: &str) -> Result<MaintenanceReport> {
     let Some(created) = created else {
         bail!("Deletion preview expired or is no longer available. Review a fresh preview.");
     };
-    let (state, p) = load(&tx, token)?;
+    let (state, p) = load(db, token)?;
     if state != "preview" {
         bail!("Only an unconfirmed preview can be confirmed.");
     }
@@ -607,23 +620,41 @@ pub(crate) fn commit(root: &Path, token: &str) -> Result<MaintenanceReport> {
     if Utc::now().signed_duration_since(created) >= Duration::hours(PREVIEW_TTL_HOURS) {
         bail!("Deletion preview expired. Review a fresh preview.");
     }
-    let dir = capability(root)?;
-    idle(&tx, &p.preview.meeting_id)?;
-    if pending(&tx, &p.preview.meeting_id)? {
+    idle(db, &p.preview.meeting_id)?;
+    if pending(db, &p.preview.meeting_id)? {
         bail!("This meeting has pending retention recovery or trash cleanup.");
     }
+    Ok(p)
+}
+/// Confirms a preview. The owned-file inventory is taken under the meeting's
+/// recording lease but outside the database writer; the confirming write
+/// re-checks every database condition and that the preview it inventoried is
+/// unchanged, and the lease is held until after the confirmation commits, so
+/// files cannot change between inventory and commit (as before, when the
+/// inventory ran inside the transaction under the same lease).
+pub(crate) fn commit(root: &Path, token: &str) -> Result<MaintenanceReport> {
+    uuid::Uuid::parse_str(token).context("Invalid deletion token")?;
+    let p = store::read(root, |db| confirmable(db, token))?;
+    let dir = capability(root)?;
     let _lock = lock_meeting(&dir, &p.preview.meeting_id, None)?;
-    graph(&tx)?;
-    if fingerprint(&tx, &p.preview.meeting_id)? != p.preview.fingerprint
-        || inventory(&dir, &p)? != p.entries
-    {
-        bail!("Deletion preview is stale. Review a fresh preview.");
-    }
-    tx.execute(
-        "UPDATE app_retention_intents SET state='confirmed',confirmed_at=?2 WHERE token=?1",
-        params![token, Utc::now().to_rfc3339()],
-    )?;
-    tx.commit()?;
+    let listed = inventory(&dir, &p);
+    store::write(root, |tx| {
+        let current = confirmable(tx, token)?;
+        if current.moves != p.moves || current.entries != p.entries {
+            bail!("Deletion preview is stale. Review a fresh preview.");
+        }
+        graph(tx)?;
+        if fingerprint(tx, &current.preview.meeting_id)? != current.preview.fingerprint
+            || listed? != current.entries
+        {
+            bail!("Deletion preview is stale. Review a fresh preview.");
+        }
+        tx.execute(
+            "UPDATE app_retention_intents SET state='confirmed',confirmed_at=?2 WHERE token=?1",
+            params![token, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    })?;
     checkpoint("confirmed");
     drop(_lock);
     resume(root, token)
@@ -804,12 +835,14 @@ fn delete_meeting(db: &Connection, meeting: &str) -> Result<()> {
     db.execute("DELETE FROM meetings WHERE id=?1", [meeting])?;
     Ok(())
 }
-fn cleanup_database(db: &mut Connection, p: &Payload) -> Result<()> {
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+fn cleanup_database(root: &Path, p: &Payload) -> Result<()> {
+    store::write(root, |tx| cleanup_database_in(tx, p))
+}
+fn cleanup_database_in(tx: &Connection, p: &Payload) -> Result<()> {
     let meeting = &p.preview.meeting_id;
-    idle(&tx, meeting)?;
-    graph(&tx)?;
-    if fingerprint(&tx, meeting)? != p.preview.fingerprint {
+    idle(tx, meeting)?;
+    graph(tx)?;
+    if fingerprint(tx, meeting)? != p.preview.fingerprint {
         bail!("Confirmed deletion snapshot changed; original files will be restored.");
     }
     tx.pragma_update(None, "defer_foreign_keys", "ON")?;
@@ -818,7 +851,7 @@ fn cleanup_database(db: &mut Connection, p: &Payload) -> Result<()> {
         [&p.preview.token],
     )?;
     match p.preview.kind.as_str() {
-        "meeting" => delete_meeting(&tx, meeting)?,
+        "meeting" => delete_meeting(tx, meeting)?,
         "audio" => {
             let chunks: i64 = tx.query_row(
                 "SELECT count(*) FROM audio_chunks WHERE meeting_id=?1",
@@ -828,18 +861,18 @@ fn cleanup_database(db: &mut Connection, p: &Payload) -> Result<()> {
             tx.execute("DELETE FROM audio_chunks WHERE meeting_id=?1", [meeting])?;
             tx.execute("INSERT INTO app_audio_retention(meeting_id,audio_available,purged_at,original_chunks,original_bytes) VALUES(?1,0,?2,?3,?4) ON CONFLICT(meeting_id) DO UPDATE SET audio_available=0,purged_at=excluded.purged_at",params![meeting,Utc::now().to_rfc3339(),chunks,i64::try_from(p.preview.bytes)?])?;
             for run in &p.run_ids {
-                if protected(&tx, run)? {
+                if protected(tx, run)? {
                     bail!("A history run gained a protected reference.");
                 }
-                delete_run(&tx, run)?;
+                delete_run(tx, run)?;
             }
         }
         "runs" => {
             for run in &p.run_ids {
-                if protected(&tx, run)? {
+                if protected(tx, run)? {
                     bail!("A history run gained a protected reference.");
                 }
-                delete_run(&tx, run)?;
+                delete_run(tx, run)?;
             }
         }
         _ => bail!("Invalid deletion kind."),
@@ -853,12 +886,10 @@ fn cleanup_database(db: &mut Connection, p: &Payload) -> Result<()> {
         [&p.preview.token],
     )?;
     tx.execute("DELETE FROM app_retention_intents WHERE meeting_id=?1 AND state='preview' AND NOT EXISTS(SELECT 1 FROM app_retention_gate WHERE token=app_retention_intents.token)",[meeting])?;
-    tx.commit()?;
     Ok(())
 }
 fn resume(root: &Path, token: &str) -> Result<MaintenanceReport> {
-    let mut db = store::open(root)?;
-    let (state, p) = load(&db, token)?;
+    let (state, p) = store::read(root, |db| load(db, token))?;
     let dir = capability(root)?;
     let mut report = MaintenanceReport::default();
     if state == "confirmed" {
@@ -870,13 +901,13 @@ fn resume(root: &Path, token: &str) -> Result<MaintenanceReport> {
         let _lock = lock_meeting(&dir, &p.preview.meeting_id, trash_lock.as_deref())?;
         let result = move_to_trash(&dir, &p).and_then(|()| {
             checkpoint("moved");
-            cleanup_database(&mut db, &p)
+            cleanup_database(root, &p)
         });
         if let Err(error) = result {
             let restored = restore(&dir, &p);
             let message = match restored {
                 Ok(()) => {
-                    terminal(&mut db, &p, "failed", Some(&error.to_string()))?;
+                    terminal(root, &p, "failed", Some(&error.to_string()))?;
                     format!("Deletion failed; original files restored: {error}")
                 }
                 Err(restore) => {
@@ -885,7 +916,10 @@ fn resume(root: &Path, token: &str) -> Result<MaintenanceReport> {
                     );
                     // Recovery capability and the primary error take precedence
                     // if the same storage fault also prevents saving its status.
-                    let _=db.execute("UPDATE app_retention_intents SET error=?2 WHERE token=?1 AND state='confirmed'",params![token,message]);
+                    let _ = store::write(root, |db| {
+                        db.execute("UPDATE app_retention_intents SET error=?2 WHERE token=?1 AND state='confirmed'",params![token,message])?;
+                        Ok(())
+                    });
                     message
                 }
             };
@@ -908,13 +942,16 @@ fn resume(root: &Path, token: &str) -> Result<MaintenanceReport> {
         report.errors.push(format!(
             "Data deletion committed; trash cleanup pending: {error}"
         ));
-        db.execute(
-            "UPDATE app_retention_intents SET error=?2 WHERE token=?1",
-            params![token, error.to_string()],
-        )?;
+        store::write(root, |db| {
+            db.execute(
+                "UPDATE app_retention_intents SET error=?2 WHERE token=?1",
+                params![token, error.to_string()],
+            )?;
+            Ok(())
+        })?;
         return Ok(report);
     }
-    terminal(&mut db, &p, "done", None)?;
+    terminal(root, &p, "done", None)?;
     report.completed = 1;
     report.bytes_reclaimed = p.preview.bytes;
     match p.preview.kind.as_str() {
@@ -930,26 +967,25 @@ fn resume(root: &Path, token: &str) -> Result<MaintenanceReport> {
 }
 pub(crate) fn recover(root: &Path) -> Result<MaintenanceReport> {
     prune(root)?;
-    let db = store::open(root)?;
-    let mut q=db.prepare("SELECT token FROM app_retention_intents WHERE state IN('confirmed','cleanup') ORDER BY created_at,token")?;
-    let tokens = q
-        .query_map([], |r| r.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    drop(q);
-    drop(db);
+    let tokens = store::read(root, |db| {
+        let mut q=db.prepare("SELECT token FROM app_retention_intents WHERE state IN('confirmed','cleanup') ORDER BY created_at,token")?;
+        Ok(q.query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?)
+    })?;
     let mut report = MaintenanceReport::default();
     for token in tokens {
         match resume(root, &token) {
             Ok(r) => merge(&mut report, r),
             Err(e) => {
-                let db = store::open(root)?;
-                let state: Option<String> = db
-                    .query_row(
-                        "SELECT state FROM app_retention_intents WHERE token=?1",
-                        [&token],
-                        |r| r.get(0),
-                    )
-                    .optional()?;
+                let state: Option<String> = store::read(root, |db| {
+                    Ok(db
+                        .query_row(
+                            "SELECT state FROM app_retention_intents WHERE token=?1",
+                            [&token],
+                            |r| r.get(0),
+                        )
+                        .optional()?)
+                })?;
                 if matches!(state.as_deref(), Some("confirmed" | "cleanup")) {
                     report.pending_cleanup.push(token);
                 }
@@ -973,11 +1009,13 @@ fn protected(db: &Connection, run: &str) -> Result<bool> {
 }
 pub(crate) fn preview_policy(root: &Path, policy: &MaintenancePolicy) -> Result<PolicyPreview> {
     policy.validate()?;
-    let db = store::open(root)?;
-    let mut q = db.prepare("SELECT id,started_at FROM app_meetings ORDER BY id")?;
-    let meetings = q
-        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let meetings = store::read(root, |db| {
+        let mut q = db.prepare("SELECT id,started_at FROM app_meetings ORDER BY id")?;
+        Ok(
+            q.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+        )
+    })?;
     let now = Utc::now();
     let mut out = PolicyPreview {
         policy: policy.clone(),
@@ -986,65 +1024,77 @@ pub(crate) fn preview_policy(root: &Path, policy: &MaintenancePolicy) -> Result<
         skipped_busy: vec![],
     };
     for (meeting, started) in meetings {
-        if idle(&db, &meeting).is_err() || pending(&db, &meeting)? {
+        // One read per meeting; planning (file inspection and the preview
+        // write) runs after it, outside any database closure.
+        let assessed = store::read(root, |db| {
+            if idle(db, &meeting).is_err() || pending(db, &meeting)? {
+                return Ok(None);
+            }
+            let mut audio_due = false;
+            if let Some(days) = policy.audio_keep_days {
+                let started = chrono::DateTime::parse_from_rfc3339(&started)
+                    .context("Invalid saved meeting date")?;
+                let cutoff = now
+                    .checked_sub_signed(Duration::days(i64::from(days)))
+                    .context("Audio retention period exceeds supported dates")?;
+                audio_due = started < cutoff && audio_available_in(db, &meeting)?;
+            }
+            let mut q = db.prepare(
+                "SELECT id,status,created_at FROM app_processing_runs WHERE meeting_id=?1 ORDER BY id",
+            )?;
+            let runs = q
+                .query_map([&meeting], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let (mut candidates, mut protected_runs, mut active, mut references) =
+                (Vec::new(), 0, 0, 0);
+            for (id, status, created) in runs {
+                let current: bool = db.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM app_meeting_revision WHERE active_run_id=?1)",
+                    [&id],
+                    |r| r.get(0),
+                )?;
+                if current || status == "running" {
+                    protected_runs += 1;
+                    active += 1;
+                } else if protected(db, &id)? {
+                    protected_runs += 1;
+                    references += 1;
+                } else if !policy.cleanup_obsolete_runs {
+                    protected_runs += 1;
+                } else if chrono::DateTime::parse_from_rfc3339(&created)?
+                    < now
+                        .checked_sub_signed(Duration::days(i64::from(policy.obsolete_run_days)))
+                        .context("History retention period exceeds supported dates")?
+                {
+                    candidates.push(id);
+                } else {
+                    protected_runs += 1;
+                }
+            }
+            Ok(Some((
+                audio_due,
+                candidates,
+                (protected_runs, active, references),
+            )))
+        })?;
+        let Some((audio_due, candidates, protection)) = assessed else {
             out.skipped_busy.push(meeting);
             continue;
-        }
-        let mut audio_due = false;
-        if let Some(days) = policy.audio_keep_days {
-            let started = chrono::DateTime::parse_from_rfc3339(&started)
-                .context("Invalid saved meeting date")?;
-            let cutoff = now
-                .checked_sub_signed(Duration::days(i64::from(days)))
-                .context("Audio retention period exceeds supported dates")?;
-            audio_due = started < cutoff && audio_available(root, &meeting)?;
-        }
-        let mut q = db.prepare(
-            "SELECT id,status,created_at FROM app_processing_runs WHERE meeting_id=?1 ORDER BY id",
-        )?;
-        let runs = q
-            .query_map([&meeting], |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, String>(2)?,
-                ))
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        let (mut candidates, mut protected_runs, mut active, mut references) =
-            (Vec::new(), 0, 0, 0);
-        for (id, status, created) in runs {
-            let current: bool = db.query_row(
-                "SELECT EXISTS(SELECT 1 FROM app_meeting_revision WHERE active_run_id=?1)",
-                [&id],
-                |r| r.get(0),
-            )?;
-            if current || status == "running" {
-                protected_runs += 1;
-                active += 1;
-            } else if protected(&db, &id)? {
-                protected_runs += 1;
-                references += 1;
-            } else if !policy.cleanup_obsolete_runs {
-                protected_runs += 1;
-            } else if chrono::DateTime::parse_from_rfc3339(&created)?
-                < now
-                    .checked_sub_signed(Duration::days(i64::from(policy.obsolete_run_days)))
-                    .context("History retention period exceeds supported dates")?
-            {
-                candidates.push(id);
-            } else {
-                protected_runs += 1;
-            }
-        }
-        out.protected_runs += protected_runs;
+        };
+        out.protected_runs += protection.0;
         if audio_due || !candidates.is_empty() {
             out.actions.push(make_plan(
                 root,
                 &meeting,
                 if audio_due { "audio" } else { "runs" },
                 candidates,
-                (protected_runs, active, references),
+                protection,
             )?);
         }
     }

@@ -142,6 +142,12 @@ pub struct SummaryInfo {
     pub source_segment_ids: Vec<String>,
 }
 
+pub(crate) use crate::db::{read, write, write_with};
+
+/// A plain read-write connection with today's settings, for tests that need a
+/// second connection (lock holders, fixtures). Production code uses `write`
+/// and `read`.
+#[cfg(test)]
 pub(crate) fn open(root: &Path) -> Result<Connection> {
     open_with_timeout(root, Duration::from_secs(5))
 }
@@ -150,6 +156,7 @@ pub(crate) fn open(root: &Path) -> Result<Connection> {
 /// That loop also feeds the recorder, so it must never wait seconds for a lock.
 pub(crate) const LOOP_BUSY_TIMEOUT: Duration = Duration::from_millis(250);
 
+#[cfg(test)]
 pub(crate) fn open_with_timeout(root: &Path, busy_timeout: Duration) -> Result<Connection> {
     let db = Connection::open(root.join("vantranscribe.db"))?;
     db.busy_timeout(busy_timeout)?;
@@ -158,8 +165,8 @@ pub(crate) fn open_with_timeout(root: &Path, busy_timeout: Duration) -> Result<C
 }
 
 /// Runs one live save under `budget`, retrying only lock contention
-/// (`sqlite_busy`). Each attempt must open its own connection and transaction so
-/// a failed attempt releases everything before the backoff. Other errors return
+/// (`sqlite_busy`). Each attempt must run its own `write_with` transaction so a
+/// failed attempt releases the writer before the backoff. Other errors return
 /// at once. Worst case: `attempts * busy_timeout` plus the doubling backoff.
 pub(crate) fn retry_busy<T>(
     budget: LiveSaveBudget,
@@ -231,8 +238,10 @@ pub(crate) fn describe_error(error: &anyhow::Error) -> String {
 
 pub(crate) fn initialize(root: &Path) -> Result<()> {
     vt_record::initialize(root)?;
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
+    write(root, |tx| initialize_schema(tx))
+}
+
+fn initialize_schema(tx: &Connection) -> Result<()> {
     tx.execute_batch(include_str!(
         "../../../documentation/features/app/desktop-session/sql/001-desktop.sql"
     ))?;
@@ -242,7 +251,7 @@ pub(crate) fn initialize(root: &Path) -> Result<()> {
     tx.execute_batch(include_str!(
         "../../../documentation/features/app/desktop-session/sql/004-speaker-annotations.sql"
     ))?;
-    vt_speakers::initialize(&tx)?;
+    vt_speakers::initialize(tx)?;
     let identity_columns = {
         let mut query = tx.prepare("PRAGMA table_info(app_speaker_identities)")?;
         query
@@ -314,7 +323,7 @@ pub(crate) fn initialize(root: &Path) -> Result<()> {
             .collect::<rusqlite::Result<Vec<_>>>()?
     };
     for (id, status) in ids {
-        let run = insert_run(&tx, &id, "live", r#"{"migration":"legacy-desktop"}"#)?;
+        let run = insert_run(tx, &id, "live", r#"{"migration":"legacy-desktop"}"#)?;
         tx.execute("INSERT INTO app_run_segments(run_id,id,track,start_ms,end_ms,text,speaker) SELECT ?1,id,track,start_ms,end_ms,text,speaker FROM app_segments WHERE meeting_id=?2",params![run.id,id])?;
         if !matches!(status.as_str(), "recording" | "paused") {
             tx.execute(
@@ -326,27 +335,35 @@ pub(crate) fn initialize(root: &Path) -> Result<()> {
             "INSERT INTO app_meeting_revision(meeting_id,active_run_id) VALUES (?1,?2)",
             params![id, run.id],
         )?;
-        rebuild_fts(&tx, &id)?;
+        rebuild_fts(tx, &id)?;
     }
-    tx.commit()?;
     Ok(())
 }
 
 pub(crate) fn recover_interrupted(root: &Path) -> Result<()> {
-    let db = open(root)?;
-    db.execute("DELETE FROM app_transcription_staging WHERE meeting_id NOT IN (SELECT meeting_id FROM app_retention_intents WHERE state IN ('confirmed','cleanup'))", [])?;
-    db.execute(
-        "UPDATE app_processing_runs SET status='abandoned' WHERE status='running' AND meeting_id NOT IN (SELECT meeting_id FROM app_retention_intents WHERE state IN ('confirmed','cleanup'))",
-        [],
-    )?;
-    let mut query = db.prepare(
-        "SELECT id FROM app_meetings WHERE status IN ('recording','paused','processing')",
-    )?;
-    let ids = query
-        .query_map([], |r| r.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    drop(query);
-    drop(db);
+    // Each statement committed on its own before, as autocommit statements.
+    // One transaction keeps the same end state and only reads after writing.
+    let ids = write(root, |db| {
+        db.execute("DELETE FROM app_transcription_staging WHERE meeting_id NOT IN (SELECT meeting_id FROM app_retention_intents WHERE state IN ('confirmed','cleanup'))", [])?;
+        db.execute(
+            "UPDATE app_processing_runs SET status='abandoned' WHERE status='running' AND meeting_id NOT IN (SELECT meeting_id FROM app_retention_intents WHERE state IN ('confirmed','cleanup'))",
+            [],
+        )?;
+        let mut query = db.prepare(
+            "SELECT id FROM app_meetings WHERE status IN ('recording','paused','processing')",
+        )?;
+        let ids = query
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        // Edits made during an interrupted recording deferred their search
+        // rebuild; catch up once here.
+        for id in &ids {
+            rebuild_fts(db, id)?;
+        }
+        Ok(ids)
+    })?;
+    // Recorder recovery touches files and the recorder's own connection, so
+    // it runs outside any database closure; each status is its own write.
     for id in ids {
         if crate::retention::has_pending(root, &id)? {
             continue;
@@ -380,26 +397,26 @@ pub(crate) fn create_meeting_with_engines(
     mode: &str,
     engines: &str,
 ) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    tx.execute("INSERT INTO app_meetings(id,title,status,started_at,duration_ms,mode) VALUES (?1,?2,'recording',?3,0,?4)", params![id,title,chrono::Utc::now().to_rfc3339(),mode])?;
-    let run = insert_run(&tx, id, "live", engines)?;
-    tx.execute(
-        "INSERT INTO app_meeting_revision(meeting_id,active_run_id) VALUES (?1,?2)",
-        params![id, run.id],
-    )?;
-    rebuild_fts(&tx, id)?;
-    tx.commit()?;
-    Ok(())
+    write(root, |tx| {
+        tx.execute("INSERT INTO app_meetings(id,title,status,started_at,duration_ms,mode) VALUES (?1,?2,'recording',?3,0,?4)", params![id,title,chrono::Utc::now().to_rfc3339(),mode])?;
+        let run = insert_run(tx, id, "live", engines)?;
+        tx.execute(
+            "INSERT INTO app_meeting_revision(meeting_id,active_run_id) VALUES (?1,?2)",
+            params![id, run.id],
+        )?;
+        rebuild_fts(tx, id)?;
+        Ok(())
+    })
 }
 
 const MEETING_SELECT: &str = "SELECT m.id,m.title,m.status,m.started_at,m.duration_ms,(SELECT COUNT(*) FROM app_run_segments s JOIN app_meeting_revision v ON v.active_run_id=s.run_id WHERE v.meeting_id=m.id),m.error FROM app_meetings m";
 pub(crate) fn meetings(root: &Path) -> Result<Vec<Meeting>> {
-    let db = open(root)?;
-    let mut query = db.prepare(&format!("{MEETING_SELECT} ORDER BY m.started_at DESC"))?;
-    Ok(query
-        .query_map([], meeting_row)?
-        .collect::<rusqlite::Result<_>>()?)
+    read(root, |db| {
+        let mut query = db.prepare(&format!("{MEETING_SELECT} ORDER BY m.started_at DESC"))?;
+        Ok(query
+            .query_map([], meeting_row)?
+            .collect::<rusqlite::Result<_>>()?)
+    })
 }
 
 fn meeting_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Meeting> {
@@ -421,8 +438,16 @@ pub(crate) fn detail_run(root: &Path, id: &str, run: &str) -> Result<MeetingDeta
     detail_selected(root, id, Some(run))
 }
 fn detail_selected(root: &Path, id: &str, selected: Option<&str>) -> Result<MeetingDetail> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
+    let mut detail = read(root, |tx| detail_in(tx, id, selected))?;
+    detail.mode = if meeting_mode(root, id)? == vt_diarize::MeetingMode::InPerson {
+        crate::CaptureMode::InPerson
+    } else {
+        crate::CaptureMode::Remote
+    };
+    detail.audio_available = crate::retention::audio_available(root, id)?;
+    Ok(detail)
+}
+fn detail_in(tx: &Connection, id: &str, selected: Option<&str>) -> Result<MeetingDetail> {
     let mut meeting = tx.query_row(
         &format!("{MEETING_SELECT} WHERE m.id=?1"),
         [id],
@@ -437,18 +462,18 @@ fn detail_selected(root: &Path, id: &str, selected: Option<&str>) -> Result<Meet
         .map(str::to_owned)
         .or_else(|| active_run_id.clone());
     if let Some(run) = &run_id {
-        ensure_run(&tx, id, run)?;
+        ensure_run(tx, id, run)?;
     }
-    let mut segments = read_segments(&tx, run_id.as_deref().unwrap_or(""), true)?;
+    let mut segments = read_segments(tx, run_id.as_deref().unwrap_or(""), true)?;
     let speaker_assignments =
-        speakers::annotate(&tx, run_id.as_deref().unwrap_or(""), &mut segments)?;
-    let speaker_constraints = speakers::constraint_history(&tx, id)?;
+        speakers::annotate(tx, run_id.as_deref().unwrap_or(""), &mut segments)?;
+    let speaker_constraints = speakers::constraint_history(tx, id)?;
     let speakers::SpeakerDetails {
         speakers,
         turns: speaker_turns,
         reviews: speaker_reviews,
         info: diarization,
-    } = speakers::details(&tx, run_id.as_deref().unwrap_or(""))?;
+    } = speakers::details(tx, run_id.as_deref().unwrap_or(""))?;
     meeting.segment_count = segments.len() as u64;
     let notes = {
         let timed:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_note_timing')",[],|r|r.get(0))?;
@@ -469,9 +494,9 @@ fn detail_selected(root: &Path, id: &str, selected: Option<&str>) -> Result<Meet
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?
     };
-    let runs = read_runs(&tx, id)?;
-    let corrections = read_corrections(&tx, id, run_id.as_deref().unwrap_or(""))?;
-    let summaries = read_summaries(&tx, id)?;
+    let runs = read_runs(tx, id)?;
+    let corrections = read_corrections(tx, id, run_id.as_deref().unwrap_or(""))?;
+    let summaries = read_summaries(tx, id)?;
     let summary_error = tx
         .query_row(
             "SELECT error FROM app_summary_failures WHERE meeting_id=?1",
@@ -483,21 +508,17 @@ fn detail_selected(root: &Path, id: &str, selected: Option<&str>) -> Result<Meet
         .iter()
         .find(|s| !s.is_stale && Some(&s.run_id) == run_id.as_ref())
         .map(|s| s.content_md.clone());
-    let inference_health = crate::backlog::info(&tx, run_id.as_deref().unwrap_or(""))?;
-    let echo = crate::echo_store::info(&tx, run_id.as_deref().unwrap_or(""))?;
+    let inference_health = crate::backlog::info(tx, run_id.as_deref().unwrap_or(""))?;
+    let echo = crate::echo_store::info(tx, run_id.as_deref().unwrap_or(""))?;
     let bleed::BleedDetails {
         decisions: bleed_decisions,
         candidates: bleed_candidates,
-    } = bleed::details(&tx, id, run_id.as_deref().unwrap_or(""), &segments)?;
-    tx.commit()?;
+    } = bleed::details(tx, id, run_id.as_deref().unwrap_or(""), &segments)?;
     Ok(MeetingDetail {
-        mode: if meeting_mode(root, id)? == vt_diarize::MeetingMode::InPerson {
-            crate::CaptureMode::InPerson
-        } else {
-            crate::CaptureMode::Remote
-        },
+        // Filled by `detail_selected` from separate reads, as before.
+        mode: crate::CaptureMode::Remote,
         inference_health,
-        audio_available: crate::retention::audio_available(root, id)?,
+        audio_available: true,
         meeting,
         segments,
         notes,
@@ -523,16 +544,17 @@ fn detail_selected(root: &Path, id: &str, selected: Option<&str>) -> Result<Meet
 
 /// Stores a summary-only failure without changing recording status, warnings, or revisions.
 pub(crate) fn set_summary_error(root: &Path, id: &str, error: Option<&str>) -> Result<()> {
-    let db = open(root)?;
-    match error {
-        Some(error) => {
-            db.execute("INSERT INTO app_summary_failures(meeting_id,error) VALUES (?1,?2) ON CONFLICT(meeting_id) DO UPDATE SET error=excluded.error",params![id,error])?;
+    write(root, |db| {
+        match error {
+            Some(error) => {
+                db.execute("INSERT INTO app_summary_failures(meeting_id,error) VALUES (?1,?2) ON CONFLICT(meeting_id) DO UPDATE SET error=excluded.error",params![id,error])?;
+            }
+            None => {
+                db.execute("DELETE FROM app_summary_failures WHERE meeting_id=?1", [id])?;
+            }
         }
-        None => {
-            db.execute("DELETE FROM app_summary_failures WHERE meeting_id=?1", [id])?;
-        }
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 pub(crate) fn set_status(root: &Path, id: &str, status: &str, error: Option<&str>) -> Result<()> {
@@ -545,11 +567,13 @@ pub(crate) fn set_status_with(
     error: Option<&str>,
     busy_timeout: Duration,
 ) -> Result<()> {
-    open_with_timeout(root, busy_timeout)?.execute(
-        "UPDATE app_meetings SET status=?2,error=?3 WHERE id=?1",
-        params![id, status, error],
-    )?;
-    Ok(())
+    write_with(root, busy_timeout, |db| {
+        db.execute(
+            "UPDATE app_meetings SET status=?2,error=?3 WHERE id=?1",
+            params![id, status, error],
+        )?;
+        Ok(())
+    })
 }
 pub(crate) fn set_duration_with(
     root: &Path,
@@ -557,30 +581,30 @@ pub(crate) fn set_duration_with(
     duration: u64,
     busy_timeout: Duration,
 ) -> Result<()> {
-    open_with_timeout(root, busy_timeout)?.execute(
-        "UPDATE app_meetings SET duration_ms=?2 WHERE id=?1",
-        params![id, duration.min(i64::MAX as u64) as i64],
-    )?;
-    Ok(())
+    write_with(root, busy_timeout, |db| {
+        db.execute(
+            "UPDATE app_meetings SET duration_ms=?2 WHERE id=?1",
+            params![id, duration.min(i64::MAX as u64) as i64],
+        )?;
+        Ok(())
+    })
 }
-/// The original per-segment live save: a DEFERRED transaction that reads before
-/// it writes, then rebuilds the whole meeting's search rows. Recording now uses
-/// `save_live_segments`; this remains for fixtures and the regression record.
+/// The original per-segment live save: reads before it writes, then rebuilds
+/// the whole meeting's search rows. Recording now uses `save_live_segments`;
+/// this remains for fixtures and the regression record.
 #[cfg(test)]
 pub(crate) fn save_segment(root: &Path, id: &str, segment: &Segment) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let run: String = tx.query_row("SELECT r.id FROM app_processing_runs r JOIN app_meeting_revision v ON v.active_run_id=r.id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running'",[id],|r|r.get(0))?;
-    insert_segments(&tx, &run, std::slice::from_ref(segment))?;
-    invalidate_summaries(&tx, id)?;
-    rebuild_fts(&tx, id)?;
-    tx.commit()?;
-    Ok(())
+    write(root, |tx| {
+        let run: String = tx.query_row("SELECT r.id FROM app_processing_runs r JOIN app_meeting_revision v ON v.active_run_id=r.id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running'",[id],|r|r.get(0))?;
+        insert_segments(tx, &run, std::slice::from_ref(segment))?;
+        invalidate_summaries(tx, id)?;
+        rebuild_fts(tx, id)?;
+        Ok(())
+    })
 }
 
-/// Live transcript persistence. One IMMEDIATE transaction (the write lock is
-/// taken at BEGIN, so a concurrent commit makes it wait in the busy handler
-/// instead of failing with SQLITE_BUSY_SNAPSHOT) holding only point operations:
+/// Live transcript persistence. One shared-writer IMMEDIATE transaction
+/// holding only point operations:
 /// a primary-key check of the run, one idempotent insert and one search row per
 /// new segment, and summary invalidation. Segment IDs are minted before the
 /// first attempt, so a retried batch never duplicates rows. Returns how many
@@ -596,11 +620,9 @@ pub(crate) fn save_live_segments(
         validate_segment(segment)?;
     }
     retry_busy(budget, |busy_timeout| {
-        let mut db = open_with_timeout(root, busy_timeout)?;
-        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let added = insert_live_segments(&tx, meeting, run, segments)?;
-        tx.commit()?;
-        Ok(added)
+        write_with(root, busy_timeout, |tx| {
+            insert_live_segments(tx, meeting, run, segments)
+        })
     })
 }
 
@@ -664,17 +686,22 @@ pub(crate) fn stage_segment(
     segment: &Segment,
 ) -> Result<()> {
     validate_segment(segment)?;
-    open(root)?.execute("INSERT INTO app_transcription_staging(job_id,id,meeting_id,track,start_ms,end_ms,text,speaker,words_json) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-        params![job,segment.id,meeting,segment.track,segment.start_ms as i64,segment.end_ms as i64,segment.text,segment.speaker,serde_json::to_string(&segment.words)?])?;
-    Ok(())
+    let words = serde_json::to_string(&segment.words)?;
+    write(root, |db| {
+        db.execute("INSERT INTO app_transcription_staging(job_id,id,meeting_id,track,start_ms,end_ms,text,speaker,words_json) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            params![job,segment.id,meeting,segment.track,segment.start_ms as i64,segment.end_ms as i64,segment.text,segment.speaker,words])?;
+        Ok(())
+    })
 }
 
 pub(crate) fn discard_staged(root: &Path, job: &str) -> Result<()> {
-    open(root)?.execute(
-        "DELETE FROM app_transcription_staging WHERE job_id=?1",
-        [job],
-    )?;
-    Ok(())
+    write(root, |db| {
+        db.execute(
+            "DELETE FROM app_transcription_staging WHERE job_id=?1",
+            [job],
+        )?;
+        Ok(())
+    })
 }
 
 #[cfg(test)]
@@ -699,29 +726,28 @@ pub(crate) fn publish_staged_with_provenance(
     echo: Option<&crate::EchoInfo>,
     engines: &str,
 ) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let run = insert_run(&tx, meeting, "replay", engines)?;
-    let foreign: i64 = tx.query_row(
-        "SELECT COUNT(*) FROM app_transcription_staging WHERE job_id=?1 AND meeting_id<>?2",
-        params![job, meeting],
-        |r| r.get(0),
-    )?;
-    if foreign != 0 {
-        bail!("Replay job contains another meeting.");
-    }
-    tx.execute("INSERT INTO app_run_segments(run_id,id,track,start_ms,end_ms,text,speaker,words_json) SELECT ?1,id,track,start_ms,end_ms,text,speaker,words_json FROM app_transcription_staging WHERE job_id=?2 AND meeting_id=?3",params![run.id,job,meeting])?;
-    let _ = speakers::copy_previous(&tx, meeting, &run.id)?;
-    if let Some(echo) = echo {
-        crate::echo_store::write_info(&tx, meeting, &run.id, echo)?;
-    }
-    publish_in_transaction(&tx, meeting, &run.id)?;
-    tx.execute(
-        "DELETE FROM app_transcription_staging WHERE job_id=?1",
-        [job],
-    )?;
-    tx.commit()?;
-    Ok(())
+    write(root, |tx| {
+        let run = insert_run(tx, meeting, "replay", engines)?;
+        let foreign: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM app_transcription_staging WHERE job_id=?1 AND meeting_id<>?2",
+            params![job, meeting],
+            |r| r.get(0),
+        )?;
+        if foreign != 0 {
+            bail!("Replay job contains another meeting.");
+        }
+        tx.execute("INSERT INTO app_run_segments(run_id,id,track,start_ms,end_ms,text,speaker,words_json) SELECT ?1,id,track,start_ms,end_ms,text,speaker,words_json FROM app_transcription_staging WHERE job_id=?2 AND meeting_id=?3",params![run.id,job,meeting])?;
+        let _ = speakers::copy_previous(tx, meeting, &run.id)?;
+        if let Some(echo) = echo {
+            crate::echo_store::write_info(tx, meeting, &run.id, echo)?;
+        }
+        publish_in_transaction(tx, meeting, &run.id)?;
+        tx.execute(
+            "DELETE FROM app_transcription_staging WHERE job_id=?1",
+            [job],
+        )?;
+        Ok(())
+    })
 }
 #[allow(dead_code)] // Preserve the store-only compatibility entry point.
 pub(crate) fn save_note(root: &Path, id: &str, time: u64, text: &str) -> Result<()> {
@@ -755,15 +781,22 @@ pub(crate) fn save_note_with_metadata(
     }
     let time = i64::try_from(time)?;
     let note_id = uuid::Uuid::new_v4().to_string();
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    tx.execute(
-        "INSERT INTO app_notes(id,meeting_id,t_ms,text) VALUES (?1,?2,?3,?4)",
-        params![note_id, id, time, text],
-    )?;
-    attach(&tx, &note_id)?;
-    rebuild_fts(&tx, id)?;
-    tx.commit()?;
+    write(root, |tx| {
+        tx.execute(
+            "INSERT INTO app_notes(id,meeting_id,t_ms,text) VALUES (?1,?2,?3,?4)",
+            params![note_id, id, time, text],
+        )?;
+        attach(tx, &note_id)?;
+        if recording_active(tx, id)? {
+            // Incremental during a recording: exactly the row rebuild_fts
+            // derives for a note, without a whole-meeting rebuild in front of
+            // the recorder.
+            tx.execute("INSERT INTO app_search_fts(meeting_id,source,ref_id,text) VALUES (?1,'note',?2,?3)",params![id,note_id,text])?;
+        } else {
+            rebuild_fts(tx, id)?;
+        }
+        Ok(())
+    })?;
     Ok(Some(note_id))
 }
 pub(crate) fn rename(root: &Path, id: &str, title: &str) -> Result<()> {
@@ -771,18 +804,26 @@ pub(crate) fn rename(root: &Path, id: &str, title: &str) -> Result<()> {
     if title.is_empty() || title.chars().count() > 200 {
         bail!("A meeting title must contain 1–200 characters.");
     }
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    if tx.execute(
-        "UPDATE app_meetings SET title=?2 WHERE id=?1",
-        params![id, title],
-    )? != 1
-    {
-        bail!("Meeting not found.");
-    }
-    rebuild_fts(&tx, id)?;
-    tx.commit()?;
-    Ok(())
+    write(root, |tx| {
+        if tx.execute(
+            "UPDATE app_meetings SET title=?2 WHERE id=?1",
+            params![id, title],
+        )? != 1
+        {
+            bail!("Meeting not found.");
+        }
+        if recording_active(tx, id)? {
+            // Incremental during a recording: replace only the title row.
+            tx.execute(
+                "DELETE FROM app_search_fts WHERE meeting_id=?1 AND source='title'",
+                [id],
+            )?;
+            tx.execute("INSERT INTO app_search_fts(meeting_id,source,ref_id,text) VALUES (?1,'title',?1,?2)",params![id,title])?;
+        } else {
+            rebuild_fts(tx, id)?;
+        }
+        Ok(())
+    })
 }
 
 /// Called on the capture consumer loop for every chunk, so it takes the loop's
@@ -798,8 +839,10 @@ pub(crate) fn save_clock(
     host_ns: u64,
     busy_timeout: Duration,
 ) -> Result<()> {
-    open_with_timeout(root, busy_timeout)?.execute("INSERT OR REPLACE INTO app_audio_clock(meeting_id,track,seq,source_epoch,source_first_frame,host_time_ns) VALUES (?1,?2,?3,?4,?5,?6)", params![id,track,seq as i64,source_epoch,source_first_frame as i64,host_ns.min(i64::MAX as u64) as i64])?;
-    Ok(())
+    write_with(root, busy_timeout, |db| {
+        db.execute("INSERT OR REPLACE INTO app_audio_clock(meeting_id,track,seq,source_epoch,source_first_frame,host_time_ns) VALUES (?1,?2,?3,?4,?5,?6)", params![id,track,seq as i64,source_epoch,source_first_frame as i64,host_ns.min(i64::MAX as u64) as i64])?;
+        Ok(())
+    })
 }
 
 fn timestamp(ms: u64, separator: &str) -> String {
@@ -941,7 +984,7 @@ pub(crate) fn create_run(
     kind: &str,
     engines_json: &str,
 ) -> Result<RunInfo> {
-    insert_run(&open(root)?, meeting, kind, engines_json)
+    write(root, |db| insert_run(db, meeting, kind, engines_json))
 }
 fn ensure_run(db: &Connection, meeting: &str, run: &str) -> Result<()> {
     if !db.query_row(
@@ -983,20 +1026,18 @@ fn insert_segments(db: &Connection, run: &str, segments: &[Segment]) -> Result<(
     Ok(())
 }
 pub(crate) fn append_run_segments(root: &Path, run: &str, segments: &[Segment]) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    // Visible live finals are written through save_segment, which updates search atomically.
-    let active: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM app_meeting_revision WHERE active_run_id=?1)",
-        [run],
-        |r| r.get(0),
-    )?;
-    if active {
-        bail!("Use live segment persistence for an active run.");
-    }
-    insert_segments(&tx, run, segments)?;
-    tx.commit()?;
-    Ok(())
+    write(root, |tx| {
+        // Visible live finals are written through save_segment, which updates search atomically.
+        let active: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM app_meeting_revision WHERE active_run_id=?1)",
+            [run],
+            |r| r.get(0),
+        )?;
+        if active {
+            bail!("Use live segment persistence for an active run.");
+        }
+        insert_segments(tx, run, segments)
+    })
 }
 fn run_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RunInfo> {
     Ok(RunInfo {
@@ -1016,11 +1057,13 @@ fn read_runs(db: &Connection, meeting: &str) -> Result<Vec<RunInfo>> {
 }
 #[cfg(test)]
 pub(crate) fn list_runs(root: &Path, meeting: &str) -> Result<Vec<RunInfo>> {
-    read_runs(&open(root)?, meeting)
+    read(root, |db| read_runs(db, meeting))
 }
 pub(crate) fn abandon_run(root: &Path, run: &str) -> Result<()> {
-    open(root)?.execute("UPDATE app_processing_runs SET status='abandoned' WHERE id=?1 AND status='running' AND id NOT IN (SELECT active_run_id FROM app_meeting_revision WHERE active_run_id IS NOT NULL)",[run])?;
-    Ok(())
+    write(root, |db| {
+        db.execute("UPDATE app_processing_runs SET status='abandoned' WHERE id=?1 AND status='running' AND id NOT IN (SELECT active_run_id FROM app_meeting_revision WHERE active_run_id IS NOT NULL)",[run])?;
+        Ok(())
+    })
 }
 fn read_segments(db: &Connection, run: &str, effective: bool) -> Result<Vec<Segment>> {
     let mut q = db.prepare("SELECT s.id,s.track,s.start_ms,s.end_ms,s.text,s.speaker,s.words_json,c.replacement_text FROM app_run_segments s LEFT JOIN app_correction_matches x ON x.run_id=s.run_id AND x.segment_id=s.id LEFT JOIN app_segment_corrections c ON c.id=x.correction_id AND c.status<>'dismissed' WHERE s.run_id=?1 ORDER BY s.start_ms,s.id")?;
@@ -1172,11 +1215,7 @@ fn publish_in_transaction(db: &Connection, meeting: &str, run: &str) -> Result<(
     Ok(())
 }
 pub(crate) fn publish_run(root: &Path, meeting: &str, run: &str) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    publish_in_transaction(&tx, meeting, run)?;
-    tx.commit()?;
-    Ok(())
+    write(root, |tx| publish_in_transaction(tx, meeting, run))
 }
 #[cfg(test)]
 pub(crate) fn complete_live_run(root: &Path, meeting: &str) -> Result<()> {
@@ -1187,11 +1226,22 @@ pub(crate) fn complete_live_run_with(
     meeting: &str,
     busy_timeout: Duration,
 ) -> Result<()> {
-    let mut db = open_with_timeout(root, busy_timeout)?;
-    let tx = db.transaction()?;
-    tx.execute("UPDATE app_processing_runs SET status='complete' WHERE id=(SELECT active_run_id FROM app_meeting_revision WHERE meeting_id=?1) AND kind='live' AND status='running'",[meeting])?;
-    tx.commit()?;
-    Ok(())
+    write_with(root, busy_timeout, |tx| {
+        tx.execute("UPDATE app_processing_runs SET status='complete' WHERE id=(SELECT active_run_id FROM app_meeting_revision WHERE meeting_id=?1) AND kind='live' AND status='running'",[meeting])?;
+        // Edits made during the recording deferred their search rebuild
+        // (`refresh_search_after_edit`); sealing the live run catches up once.
+        rebuild_fts(tx, meeting)
+    })
+}
+
+/// A full search rebuild for one meeting (used when a recording ends without
+/// sealing its live run, so edits deferred during it become searchable).
+pub(crate) fn rebuild_search_with(
+    root: &Path,
+    meeting: &str,
+    busy_timeout: Duration,
+) -> Result<()> {
+    write_with(root, busy_timeout, |tx| rebuild_fts(tx, meeting))
 }
 pub(crate) fn correct_segment(
     root: &Path,
@@ -1203,36 +1253,34 @@ pub(crate) fn correct_segment(
     if replacement.trim().is_empty() || replacement.len() > 32_000 {
         bail!("Correction must contain 1–32,000 bytes.");
     }
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    ensure_active(&tx, meeting, run)?;
-    let segment = read_segments(&tx, run, false)?
-        .into_iter()
-        .find(|s| s.id == segment_id)
-        .ok_or_else(|| anyhow::anyhow!("Segment not found."))?;
-    let existing: Option<String> = tx
+    write(root, |tx| {
+        ensure_active(tx, meeting, run)?;
+        let segment = read_segments(tx, run, false)?
+            .into_iter()
+            .find(|s| s.id == segment_id)
+            .ok_or_else(|| anyhow::anyhow!("Segment not found."))?;
+        let existing: Option<String> = tx
         .query_row(
             "SELECT correction_id FROM app_correction_matches WHERE run_id=?1 AND segment_id=?2",
             params![run, segment_id],
             |r| r.get(0),
         )
         .optional()?;
-    let id = if let Some(id) = existing {
-        tx.execute(
+        let id = if let Some(id) = existing {
+            tx.execute(
             "UPDATE app_segment_corrections SET replacement_text=?2,status='applied' WHERE id=?1",
             params![id, replacement],
         )?;
-        id
-    } else {
-        let id = uuid::Uuid::new_v4().to_string();
-        tx.execute("INSERT INTO app_segment_corrections(id,meeting_id,track,start_ms,end_ms,original_text_hash,replacement_text,status,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,'applied',?8)",params![id,meeting,segment.track,segment.start_ms as i64,segment.end_ms as i64,text_hash(&segment.text),replacement,chrono::Utc::now().to_rfc3339()])?;
-        id
-    };
-    tx.execute("INSERT OR REPLACE INTO app_correction_matches(correction_id,run_id,segment_id) VALUES (?1,?2,?3)",params![id,run,segment_id])?;
-    bump_revision(&tx, meeting)?;
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+            id
+        } else {
+            let id = uuid::Uuid::new_v4().to_string();
+            tx.execute("INSERT INTO app_segment_corrections(id,meeting_id,track,start_ms,end_ms,original_text_hash,replacement_text,status,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,'applied',?8)",params![id,meeting,segment.track,segment.start_ms as i64,segment.end_ms as i64,text_hash(&segment.text),replacement,chrono::Utc::now().to_rfc3339()])?;
+            id
+        };
+        tx.execute("INSERT OR REPLACE INTO app_correction_matches(correction_id,run_id,segment_id) VALUES (?1,?2,?3)",params![id,run,segment_id])?;
+        bump_revision(tx, meeting)?;
+        refresh_search_after_edit(tx, meeting)
+    })
 }
 fn ensure_active(db: &Connection, meeting: &str, run: &str) -> Result<()> {
     ensure_run(db, meeting, run)?;
@@ -1253,39 +1301,57 @@ pub(crate) fn resolve_correction(
     correction: &str,
     target: Option<&str>,
 ) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let run: String = tx.query_row(
-        "SELECT active_run_id FROM app_meeting_revision WHERE meeting_id=?1",
-        [meeting],
-        |r| r.get(0),
-    )?;
-    let exists: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM app_segment_corrections WHERE id=?1 AND meeting_id=?2)",
-        params![correction, meeting],
-        |r| r.get(0),
-    )?;
-    if !exists {
-        bail!("Correction not found.");
-    }
-    if let Some(target) = target {
-        let s = read_segments(&tx, &run, false)?
-            .into_iter()
-            .find(|s| s.id == target)
-            .ok_or_else(|| anyhow::anyhow!("Segment not found."))?;
-        tx.execute("UPDATE app_segment_corrections SET track=?2,start_ms=?3,end_ms=?4,original_text_hash=?5,status='applied' WHERE id=?1",params![correction,s.track,s.start_ms as i64,s.end_ms as i64,text_hash(&s.text)])?;
-        // A target already claimed by another correction is rejected, never overwritten.
-        tx.execute("INSERT INTO app_correction_matches(correction_id,run_id,segment_id) VALUES (?1,?2,?3) ON CONFLICT(correction_id,run_id) DO UPDATE SET segment_id=excluded.segment_id",params![correction,run,target])?;
-    } else {
-        tx.execute(
-            "UPDATE app_segment_corrections SET status='dismissed' WHERE id=?1",
-            [correction],
+    write(root, |tx| {
+        let run: String = tx.query_row(
+            "SELECT active_run_id FROM app_meeting_revision WHERE meeting_id=?1",
+            [meeting],
+            |r| r.get(0),
         )?;
+        let exists: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM app_segment_corrections WHERE id=?1 AND meeting_id=?2)",
+            params![correction, meeting],
+            |r| r.get(0),
+        )?;
+        if !exists {
+            bail!("Correction not found.");
+        }
+        if let Some(target) = target {
+            let s = read_segments(tx, &run, false)?
+                .into_iter()
+                .find(|s| s.id == target)
+                .ok_or_else(|| anyhow::anyhow!("Segment not found."))?;
+            tx.execute("UPDATE app_segment_corrections SET track=?2,start_ms=?3,end_ms=?4,original_text_hash=?5,status='applied' WHERE id=?1",params![correction,s.track,s.start_ms as i64,s.end_ms as i64,text_hash(&s.text)])?;
+            // A target already claimed by another correction is rejected, never overwritten.
+            tx.execute("INSERT INTO app_correction_matches(correction_id,run_id,segment_id) VALUES (?1,?2,?3) ON CONFLICT(correction_id,run_id) DO UPDATE SET segment_id=excluded.segment_id",params![correction,run,target])?;
+        } else {
+            tx.execute(
+                "UPDATE app_segment_corrections SET status='dismissed' WHERE id=?1",
+                [correction],
+            )?;
+        }
+        bump_revision(tx, meeting)?;
+        refresh_search_after_edit(tx, meeting)
+    })
+}
+/// True while the meeting is recording or paused and its live run is still
+/// running (i.e. the recorder is writing and the live run is unsealed).
+fn recording_active(db: &Connection, meeting: &str) -> Result<bool> {
+    Ok(db.query_row("SELECT EXISTS(SELECT 1 FROM app_meetings m JOIN app_meeting_revision v ON v.meeting_id=m.id JOIN app_processing_runs r ON r.id=v.active_run_id WHERE m.id=?1 AND m.status IN ('recording','paused') AND r.kind='live' AND r.status='running')",[meeting],|r|r.get(0))?)
+}
+
+/// Search upkeep after a user edit. Outside an active recording this is the
+/// full `rebuild_fts`, as before. During one, a whole-meeting rebuild would
+/// hold SQLite's write lock in front of the recorder's chunk writes, so it is
+/// deferred: only summary rows that are no longer current are removed now,
+/// and the full rebuild runs once when the live run is sealed at stop
+/// (`complete_live_run_with`), on a failed stop (`rebuild_search_with`), or at
+/// startup recovery of an interrupted recording (`recover_interrupted`).
+pub(crate) fn refresh_search_after_edit(db: &Connection, meeting: &str) -> Result<()> {
+    if recording_active(db, meeting)? {
+        db.execute("DELETE FROM app_search_fts WHERE meeting_id=?1 AND source='summary' AND ref_id NOT IN (SELECT s.id FROM app_summaries s JOIN app_meeting_revision v ON v.meeting_id=s.meeting_id AND v.active_run_id=s.run_id WHERE s.meeting_id=?1 AND s.is_stale=0)",[meeting])?;
+        return Ok(());
     }
-    bump_revision(&tx, meeting)?;
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+    rebuild_fts(db, meeting)
 }
 fn rebuild_fts(db: &Connection, meeting: &str) -> Result<()> {
     db.execute("DELETE FROM app_search_fts WHERE meeting_id=?1", [meeting])?;
@@ -1321,10 +1387,11 @@ pub(crate) fn search_meetings(root: &Path, query: &str) -> Result<Vec<Meeting>> 
     if literal.is_empty() {
         return meetings(root);
     }
-    let db = open(root)?;
-    let mut q=db.prepare(&format!("{MEETING_SELECT} WHERE m.id IN (SELECT meeting_id FROM app_search_fts WHERE app_search_fts MATCH ?1) ORDER BY m.started_at DESC"))?;
-    Ok(q.query_map([literal], meeting_row)?
-        .collect::<rusqlite::Result<_>>()?)
+    read(root, |db| {
+        let mut q=db.prepare(&format!("{MEETING_SELECT} WHERE m.id IN (SELECT meeting_id FROM app_search_fts WHERE app_search_fts MATCH ?1) ORDER BY m.started_at DESC"))?;
+        Ok(q.query_map([literal], meeting_row)?
+            .collect::<rusqlite::Result<_>>()?)
+    })
 }
 fn read_summaries(db: &Connection, meeting: &str) -> Result<Vec<SummaryInfo>> {
     let mut q=db.prepare("SELECT id,meeting_id,run_id,correction_version,provider,model,template,content_json,content_md,is_stale,created_at FROM app_summaries WHERE meeting_id=?1 ORDER BY created_at DESC,id")?;
@@ -1370,34 +1437,33 @@ pub(crate) fn save_summary(
     source_segment_ids: &[String],
 ) -> Result<SummaryInfo> {
     let _: serde_json::Value = serde_json::from_str(content_json)?;
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    ensure_active(&tx, meeting, expected_run)?;
-    let valid: bool=tx.query_row("SELECT v.correction_version=?2 AND r.status='complete' FROM app_meeting_revision v JOIN app_processing_runs r ON r.id=v.active_run_id WHERE v.meeting_id=?1",params![meeting,i64::try_from(expected_version)?],|r|r.get(0))?;
-    if !valid {
-        bail!("Transcript changed or is incomplete. Regenerate the summary.");
-    }
-    let summary = SummaryInfo {
-        id: uuid::Uuid::new_v4().to_string(),
-        meeting_id: meeting.into(),
-        run_id: expected_run.into(),
-        correction_version: expected_version,
-        provider: provider.into(),
-        model: model.into(),
-        template: template.into(),
-        content_json: content_json.into(),
-        content_md: content_md.into(),
-        is_stale: false,
-        created_at: chrono::Utc::now().to_rfc3339(),
-        source_segment_ids: source_segment_ids.to_vec(),
-    };
-    tx.execute("INSERT INTO app_summaries(id,meeting_id,run_id,correction_version,provider,model,template,content_json,content_md,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",params![summary.id,meeting,expected_run,i64::try_from(expected_version)?,provider,model,template,content_json,content_md,summary.created_at])?;
-    for source in source_segment_ids {
-        tx.execute("INSERT OR IGNORE INTO app_summary_sources(summary_id,run_id,segment_id) VALUES (?1,?2,?3)",params![summary.id,expected_run,source])?;
-    }
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(summary)
+    write(root, |tx| {
+        ensure_active(tx, meeting, expected_run)?;
+        let valid: bool=tx.query_row("SELECT v.correction_version=?2 AND r.status='complete' FROM app_meeting_revision v JOIN app_processing_runs r ON r.id=v.active_run_id WHERE v.meeting_id=?1",params![meeting,i64::try_from(expected_version)?],|r|r.get(0))?;
+        if !valid {
+            bail!("Transcript changed or is incomplete. Regenerate the summary.");
+        }
+        let summary = SummaryInfo {
+            id: uuid::Uuid::new_v4().to_string(),
+            meeting_id: meeting.into(),
+            run_id: expected_run.into(),
+            correction_version: expected_version,
+            provider: provider.into(),
+            model: model.into(),
+            template: template.into(),
+            content_json: content_json.into(),
+            content_md: content_md.into(),
+            is_stale: false,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            source_segment_ids: source_segment_ids.to_vec(),
+        };
+        tx.execute("INSERT INTO app_summaries(id,meeting_id,run_id,correction_version,provider,model,template,content_json,content_md,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",params![summary.id,meeting,expected_run,i64::try_from(expected_version)?,provider,model,template,content_json,content_md,summary.created_at])?;
+        for source in source_segment_ids {
+            tx.execute("INSERT OR IGNORE INTO app_summary_sources(summary_id,run_id,segment_id) VALUES (?1,?2,?3)",params![summary.id,expected_run,source])?;
+        }
+        rebuild_fts(tx, meeting)?;
+        Ok(summary)
+    })
 }
 
 #[cfg(test)]
@@ -1421,23 +1487,22 @@ pub(crate) fn retain_speakers_after_failed_separation(
     run: &str,
     warning: impl FnOnce(bool) -> String,
 ) -> Result<Option<Vec<vt_diarize::SpeakerTurn>>> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let turns = speakers::copy_previous(&tx, meeting, run)?;
-    let saved: Option<String> = tx
-        .query_row(
-            "SELECT warnings_json FROM app_speaker_run_state WHERE run_id=?1",
-            [run],
-            |row| row.get(0),
-        )
-        .optional()?;
-    let mut warnings: Vec<String> = saved
-        .as_deref()
-        .map(serde_json::from_str)
-        .transpose()?
-        .unwrap_or_default();
-    warnings.push(warning(!turns.is_empty()));
-    tx.execute("INSERT INTO app_speaker_run_state(run_id,embedding_version,calibrated,warnings_json) VALUES (?1,?2,0,?3) ON CONFLICT(run_id) DO UPDATE SET warnings_json=excluded.warnings_json",params![run,vt_diarize::EMBEDDING_VERSION,serde_json::to_string(&warnings)?])?;
-    tx.commit()?;
-    Ok((!turns.is_empty()).then_some(turns))
+    write(root, |tx| {
+        let turns = speakers::copy_previous(tx, meeting, run)?;
+        let saved: Option<String> = tx
+            .query_row(
+                "SELECT warnings_json FROM app_speaker_run_state WHERE run_id=?1",
+                [run],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let mut warnings: Vec<String> = saved
+            .as_deref()
+            .map(serde_json::from_str)
+            .transpose()?
+            .unwrap_or_default();
+        warnings.push(warning(!turns.is_empty()));
+        tx.execute("INSERT INTO app_speaker_run_state(run_id,embedding_version,calibrated,warnings_json) VALUES (?1,?2,0,?3) ON CONFLICT(run_id) DO UPDATE SET warnings_json=excluded.warnings_json",params![run,vt_diarize::EMBEDDING_VERSION,serde_json::to_string(&warnings)?])?;
+        Ok((!turns.is_empty()).then_some(turns))
+    })
 }

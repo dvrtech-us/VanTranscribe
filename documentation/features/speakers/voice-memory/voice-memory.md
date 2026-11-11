@@ -12,7 +12,7 @@ This feature implements opt-in local enrollment and People management from desig
 
 ## Technical flow
 
-The `vt-session` boundary verifies meeting/run/speaker/source conditions, obtains a fresh trusted embedding and uses one SQLite transaction for enrollment, consent, the person link and the explicit speaker name. `vt-speakers` accepts a caller `Connection` (including a dereferenced `Transaction`) and also uses nested savepoints to roll back partial mutations on error. It accepts no WebView-provided embedding.
+The `vt-session` boundary verifies meeting/run/speaker/source conditions, obtains a fresh trusted embedding and uses one SQLite transaction on the [shared database writer](../../storage/database-access/database-access.md) for enrollment, consent, the person link and the explicit speaker name; Keychain load/create (`prepare_key`) runs before it, never inside a database closure. `vt-speakers` accepts a caller `Connection` (including a dereferenced `Transaction`) and also uses nested savepoints to roll back partial mutations on error. It accepts no WebView-provided embedding.
 
 `initialize` idempotently adds the tables without accessing OS secrets. `update_settings` validates one through twenty-four calendar months, requires acknowledgment on each off→on transition, applies retention changes and never accesses keys. `status` reads metadata only: `protected` means an authenticated key verifier exists, not that Keychain is unlocked. `unavailable_platform` is explicit outside macOS. The `matching_available` field is always false. An absent/unverified current model version conservatively marks saved versions stale.
 

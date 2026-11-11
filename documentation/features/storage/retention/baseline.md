@@ -59,8 +59,8 @@
 
 ## Ordered side effects
 
-1. Preview validates owned identity, idle state, recorder lease, FK graph, raw manifest and inventory; persists only an unconfirmed plan.
-2. Confirmation revalidates the snapshot and records durable user/policy intent.
+1. Preview validates owned identity, idle state, recorder lease, FK graph, raw manifest and inventory (database reads and file inspection alternate, never nested); persists only an unconfirmed plan in one write.
+2. Confirmation reads and checks the preview, takes the recording lease and inventories files outside the database, then in one confirming write revalidates the snapshot and records durable user/policy intent; the lease is held until that write commits.
 3. Move selected owned sources to same-volume trash and synchronize directories.
 4. In one transaction, open the scoped gate, delete owned DB rows or mark audio unavailable, close the gate and record cleanup state.
 5. Remove only the confirmed intent's trash, synchronize and record done; retain pending cleanup on failure.

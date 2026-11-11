@@ -37,13 +37,15 @@ fn fallback_model(root: &Path) -> Result<LiveModel> {
     }
 }
 pub(super) fn selection(root: &Path) -> Result<Selection> {
-    let saved: Option<String> = store::open(root)?
-        .query_row(
-            "SELECT value_json FROM app_settings WHERE key=?1",
-            [KEY],
-            |r| r.get(0),
-        )
-        .optional()?;
+    let saved: Option<String> = store::read(root, |db| {
+        Ok(db
+            .query_row(
+                "SELECT value_json FROM app_settings WHERE key=?1",
+                [KEY],
+                |r| r.get(0),
+            )
+            .optional()?)
+    })?;
     if let Some(saved) = saved {
         return match serde_json::from_str(&saved) {
             Ok(model) => Ok(Selection { model, warning: None }),
@@ -176,7 +178,11 @@ impl AppService {
                     "Finish recording, processing and speech-model setup before changing the live model."
                 );
             }
-            store::open(&self.root)?.execute("INSERT INTO app_settings(key,value_json) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", rusqlite::params![KEY,serde_json::to_string(&model)?])?;
+            let json = serde_json::to_string(&model)?;
+            store::write(&self.root, |db| {
+                db.execute("INSERT INTO app_settings(key,value_json) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", rusqlite::params![KEY,json])?;
+                Ok(())
+            })?;
             let installed = ModelManager::for_model(self.root.join("models"), model).installed();
             runtime.model = ModelStatus {
                 installed,

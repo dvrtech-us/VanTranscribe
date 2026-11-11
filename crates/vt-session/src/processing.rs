@@ -536,15 +536,15 @@ fn summary_job(
                 .into(),
         );
     }
-    let db = store::open(&service.root)?;
-    let gaps:i64=db.query_row("SELECT COUNT(*) FROM audio_chunks WHERE meeting_id=?1 AND state='gap' AND gap_reason!='pause'",[id],|row|row.get(0))?;
+    let gaps: i64 = store::read(&service.root, |db| {
+        Ok(db.query_row("SELECT COUNT(*) FROM audio_chunks WHERE meeting_id=?1 AND state='gap' AND gap_reason!='pause'",[id],|row|row.get(0))?)
+    })?;
     if gaps > 0 {
         errors.push(
             "The recording contains unavailable audio intervals; notes cover captured speech only."
                 .into(),
         );
     }
-    drop(db);
     let partial = result.partial || !errors.is_empty();
     let markdown = vt_summarize::render_markdown(&result.content, partial);
     let content = serde_json::json!({"content":result.content,"partial":partial,"errors":errors});

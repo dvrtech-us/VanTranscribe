@@ -36,34 +36,33 @@ pub(super) fn record_route_with(
     busy_timeout: std::time::Duration,
 ) -> Result<()> {
     let start = i64::try_from(value.start_ns)?;
-    let mut db = store::open_with_timeout(root, busy_timeout)?;
-    let tx = db.transaction()?;
-    let live: bool = tx.query_row(
+    store::write_with(root, busy_timeout, |tx| {
+        let live: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM app_meeting_revision v JOIN app_processing_runs r ON r.id=v.active_run_id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running')",
         [id], |r|r.get(0),
     )?;
-    if !live {
-        bail!("Route observations require the current running recording.");
-    }
-    let json = serde_json::to_string(&value.route)?;
-    let previous: Option<String> = tx.query_row(
+        if !live {
+            bail!("Route observations require the current running recording.");
+        }
+        let json = serde_json::to_string(&value.route)?;
+        let previous: Option<String> = tx.query_row(
         "SELECT route_json FROM app_output_routes WHERE meeting_id=?1 AND start_ns=?2 AND epoch=?3",
         params![id,start,value.epoch],|r|r.get(0),
     ).optional()?;
-    match previous {
-        Some(previous) if previous != json => {
-            bail!("A capture route observation cannot be replaced.")
-        }
-        Some(_) => (),
-        None => {
-            tx.execute(
+        match previous {
+            Some(previous) if previous != json => {
+                bail!("A capture route observation cannot be replaced.")
+            }
+            Some(_) => (),
+            None => {
+                tx.execute(
                 "INSERT INTO app_output_routes(meeting_id,epoch,start_ns,route_json) VALUES (?1,?2,?3,?4)",
                 params![id,value.epoch,start,json],
             )?;
+            }
         }
-    }
-    tx.commit()?;
-    Ok(())
+        Ok(())
+    })
 }
 
 pub(super) fn route_at(
@@ -99,13 +98,14 @@ pub(super) fn seal_routes_with(
     id: &str,
     busy_timeout: std::time::Duration,
 ) -> Result<()> {
-    let db = store::open_with_timeout(root, busy_timeout)?;
-    let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM app_meeting_revision v JOIN app_processing_runs r ON r.id=v.active_run_id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running')",[id],|r|r.get(0))?;
-    if !running {
-        bail!("Only a running recording can seal its captured route history.");
-    }
-    db.execute("INSERT INTO app_route_evidence(meeting_id,complete) VALUES (?1,1) ON CONFLICT(meeting_id) DO UPDATE SET complete=1",[id])?;
-    Ok(())
+    store::write_with(root, busy_timeout, |db| {
+        let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM app_meeting_revision v JOIN app_processing_runs r ON r.id=v.active_run_id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running')",[id],|r|r.get(0))?;
+        if !running {
+            bail!("Only a running recording can seal its captured route history.");
+        }
+        db.execute("INSERT INTO app_route_evidence(meeting_id,complete) VALUES (?1,1) ON CONFLICT(meeting_id) DO UPDATE SET complete=1",[id])?;
+        Ok(())
+    })
 }
 pub(super) fn routes_complete(db: &Connection, id: &str) -> Result<bool> {
     Ok(db
@@ -132,8 +132,7 @@ pub(super) fn info(db: &Connection, run: &str) -> Result<Option<EchoInfo>> {
 }
 
 pub(super) fn save_info(root: &Path, id: &str, run: &str, info: &EchoInfo) -> Result<()> {
-    let db = store::open(root)?;
-    write_info(&db, id, run, info)
+    store::write(root, |db| write_info(db, id, run, info))
 }
 pub(super) fn save_info_with(
     root: &Path,
@@ -142,8 +141,7 @@ pub(super) fn save_info_with(
     info: &EchoInfo,
     busy_timeout: std::time::Duration,
 ) -> Result<()> {
-    let db = store::open_with_timeout(root, busy_timeout)?;
-    write_info(&db, id, run, info)
+    store::write_with(root, busy_timeout, |db| write_info(db, id, run, info))
 }
 
 pub(super) fn write_info(db: &Connection, id: &str, run: &str, info: &EchoInfo) -> Result<()> {

@@ -76,12 +76,13 @@ impl Drop for Reservation<'_> {
 impl AppService {
     /// No secret access. Expired biometric payloads are removed even with Keychain locked.
     pub fn voice_memory_status(&self) -> Result<MemoryStatus> {
-        let mut db = store::open(&self.root)?;
-        let tx = db.transaction()?;
-        vt_speakers::expire(&tx, Utc::now())?;
-        let result = vt_speakers::status(&tx, Some(&vt_diarize::voice_embedding_version()))?;
-        tx.commit()?;
-        Ok(result)
+        store::write(&self.root, |tx| {
+            vt_speakers::expire(tx, Utc::now())?;
+            Ok(vt_speakers::status(
+                tx,
+                Some(&vt_diarize::voice_embedding_version()),
+            )?)
+        })
     }
     pub fn update_voice_memory(
         &self,
@@ -102,20 +103,27 @@ impl AppService {
             bail!("VanTranscribe is closing.");
         }
         let _context = current_generation(self, context_generation)?;
-        let mut db = store::open(&self.root)?;
-        let tx = db.transaction()?;
-        vt_speakers::update_settings(
-            &tx,
-            &MemorySettings {
-                enabled,
-                retention_months,
-            },
-            explanation_acknowledged,
-            Utc::now(),
-        )?;
-        vt_speakers::expire(&tx, Utc::now())?;
-        let result = vt_speakers::status(&tx, Some(&vt_diarize::voice_embedding_version()))?;
-        tx.commit()?;
+        // Turning memory off is allowed while recording, and the capture loop
+        // takes `runtime`, so the write runs without it. An in-flight
+        // enrollment still cannot survive: its final write re-checks
+        // `enabled` inside its own transaction.
+        drop(runtime);
+        let result = store::write(&self.root, |tx| {
+            vt_speakers::update_settings(
+                tx,
+                &MemorySettings {
+                    enabled,
+                    retention_months,
+                },
+                explanation_acknowledged,
+                Utc::now(),
+            )?;
+            vt_speakers::expire(tx, Utc::now())?;
+            Ok(vt_speakers::status(
+                tx,
+                Some(&vt_diarize::voice_embedding_version()),
+            )?)
+        })?;
         Ok(result)
     }
     pub fn enroll_voice(
@@ -145,8 +153,7 @@ impl AppService {
             idle(self, &runtime)?;
             let _context = current_generation(self, context_generation)?;
             self.ensure_saved_audio(&request.meeting_id)?;
-            let db = store::open(&self.root)?;
-            if !vt_speakers::settings(&db)?.enabled {
+            if !store::read(&self.root, |db| Ok(vt_speakers::settings(db)?))?.enabled {
                 bail!("Enable speaker memory and acknowledge the biometric explanation first.");
             }
             runtime.saved_audio_readers = runtime
@@ -179,13 +186,11 @@ impl AppService {
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Session state unavailable."))?;
             let _context = current_generation(self, context_generation)?;
-            if !vt_speakers::settings(&store::open(&self.root)?)?.enabled {
+            if !store::read(&self.root, |db| Ok(vt_speakers::settings(db)?))?.enabled {
                 bail!("Speaker memory was turned off. No voiceprint was saved.");
             }
         }
-        let db = store::open(&self.root)?;
-        let key = prepare_key(&db, provider)?;
-        drop(db);
+        let key = prepare_key(&self.root, provider)?;
         cancelled(self)?;
         let runtime = self
             .runtime
@@ -205,8 +210,6 @@ impl AppService {
         if fresh.fingerprint != selected_source.fingerprint {
             bail!("The speaker or source changed. Refresh the meeting and retry enrollment.");
         }
-        let mut db = store::open(&self.root)?;
-        let tx = db.transaction()?;
         let enrollment = vt_speakers::Enrollment {
             display_name: request.display_name.trim().into(),
             person_id: request.person_id.clone(),
@@ -226,16 +229,22 @@ impl AppService {
             shared_room: false,
             embedding: std::mem::take(&mut *embedding),
         };
-        let person = vt_speakers::enroll(&tx, &PreparedKey(key), &enrollment, Utc::now())?;
-        store::link_voice_person(
-            &tx,
-            &request.meeting_id,
-            &request.speaker_id,
-            &person.id,
-            &person.display_name,
-        )?;
-        let result = vt_speakers::status(&tx, Some(&vt_diarize::voice_embedding_version()))?;
-        tx.commit()?;
+        // The prepared key is in memory: no Keychain access inside the write.
+        let result = store::write(&self.root, |tx| {
+            let person = vt_speakers::enroll(tx, &PreparedKey(key), &enrollment, Utc::now())?;
+            store::link_voice_person(
+                tx,
+                &request.meeting_id,
+                &request.speaker_id,
+                &person.id,
+                &person.display_name,
+            )?;
+            Ok(vt_speakers::status(
+                tx,
+                Some(&vt_diarize::voice_embedding_version()),
+            )?)
+        })?;
+        drop(runtime);
         Ok(result)
     }
     pub fn forget_person(&self, person_id: &str, remove_names: bool) -> Result<MemoryStatus> {
@@ -244,12 +253,15 @@ impl AppService {
             .lock()
             .map_err(|_| anyhow::anyhow!("Session state unavailable."))?;
         idle(self, &runtime)?;
-        let mut db = store::open(&self.root)?;
-        let tx = db.transaction()?;
-        store::forget_person_links(&tx, &[person_id.into()], remove_names)?;
-        vt_speakers::forget_person(&tx, person_id)?;
-        let result = vt_speakers::status(&tx, Some(&vt_diarize::voice_embedding_version()))?;
-        tx.commit()?;
+        drop(runtime);
+        let result = store::write(&self.root, |tx| {
+            store::forget_person_links(tx, &[person_id.into()], remove_names)?;
+            vt_speakers::forget_person(tx, person_id)?;
+            Ok(vt_speakers::status(
+                tx,
+                Some(&vt_diarize::voice_embedding_version()),
+            )?)
+        })?;
         Ok(result)
     }
     pub fn delete_all_voiceprints(&self, remove_names: bool) -> Result<MemoryStatus> {
@@ -258,17 +270,20 @@ impl AppService {
             .lock()
             .map_err(|_| anyhow::anyhow!("Session state unavailable."))?;
         idle(self, &runtime)?;
-        let mut db = store::open(&self.root)?;
-        let tx = db.transaction()?;
-        let ids = {
-            let mut q = tx.prepare("SELECT id FROM app_people")?;
-            q.query_map([], |r| r.get::<_, String>(0))?
-                .collect::<rusqlite::Result<Vec<_>>>()?
-        };
-        store::forget_person_links(&tx, &ids, remove_names)?;
-        vt_speakers::delete_all(&tx)?;
-        let result = vt_speakers::status(&tx, Some(&vt_diarize::voice_embedding_version()))?;
-        tx.commit()?;
+        drop(runtime);
+        let result = store::write(&self.root, |tx| {
+            let ids = {
+                let mut q = tx.prepare("SELECT id FROM app_people")?;
+                q.query_map([], |r| r.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?
+            };
+            store::forget_person_links(tx, &ids, remove_names)?;
+            vt_speakers::delete_all(tx)?;
+            Ok(vt_speakers::status(
+                tx,
+                Some(&vt_diarize::voice_embedding_version()),
+            )?)
+        })?;
         Ok(result)
     }
 }
@@ -302,20 +317,26 @@ impl KeyProvider for PreparedKey {
         Err(vt_speakers::MemoryError::KeyUnavailable)
     }
 }
-fn prepare_key(db: &Connection, provider: &dyn KeyProvider) -> Result<SecretKey> {
+/// Keychain calls (`load`, `create`) run outside every database closure; only
+/// the in-between check of existing key material is a database read.
+fn prepare_key(root: &std::path::Path, provider: &dyn KeyProvider) -> Result<SecretKey> {
     if let Some(key) = provider.load()? {
         return Ok(key);
     }
-    let existing: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM app_voiceprints)", [], |r| {
-        r.get(0)
+    let (existing, initialized) = store::read(root, |db| {
+        let existing: bool =
+            db.query_row("SELECT EXISTS(SELECT 1 FROM app_voiceprints)", [], |r| {
+                r.get(0)
+            })?;
+        // The store's authenticated keycheck remains authoritative even after expiry;
+        // do not create a replacement key for any previously initialized key slot.
+        let initialized: bool = db.query_row(
+            "SELECT key_check IS NOT NULL FROM app_voice_memory_settings WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )?;
+        Ok((existing, initialized))
     })?;
-    // The store's authenticated keycheck remains authoritative even after expiry;
-    // do not create a replacement key for any previously initialized key slot.
-    let initialized: bool = db.query_row(
-        "SELECT key_check IS NOT NULL FROM app_voice_memory_settings WHERE singleton=1",
-        [],
-        |r| r.get(0),
-    )?;
     if existing || initialized {
         return Err(vt_speakers::MemoryError::KeyUnavailable.into());
     }
@@ -434,8 +455,9 @@ fn selection(service: &AppService, request: &EnrollVoiceRequest) -> Result<Selec
         }
         _ => bail!("This speaker has no compatible acoustic enrollment channel."),
     };
-    let db = store::open(&service.root)?;
-    let chunks = source_chunks(&db, &request.meeting_id, track)?;
+    let chunks = store::read(&service.root, |db| {
+        source_chunks(db, &request.meeting_id, track)
+    })?;
     let turns = &detail.speaker_turns;
     let spans = select_spans(turns, &request.speaker_id, track, &chunks, channel)?;
     let fingerprint = format!(

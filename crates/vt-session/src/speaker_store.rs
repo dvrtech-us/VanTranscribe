@@ -144,11 +144,13 @@ fn create_identity_with_reuse(
 }
 
 pub(crate) fn mode(root: &Path, meeting: &str) -> Result<vt_diarize::MeetingMode> {
-    let value: String = open(root)?.query_row(
-        "SELECT mode FROM app_meetings WHERE id=?1",
-        [meeting],
-        |row| row.get(0),
-    )?;
+    let value: String = super::read(root, |db| {
+        Ok(db.query_row(
+            "SELECT mode FROM app_meetings WHERE id=?1",
+            [meeting],
+            |row| row.get(0),
+        )?)
+    })?;
     Ok(if value == "in_person" {
         vt_diarize::MeetingMode::InPerson
     } else {
@@ -165,7 +167,10 @@ pub(crate) fn constraint_version(db: &Connection, meeting: &str) -> Result<u64> 
 }
 
 pub(crate) fn record_warning(root: &Path, meeting: &str, warning: &str) -> Result<()> {
-    let db = open(root)?;
+    super::write(root, |db| record_warning_in(db, meeting, warning))
+}
+
+fn record_warning_in(db: &Connection, meeting: &str, warning: &str) -> Result<()> {
     let run: String = db.query_row(
         "SELECT active_run_id FROM app_meeting_revision WHERE meeting_id=?1",
         [meeting],
@@ -228,36 +233,34 @@ pub(crate) fn retain_previous(
     meeting: &str,
     run: &str,
 ) -> Result<Option<Vec<SpeakerTurn>>> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let turns = copy_previous(&tx, meeting, run)?;
-    if turns.is_empty() {
-        tx.commit()?;
-        return Ok(None);
-    }
-    let saved: Option<String> = tx
-        .query_row(
-            "SELECT warnings_json FROM app_speaker_run_state WHERE run_id=?1",
-            [run],
-            |row| row.get(0),
-        )
-        .optional()?;
-    let mut warnings: Vec<String> = saved
-        .as_deref()
-        .map(serde_json::from_str)
-        .transpose()?
-        .unwrap_or_default();
-    warnings.push("Speaker analysis was not rerun because its model is disabled or unavailable. Previous timed labels and user corrections were retained.".into());
-    tx.execute(
-        "UPDATE app_speaker_run_state SET warnings_json=?2 WHERE run_id=?1",
-        params![run, serde_json::to_string(&warnings)?],
-    )?;
-    tx.commit()?;
-    Ok(Some(turns))
+    super::write(root, |tx| {
+        let turns = copy_previous(tx, meeting, run)?;
+        if turns.is_empty() {
+            return Ok(None);
+        }
+        let saved: Option<String> = tx
+            .query_row(
+                "SELECT warnings_json FROM app_speaker_run_state WHERE run_id=?1",
+                [run],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let mut warnings: Vec<String> = saved
+            .as_deref()
+            .map(serde_json::from_str)
+            .transpose()?
+            .unwrap_or_default();
+        warnings.push("Speaker analysis was not rerun because its model is disabled or unavailable. Previous timed labels and user corrections were retained.".into());
+        tx.execute(
+            "UPDATE app_speaker_run_state SET warnings_json=?2 WHERE run_id=?1",
+            params![run, serde_json::to_string(&warnings)?],
+        )?;
+        Ok(Some(turns))
+    })
 }
 
 pub(crate) fn constraints(root: &Path, meeting: &str) -> Result<Vec<SpeakerConstraint>> {
-    Ok(constraint_history(&open(root)?, meeting)?
+    Ok(super::read(root, |db| constraint_history(db, meeting))?
         .into_iter()
         .filter(|constraint| constraint.active)
         .collect())
@@ -303,19 +306,18 @@ fn remove_constraint_effect(db: &Connection, id: &str) -> Result<()> {
 }
 
 pub(crate) fn revoke_constraint(root: &Path, meeting: &str, id: &str) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let valid:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM app_speaker_constraints WHERE id=?1 AND meeting_id=?2 AND kind IN ('must_link','cannot_link') AND is_active=1)",params![id,meeting],|row|row.get(0))?;
-    if !valid {
-        bail!("This speaker correction is unavailable or already removed.");
-    }
-    let version = constraint_version(&tx, meeting)? + 1;
-    remove_constraint_effect(&tx, id)?;
-    tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,value,version,created_at,is_active) VALUES (?1,?2,'revoke','{}',?3,?4,?5,0)",params![uuid::Uuid::new_v4().to_string(),meeting,id,version as i64,chrono::Utc::now().to_rfc3339()])?;
-    bump_revision(&tx, meeting)?;
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+    super::write(root, |tx| {
+        let valid:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM app_speaker_constraints WHERE id=?1 AND meeting_id=?2 AND kind IN ('must_link','cannot_link') AND is_active=1)",params![id,meeting],|row|row.get(0))?;
+        if !valid {
+            bail!("This speaker correction is unavailable or already removed.");
+        }
+        let version = constraint_version(tx, meeting)? + 1;
+        remove_constraint_effect(tx, id)?;
+        tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,value,version,created_at,is_active) VALUES (?1,?2,'revoke','{}',?3,?4,?5,0)",params![uuid::Uuid::new_v4().to_string(),meeting,id,version as i64,chrono::Utc::now().to_rfc3339()])?;
+        bump_revision(tx, meeting)?;
+        refresh_search_after_edit(tx, meeting)?;
+        Ok(())
+    })
 }
 
 pub(crate) fn read_turns(db: &Connection, run: &str) -> Result<Vec<SpeakerTurn>> {
@@ -397,9 +399,10 @@ pub(crate) fn save_result(
 
 /// Bounded lock-contention budget for one live save (speaker labels and live
 /// transcript lines). The worst-case wait is `attempts * busy_timeout` plus the
-/// doubling backoff between attempts. It is kept near one second: the recorder's
-/// chunk writer has a 5 s lock budget and never retries, so live writers must
-/// neither queue for seconds nor hold the lock for more than point operations.
+/// doubling backoff between attempts. It is kept near one second: the recorder
+/// writes on its own connection and waits behind any in-process write, so live
+/// writers must neither queue for seconds nor hold the lock for more than point
+/// operations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LiveSaveBudget {
     pub busy_timeout: Duration,
@@ -436,12 +439,12 @@ pub(crate) fn save_live_updates(
     save_live_updates_with(root, meeting, run, result, LiveSaveBudget::PRODUCTION)
 }
 
-/// Live saves take the write lock at BEGIN (IMMEDIATE) so a concurrent commit
-/// makes them wait in the busy handler, rather than fail on a WAL read-snapshot
-/// upgrade (SQLITE_BUSY_SNAPSHOT, which never invokes the busy handler). The
-/// body holds the lock only for point lookups and upserts of this update. On
-/// lock contention the transaction and connection are dropped and the whole
-/// save is retried; upserts make that idempotent. Other errors return at once.
+/// Live saves run on the shared writer (BEGIN IMMEDIATE), so they queue behind
+/// other in-process writes instead of failing on a WAL read-snapshot upgrade.
+/// The body holds the writer only for point lookups and upserts of this
+/// update. On lock contention (the recorder's connection, or the writer stayed
+/// busy past the budget) the transaction is rolled back and the whole save is
+/// retried; upserts make that idempotent. Other errors return at once.
 pub(crate) fn save_live_updates_with(
     root: &Path,
     meeting: &str,
@@ -450,11 +453,10 @@ pub(crate) fn save_live_updates_with(
     budget: LiveSaveBudget,
 ) -> Result<()> {
     super::retry_busy(budget, |busy_timeout| {
-        let mut db = super::open_with_timeout(root, busy_timeout)?;
-        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        save_result_body(&tx, meeting, run, result, false, false)?;
-        tx.commit()?;
-        Ok(())
+        super::write_with(root, busy_timeout, |tx| {
+            save_result_body(tx, meeting, run, result, false, false)?;
+            Ok(())
+        })
     })
 }
 
@@ -568,11 +570,10 @@ fn save_result_inner(
     reconcile: bool,
     need_resolved_turns: bool,
 ) -> Result<Vec<SpeakerTurn>> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let turns = save_result_body(&tx, meeting, run, result, reconcile, need_resolved_turns)?;
-    tx.commit()?;
-    Ok(turns)
+    super::write(root, |tx| {
+        let turns = save_result_body(tx, meeting, run, result, reconcile, need_resolved_turns)?;
+        Ok(turns)
+    })
 }
 
 fn save_result_body(
@@ -793,55 +794,54 @@ pub(crate) fn resolve_review(
     previous: Option<&str>,
     target: Option<&str>,
 ) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    ensure_active(&tx, meeting, run)?;
-    let (old,new):(String,String)=tx.query_row("SELECT previous_ids_json,current_ids_json FROM app_speaker_reviews WHERE id=?1 AND run_id=?2 AND status='needs_review'",params![review,run],|row|Ok((row.get(0)?,row.get(1)?)))?;
-    if let Some(target) = target {
-        let previous = previous
-            .ok_or_else(|| anyhow::anyhow!("Choose the earlier named speaker to preserve."))?;
-        let old: Vec<String> = serde_json::from_str(&old)?;
-        let new: Vec<String> = serde_json::from_str(&new)?;
-        let current = new
-            .into_iter()
-            .map(|local| {
-                tx.query_row(
+    super::write(root, |tx| {
+        ensure_active(tx, meeting, run)?;
+        let (old,new):(String,String)=tx.query_row("SELECT previous_ids_json,current_ids_json FROM app_speaker_reviews WHERE id=?1 AND run_id=?2 AND status='needs_review'",params![review,run],|row|Ok((row.get(0)?,row.get(1)?)))?;
+        if let Some(target) = target {
+            let previous = previous
+                .ok_or_else(|| anyhow::anyhow!("Choose the earlier named speaker to preserve."))?;
+            let old: Vec<String> = serde_json::from_str(&old)?;
+            let new: Vec<String> = serde_json::from_str(&new)?;
+            let current = new
+                .into_iter()
+                .map(|local| {
+                    tx.query_row(
                     "SELECT identity_id FROM app_run_speaker_keys WHERE run_id=?1 AND local_id=?2",
                     params![run, local],
                     |row| row.get::<_, String>(0),
                 )
                 .optional()
                 .map(|id| id.unwrap_or(local))
-            })
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        if !old.iter().any(|id| id == previous) || !current.iter().any(|id| id == target) {
-            bail!("Choose a speaker from this reconciliation review.");
-        }
-        let (_, label, name) = identity(&tx, previous)?;
-        let name = name.unwrap_or(label);
-        let (target, _, _) = identity(&tx, target)?;
-        tx.execute(
-            "UPDATE app_speaker_identities SET user_name=?2 WHERE id=?1",
-            params![target, name],
-        )?;
-        let version = constraint_version(&tx, meeting)? + 1;
-        tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,identity_id,value,version,created_at) VALUES (?1,?2,'rename','{}',?3,?4,?5,?6)",params![uuid::Uuid::new_v4().to_string(),meeting,target,name,version as i64,chrono::Utc::now().to_rfc3339()])?;
-        bump_revision(&tx, meeting)?;
-        rebuild_fts(&tx, meeting)?;
-    }
-    tx.execute(
-        "UPDATE app_speaker_reviews SET status=?2 WHERE id=?1",
-        params![
-            review,
-            if target.is_some() {
-                "resolved"
-            } else {
-                "dismissed"
+                })
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            if !old.iter().any(|id| id == previous) || !current.iter().any(|id| id == target) {
+                bail!("Choose a speaker from this reconciliation review.");
             }
-        ],
-    )?;
-    tx.commit()?;
-    Ok(())
+            let (_, label, name) = identity(tx, previous)?;
+            let name = name.unwrap_or(label);
+            let (target, _, _) = identity(tx, target)?;
+            tx.execute(
+                "UPDATE app_speaker_identities SET user_name=?2 WHERE id=?1",
+                params![target, name],
+            )?;
+            let version = constraint_version(tx, meeting)? + 1;
+            tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,identity_id,value,version,created_at) VALUES (?1,?2,'rename','{}',?3,?4,?5,?6)",params![uuid::Uuid::new_v4().to_string(),meeting,target,name,version as i64,chrono::Utc::now().to_rfc3339()])?;
+            bump_revision(tx, meeting)?;
+            refresh_search_after_edit(tx, meeting)?;
+        }
+        tx.execute(
+            "UPDATE app_speaker_reviews SET status=?2 WHERE id=?1",
+            params![
+                review,
+                if target.is_some() {
+                    "resolved"
+                } else {
+                    "dismissed"
+                }
+            ],
+        )?;
+        Ok(())
+    })
 }
 
 pub(crate) fn rename(root: &Path, meeting: &str, speaker: &str, name: &str) -> Result<()> {
@@ -849,27 +849,26 @@ pub(crate) fn rename(root: &Path, meeting: &str, speaker: &str, name: &str) -> R
     if name.chars().count() > 120 {
         bail!("Speaker names must contain at most 120 characters.");
     }
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let belongs: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM app_speaker_identities WHERE id=?1 AND meeting_id=?2)",
-        params![speaker, meeting],
-        |row| row.get(0),
-    )?;
-    if !belongs {
-        bail!("Speaker does not belong to this meeting.");
-    }
-    let (speaker, _, _) = identity(&tx, speaker)?;
-    let version = constraint_version(&tx, meeting)? + 1;
-    tx.execute(
-        "UPDATE app_speaker_identities SET user_name=?2 WHERE id=?1",
-        params![speaker, (!name.is_empty()).then_some(name)],
-    )?;
-    tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,identity_id,value,version,created_at) VALUES (?1,?2,'rename','{}',?3,?4,?5,?6)",params![uuid::Uuid::new_v4().to_string(),meeting,speaker,name,version as i64,chrono::Utc::now().to_rfc3339()])?;
-    bump_revision(&tx, meeting)?;
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+    super::write(root, |tx| {
+        let belongs: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM app_speaker_identities WHERE id=?1 AND meeting_id=?2)",
+            params![speaker, meeting],
+            |row| row.get(0),
+        )?;
+        if !belongs {
+            bail!("Speaker does not belong to this meeting.");
+        }
+        let (speaker, _, _) = identity(tx, speaker)?;
+        let version = constraint_version(tx, meeting)? + 1;
+        tx.execute(
+            "UPDATE app_speaker_identities SET user_name=?2 WHERE id=?1",
+            params![speaker, (!name.is_empty()).then_some(name)],
+        )?;
+        tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,identity_id,value,version,created_at) VALUES (?1,?2,'rename','{}',?3,?4,?5,?6)",params![uuid::Uuid::new_v4().to_string(),meeting,speaker,name,version as i64,chrono::Utc::now().to_rfc3339()])?;
+        bump_revision(tx, meeting)?;
+        refresh_search_after_edit(tx, meeting)?;
+        Ok(())
+    })
 }
 
 pub(crate) fn set_shared_room(
@@ -878,24 +877,23 @@ pub(crate) fn set_shared_room(
     speaker: &str,
     shared: bool,
 ) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    let belongs: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM app_speaker_identities WHERE id=?1 AND meeting_id=?2)",
-        params![speaker, meeting],
-        |row| row.get(0),
-    )?;
-    if !belongs {
-        bail!("Speaker does not belong to this meeting.");
-    }
-    let (speaker, _, _) = identity(&tx, speaker)?;
-    tx.execute(
-        "UPDATE app_speaker_identities SET shared_room=?2 WHERE id=?1",
-        params![speaker, shared],
-    )?;
-    bump_revision(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+    super::write(root, |tx| {
+        let belongs: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM app_speaker_identities WHERE id=?1 AND meeting_id=?2)",
+            params![speaker, meeting],
+            |row| row.get(0),
+        )?;
+        if !belongs {
+            bail!("Speaker does not belong to this meeting.");
+        }
+        let (speaker, _, _) = identity(tx, speaker)?;
+        tx.execute(
+            "UPDATE app_speaker_identities SET shared_room=?2 WHERE id=?1",
+            params![speaker, shared],
+        )?;
+        bump_revision(tx, meeting)?;
+        Ok(())
+    })
 }
 
 pub(crate) fn link_voice_person(
@@ -913,7 +911,7 @@ pub(crate) fn link_voice_person(
     let version = constraint_version(db, meeting)? + 1;
     db.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,identity_id,value,version,created_at) VALUES (?1,?2,'rename','{}',?3,?4,?5,?6)",params![uuid::Uuid::new_v4().to_string(),meeting,canonical,name,version as i64,chrono::Utc::now().to_rfc3339()])?;
     bump_revision(db, meeting)?;
-    rebuild_fts(db, meeting)?;
+    refresh_search_after_edit(db, meeting)?;
     Ok(())
 }
 
@@ -956,7 +954,7 @@ pub(crate) fn forget_person_links(
     }
     for meeting in meetings {
         bump_revision(db, &meeting)?;
-        rebuild_fts(db, &meeting)?;
+        refresh_search_after_edit(db, &meeting)?;
     }
     Ok(())
 }
@@ -972,124 +970,125 @@ pub(crate) fn add_constraint(
     if !matches!(kind, "must_link" | "cannot_link") || left == right {
         bail!("Choose two different speaker excerpts and a valid relationship.");
     }
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    ensure_active(&tx, meeting, run)?;
-    let turns = read_turns(&tx, run)?;
-    let left = turns
-        .iter()
-        .find(|turn| turn.id == left)
-        .ok_or_else(|| anyhow::anyhow!("First speaker excerpt is unavailable."))?;
-    let right = turns
-        .iter()
-        .find(|turn| turn.id == right)
-        .ok_or_else(|| anyhow::anyhow!("Second speaker excerpt is unavailable."))?;
-    if left.track != right.track
-        || left.overlap
-        || right.overlap
-        || left.uncertain
-        || right.uncertain
-        || left.provisional
-        || right.provisional
-        || left.speaker_ids.is_empty()
-        || right.speaker_ids.is_empty()
-        || left.end_ms - left.start_ms < 1000
-        || right.end_ms - right.start_ms < 1000
-    {
-        bail!(
-            "Speaker constraints require two clean excerpts of at least one second on the same track."
-        );
-    }
-    let anchor = |turn: &SpeakerTurn| TurnAnchor {
-        track: turn.track.clone(),
-        start_ms: turn.start_ms,
-        end_ms: turn.end_ms,
-    };
-    // Check user-name conflicts before undoing any earlier relationship for
-    // this pair; otherwise removing a split could hide the second chosen name.
-    if kind == "must_link" && left.speaker_ids.len() == 1 && right.speaker_ids.len() == 1 {
-        let (left_id, _, left_name) = identity(&tx, &left.speaker_ids[0])?;
-        let (right_id, _, right_name) = identity(&tx, &right.speaker_ids[0])?;
-        if left_id != right_id
-            && left_name.is_some()
-            && right_name.is_some()
-            && left_name != right_name
+    super::write(root, |tx| {
+        ensure_active(tx, meeting, run)?;
+        let turns = read_turns(tx, run)?;
+        let left = turns
+            .iter()
+            .find(|turn| turn.id == left)
+            .ok_or_else(|| anyhow::anyhow!("First speaker excerpt is unavailable."))?;
+        let right = turns
+            .iter()
+            .find(|turn| turn.id == right)
+            .ok_or_else(|| anyhow::anyhow!("Second speaker excerpt is unavailable."))?;
+        if left.track != right.track
+            || left.overlap
+            || right.overlap
+            || left.uncertain
+            || right.uncertain
+            || left.provisional
+            || right.provisional
+            || left.speaker_ids.is_empty()
+            || right.speaker_ids.is_empty()
+            || left.end_ms - left.start_ms < 1000
+            || right.end_ms - right.start_ms < 1000
         {
-            bail!("These excerpts have different user names. Rename one before merging them.");
+            bail!(
+                "Speaker constraints require two clean excerpts of at least one second on the same track."
+            );
         }
-    }
-    let version = constraint_version(&tx, meeting)? + 1;
-    let left_anchor = serde_json::to_string(&anchor(left))?;
-    let right_anchor = serde_json::to_string(&anchor(right))?;
-    let left_id = left.id.clone();
-    let right_id = right.id.clone();
-    let old = {
-        let mut query=tx.prepare("SELECT id FROM app_speaker_constraints WHERE meeting_id=?1 AND is_active=1 AND kind IN ('must_link','cannot_link') AND ((left_anchor_json=?2 AND right_anchor_json=?3) OR (left_anchor_json=?3 AND right_anchor_json=?2))")?;
-        query
-            .query_map(params![meeting, left_anchor, right_anchor], |row| {
-                row.get::<_, String>(0)
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?
-    };
-    for id in old {
-        remove_constraint_effect(&tx, &id)?;
-    }
-    // Check after superseding this exact (unordered) pair so replacing a
-    // relationship still works at capacity. A rejection rolls the removals back
-    // with the rest of this transaction, including aliases/reviews/revisions.
-    let active: i64 = tx.query_row(
+        let anchor = |turn: &SpeakerTurn| TurnAnchor {
+            track: turn.track.clone(),
+            start_ms: turn.start_ms,
+            end_ms: turn.end_ms,
+        };
+        // Check user-name conflicts before undoing any earlier relationship for
+        // this pair; otherwise removing a split could hide the second chosen name.
+        if kind == "must_link" && left.speaker_ids.len() == 1 && right.speaker_ids.len() == 1 {
+            let (left_id, _, left_name) = identity(tx, &left.speaker_ids[0])?;
+            let (right_id, _, right_name) = identity(tx, &right.speaker_ids[0])?;
+            if left_id != right_id
+                && left_name.is_some()
+                && right_name.is_some()
+                && left_name != right_name
+            {
+                bail!("These excerpts have different user names. Rename one before merging them.");
+            }
+        }
+        let version = constraint_version(tx, meeting)? + 1;
+        let left_anchor = serde_json::to_string(&anchor(left))?;
+        let right_anchor = serde_json::to_string(&anchor(right))?;
+        let left_id = left.id.clone();
+        let right_id = right.id.clone();
+        let old = {
+            let mut query=tx.prepare("SELECT id FROM app_speaker_constraints WHERE meeting_id=?1 AND is_active=1 AND kind IN ('must_link','cannot_link') AND ((left_anchor_json=?2 AND right_anchor_json=?3) OR (left_anchor_json=?3 AND right_anchor_json=?2))")?;
+            query
+                .query_map(params![meeting, left_anchor, right_anchor], |row| {
+                    row.get::<_, String>(0)
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        for id in old {
+            remove_constraint_effect(tx, &id)?;
+        }
+        // Check after superseding this exact (unordered) pair so replacing a
+        // relationship still works at capacity. A rejection rolls the removals back
+        // with the rest of this transaction, including aliases/reviews/revisions.
+        let active: i64 = tx.query_row(
         "SELECT COUNT(*) FROM app_speaker_constraints WHERE meeting_id=?1 AND is_active=1 AND kind IN ('must_link','cannot_link')",
         [meeting],
         |row| row.get(0),
     )?;
-    if active >= MAX_ACTIVE_TEMPORAL_CONSTRAINTS {
-        bail!(
-            "This meeting already has {MAX_ACTIVE_TEMPORAL_CONSTRAINTS} active speaker corrections. Remove an existing correction before adding another."
-        );
-    }
-    let constraint_id = uuid::Uuid::new_v4().to_string();
-    tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,right_anchor_json,version,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)",params![constraint_id,meeting,kind,left_anchor,right_anchor,version as i64,chrono::Utc::now().to_rfc3339()])?;
-    let refreshed = read_turns(&tx, run)?;
-    let left = refreshed
-        .iter()
-        .find(|turn| turn.id == left_id)
-        .expect("validated left turn");
-    let right = refreshed
-        .iter()
-        .find(|turn| turn.id == right_id)
-        .expect("validated right turn");
-    if kind == "must_link" && left.speaker_ids.len() == 1 && right.speaker_ids.len() == 1 {
-        let (keep, _, keep_name) = identity(&tx, &left.speaker_ids[0])?;
-        let (other, _, other_name) = identity(&tx, &right.speaker_ids[0])?;
-        if keep != other {
-            if keep_name.is_some() && other_name.is_some() && keep_name != other_name {
-                bail!("These excerpts have different user names. Rename one before merging them.");
-            }
-            let (keep, other) = if other_name.is_some() && keep_name.is_none() {
-                (other, keep)
-            } else {
-                (keep, other)
-            };
-            // A merge cannot turn a known shared room into an eligible voice.
-            tx.execute("UPDATE app_speaker_identities SET shared_room=MAX(shared_room,(SELECT shared_room FROM app_speaker_identities WHERE id=?2)) WHERE id=?1",params![keep,other])?;
-            tx.execute(
+        if active >= MAX_ACTIVE_TEMPORAL_CONSTRAINTS {
+            bail!(
+                "This meeting already has {MAX_ACTIVE_TEMPORAL_CONSTRAINTS} active speaker corrections. Remove an existing correction before adding another."
+            );
+        }
+        let constraint_id = uuid::Uuid::new_v4().to_string();
+        tx.execute("INSERT INTO app_speaker_constraints(id,meeting_id,kind,left_anchor_json,right_anchor_json,version,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)",params![constraint_id,meeting,kind,left_anchor,right_anchor,version as i64,chrono::Utc::now().to_rfc3339()])?;
+        let refreshed = read_turns(tx, run)?;
+        let left = refreshed
+            .iter()
+            .find(|turn| turn.id == left_id)
+            .expect("validated left turn");
+        let right = refreshed
+            .iter()
+            .find(|turn| turn.id == right_id)
+            .expect("validated right turn");
+        if kind == "must_link" && left.speaker_ids.len() == 1 && right.speaker_ids.len() == 1 {
+            let (keep, _, keep_name) = identity(tx, &left.speaker_ids[0])?;
+            let (other, _, other_name) = identity(tx, &right.speaker_ids[0])?;
+            if keep != other {
+                if keep_name.is_some() && other_name.is_some() && keep_name != other_name {
+                    bail!(
+                        "These excerpts have different user names. Rename one before merging them."
+                    );
+                }
+                let (keep, other) = if other_name.is_some() && keep_name.is_none() {
+                    (other, keep)
+                } else {
+                    (keep, other)
+                };
+                // A merge cannot turn a known shared room into an eligible voice.
+                tx.execute("UPDATE app_speaker_identities SET shared_room=MAX(shared_room,(SELECT shared_room FROM app_speaker_identities WHERE id=?2)) WHERE id=?1",params![keep,other])?;
+                tx.execute(
                 "UPDATE app_speaker_identities SET alias_of=?2,alias_constraint_id=?3 WHERE id=?1",
                 params![other, keep, constraint_id],
             )?;
+            }
+        } else if kind == "cannot_link"
+            && left
+                .speaker_ids
+                .iter()
+                .any(|id| right.speaker_ids.contains(id))
+        {
+            let distinct = create_identity(tx, meeting, &right.track, false)?;
+            tx.execute("INSERT INTO app_speaker_turn_overrides(run_id,turn_id,identity_id,constraint_id) VALUES (?1,?2,?3,?4) ON CONFLICT(run_id,turn_id) DO UPDATE SET identity_id=excluded.identity_id,constraint_id=excluded.constraint_id",params![run,right.id,distinct,constraint_id])?;
         }
-    } else if kind == "cannot_link"
-        && left
-            .speaker_ids
-            .iter()
-            .any(|id| right.speaker_ids.contains(id))
-    {
-        let distinct = create_identity(&tx, meeting, &right.track, false)?;
-        tx.execute("INSERT INTO app_speaker_turn_overrides(run_id,turn_id,identity_id,constraint_id) VALUES (?1,?2,?3,?4) ON CONFLICT(run_id,turn_id) DO UPDATE SET identity_id=excluded.identity_id,constraint_id=excluded.constraint_id",params![run,right.id,distinct,constraint_id])?;
-    }
-    bump_revision(&tx, meeting)?;
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+        bump_revision(tx, meeting)?;
+        refresh_search_after_edit(tx, meeting)?;
+        Ok(())
+    })
 }
 
 struct Timeline {

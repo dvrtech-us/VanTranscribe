@@ -32,7 +32,7 @@ Correction anchors use the original segment's SHA-256 text hash, exact track, an
 | `create_run`, `append_run_segments`, `publish_run`, `abandon_run` | `crates/vt-session/src/store.rs` | Unpublished processing lifecycle |
 | `correct_segment`, `resolve_correction` | `crates/vt-session/src/store.rs` | Immutable-original editing and review |
 | `set_summary_error`, `MeetingDetail.summary_error` | `crates/vt-session/src/store.rs` | Persistent provider-failure metadata independent of recording/transcript health |
-| `search_meetings`, `rebuild_fts` | `crates/vt-session/src/store.rs` | Literal query handling and effective-text indexing |
+| `search_meetings`, `rebuild_fts`, `refresh_search_after_edit`, `recording_active` | `crates/vt-session/src/store.rs` | Literal query handling, effective-text indexing, and deferral of the whole-meeting rebuild while a recording is active (see [database access](../database-access/database-access.md#search-index-during-a-recording)) |
 | Store regression tests | `crates/vt-session/src/store_tests.rs` | Temporary synthetic fixtures only |
 
 ## Database schema
@@ -51,7 +51,7 @@ Correction anchors use the original segment's SHA-256 text hash, exact track, an
 
 ## Search, integration and access
 
-The local desktop service is the caller; there are no network routes or accounts. SQLite foreign keys and 5-second busy timeout are enabled per connection. User search input is split into whitespace tokens and quoted as literal FTS terms joined with AND; FTS operators cannot be injected. Empty searches return the meeting library. Search index writes occur inside the same store transaction as their source edits. Storage callers must use these APIs rather than modifying indexed source tables directly.
+The local desktop service is the caller; there are no network routes or accounts. SQLite foreign keys are enabled on the shared writer; all access goes through the [database access layer](../database-access/database-access.md) (one write connection per database file, default wait 30 s; reads use separate snapshot-consistent `query_only` connections with a 5 s busy timeout). User search input is split into whitespace tokens and quoted as literal FTS terms joined with AND; FTS operators cannot be injected. Empty searches return the meeting library. Search index writes occur inside the same store transaction as their source edits. Storage callers must use these APIs rather than modifying indexed source tables directly.
 
 The store performs no model inference, cross-meeting voiceprint memory or run garbage collection. The desktop `speaker_store` now persists meeting-local timed speaker assignments, user names/temporal identity constraints and review records in migration 004; processing-run creation/publication captures and validates that constraint version. See [desktop session](../../app/desktop-session/desktop-session.md#native-saved-playback-and-live-speech-detection) for those annotations and their experimental limits. All runs are retained; future collection must preserve active runs and summary references. Effective exports use overlays. The full design roadmap remains in `design.md`.
 

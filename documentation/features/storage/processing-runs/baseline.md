@@ -29,7 +29,7 @@
 
 ## Side effects in order
 
-Publication: validate ownership/running state → resolve corrections → seal run → move active pointer → set meeting ready → stale summaries → rebuild search → commit. Any error rolls back all steps. Correction edit: mutate overlay → bump transcript correction revision and stale summaries → rebuild search → commit. Note/title edit: mutate metadata → rebuild search → commit, preserving the transcript revision and summaries. Summary failure: upsert/delete only the separate failure row; preserve transcript health.
+Publication: validate ownership/running state → resolve corrections → seal run → move active pointer → set meeting ready → stale summaries → rebuild search → commit. Any error rolls back all steps. Correction edit: mutate overlay → bump transcript correction revision and stale summaries → refresh search (`refresh_search_after_edit`) → commit. Note/title edit: mutate metadata → rebuild search (during an active recording only that note's or title's row is written) → commit, preserving the transcript revision and summaries. While a meeting is recording or paused, edits other than note/title skip the whole-meeting rebuild and only drop non-current summary rows; the full rebuild runs once when the live run is sealed at stop (`complete_live_run_with`), on a failed stop (`rebuild_search_with`) or at startup recovery. Summary failure: upsert/delete only the separate failure row; preserve transcript health.
 
 ## Defaults and access
 

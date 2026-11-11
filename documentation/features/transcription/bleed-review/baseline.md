@@ -10,7 +10,7 @@
 - New-run reapplication requires a unique exact match in both directions. Missing or ambiguous bleed anchors remain visible and pending. Unmatched genuine choices do not require another review; future exact matches still suppress duplicate suggestions.
 - Each run owns its match snapshot. Changing the active run never rewrites historical annotations.
 - A pending dismissal records a retired genuine event, selects no current line, and prevents that lineage recurring in future runs.
-- Mutation, revision increment, summary invalidation and FTS rebuild are atomic. Search failure rolls back the complete operation.
+- Mutation, revision increment, summary invalidation and search refresh (`refresh_search_after_edit`) are atomic. Search failure rolls back the complete operation. During an active recording the whole-meeting FTS rebuild is deferred (only non-current summary rows are dropped), so a bleed decision made then becomes searchable when the recording stops.
 - Existing applied bleed or genuine decisions suppress candidate suggestions for that line.
 - No embeddings, speaker voiceprints or private fixtures are stored or fetched by this feature.
 

@@ -158,10 +158,12 @@ impl HealthMonitor {
     }
 }
 pub(crate) fn initialize(root: &Path) -> Result<()> {
-    store::open(root)?.execute_batch(include_str!(
-        "../../../documentation/features/capture/recording-health/sql/001-resource-health.sql"
-    ))?;
-    Ok(())
+    store::write(root, |db| {
+        db.execute_batch(include_str!(
+            "../../../documentation/features/capture/recording-health/sql/001-resource-health.sql"
+        ))?;
+        Ok(())
+    })
 }
 pub(crate) fn persist(
     root: &Path,
@@ -171,15 +173,14 @@ pub(crate) fn persist(
     append: bool,
     busy_timeout: std::time::Duration,
 ) -> Result<()> {
-    let mut db = store::open_with_timeout(root, busy_timeout)?;
-    let tx = db.transaction()?;
-    let now = chrono::Utc::now().to_rfc3339();
-    tx.execute("INSERT INTO app_resource_health(id,snapshot_json,checked_at) VALUES (1,?1,?2) ON CONFLICT(id) DO UPDATE SET snapshot_json=excluded.snapshot_json,checked_at=excluded.checked_at",params![serde_json::to_string(snapshot)?,now])?;
-    if append && let Some(meeting) = meeting {
-        tx.execute("INSERT INTO app_meeting_health(meeting_id,source_ms,free_bytes,disk_state,inference_suspended,created_at) VALUES (?1,?2,?3,?4,?5,?6)",params![meeting,i64::try_from(source_ms)?,snapshot.free_bytes.map(i64::try_from).transpose()?,serde_json::to_value(snapshot.disk_state)?.as_str(),snapshot.inference_suspended,now])?;
-    }
-    tx.commit()?;
-    Ok(())
+    store::write_with(root, busy_timeout, |tx| {
+        let now = chrono::Utc::now().to_rfc3339();
+        tx.execute("INSERT INTO app_resource_health(id,snapshot_json,checked_at) VALUES (1,?1,?2) ON CONFLICT(id) DO UPDATE SET snapshot_json=excluded.snapshot_json,checked_at=excluded.checked_at",params![serde_json::to_string(snapshot)?,now])?;
+        if append && let Some(meeting) = meeting {
+            tx.execute("INSERT INTO app_meeting_health(meeting_id,source_ms,free_bytes,disk_state,inference_suspended,created_at) VALUES (?1,?2,?3,?4,?5,?6)",params![meeting,i64::try_from(source_ms)?,snapshot.free_bytes.map(i64::try_from).transpose()?,serde_json::to_value(snapshot.disk_state)?.as_str(),snapshot.inference_suspended,now])?;
+        }
+        Ok(())
+    })
 }
 pub(crate) fn timing(
     root: &Path,
@@ -202,8 +203,12 @@ pub(crate) fn timing_with(
     origin: Option<u64>,
     busy_timeout: std::time::Duration,
 ) -> Result<()> {
-    store::open_with_timeout(root, busy_timeout)?.execute("INSERT INTO app_source_timing(meeting_id,timing_json,origin_ns) VALUES (?1,?2,?3) ON CONFLICT(meeting_id) DO UPDATE SET timing_json=excluded.timing_json,origin_ns=excluded.origin_ns",params![meeting,serde_json::to_string(value)?,origin.map(i64::try_from).transpose()?])?;
-    Ok(())
+    let json = serde_json::to_string(value)?;
+    let origin = origin.map(i64::try_from).transpose()?;
+    store::write_with(root, busy_timeout, |db| {
+        db.execute("INSERT INTO app_source_timing(meeting_id,timing_json,origin_ns) VALUES (?1,?2,?3) ON CONFLICT(meeting_id) DO UPDATE SET timing_json=excluded.timing_json,origin_ns=excluded.origin_ns",params![meeting,json,origin])?;
+        Ok(())
+    })
 }
 pub(crate) fn note_timing(db: &Connection, note: &str, value: &SourceTiming) -> Result<()> {
     let provenance = match value.provenance {

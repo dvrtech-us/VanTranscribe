@@ -21,15 +21,17 @@ impl Default for Preferences {
 }
 
 pub(crate) fn load(root: &Path) -> Result<Preferences> {
-    let db = super::store::open(root)?;
-    db.execute_batch(include_str!(
-        "../../../documentation/features/app/desktop-session/sql/003-preferences.sql"
-    ))?;
-    let saved = db.query_row(
-        "SELECT value_json FROM app_settings WHERE key='preferences'",
-        [],
-        |r| r.get::<_, String>(0),
-    );
+    // Loading creates the settings table, so it runs on the writer.
+    let saved = super::store::write(root, |db| {
+        db.execute_batch(include_str!(
+            "../../../documentation/features/app/desktop-session/sql/003-preferences.sql"
+        ))?;
+        Ok(db.query_row(
+            "SELECT value_json FROM app_settings WHERE key='preferences'",
+            [],
+            |r| r.get::<_, String>(0),
+        ))
+    })?;
     match saved {
         Ok(json) => Ok(serde_json::from_str(&json)?),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(Preferences::default()),
@@ -41,6 +43,9 @@ pub(crate) fn save(root: &Path, prefs: &Preferences) -> Result<()> {
     if prefs.summary.provider != Provider::None {
         vt_summarize::validate_config(&prefs.summary)?;
     }
-    super::store::open(root)?.execute("INSERT INTO app_settings(key,value_json) VALUES ('preferences',?1) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",[serde_json::to_string(prefs)?])?;
-    Ok(())
+    let json = serde_json::to_string(prefs)?;
+    super::store::write(root, |db| {
+        db.execute("INSERT INTO app_settings(key,value_json) VALUES ('preferences',?1) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",[json])?;
+        Ok(())
+    })
 }

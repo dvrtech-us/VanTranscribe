@@ -106,8 +106,8 @@
 
 ## Session persistence and recovery invariants
 
-- The recognizer thread never waits for or fails because of the database. Final lines are published to the runtime view and queued (512 lines) to a session-owned writer that saves batches of at most 64 in one IMMEDIATE transaction with point operations and incremental search rows (equal to `rebuild_fts` for new segments).
-- Live save budget is 3 attempts x 300 ms busy timeout with 50/100 ms backoff (1.05 s worst case), shared with the live speaker publisher. Lock contention keeps the batch and retries after the next arrival or 1 s.
+- The recognizer thread never waits for or fails because of the database. Final lines are published to the runtime view and queued (512 lines) to a session-owned writer that saves batches of at most 64 in one IMMEDIATE transaction on the shared database writer with point operations and incremental search rows (equal to `rebuild_fts` for new segments).
+- Live save budget (retained stop-gap, rarely exercised now that in-process writers queue on one connection) is 3 attempts x 300 ms wait with 50/100 ms backoff (1.05 s worst case), shared with the live speaker publisher. Lock contention (writer or the recorder's SQLite lock) keeps the batch and retries after the next arrival or 1 s.
 - A deterministic save error drops exactly one line as a `segment_rejected` gap; queue overflow or lines unsaved at the 5 s close deadline become `persistence_failed` gaps. Raw audio is never affected.
 - Stop drains the writer before the live run is sealed. Unsaved finals are shown from the runtime view, de-duplicated by segment ID against saved rows.
 - A speech recognizer error is recovered in place (gap `recognizer_error`, failure entry, track reset; engine rebuilt only for an engine error or failed reset). The same cause twice in a row is terminal; at most 20 recoveries per recording. The speaker worker is never restarted; backlog shedding of live STT is sticky.

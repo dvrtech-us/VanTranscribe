@@ -523,12 +523,11 @@ fn actual_session_sheds_slow_workers_but_persists_every_native_frame_and_run_aud
     *gate.0.lock().unwrap() = true;
     gate.1.notify_all();
     app.stop().unwrap();
+    // The live run is sealed and the meeting status set by separate writes,
+    // so wait for both before asserting the outcome.
     wait(|| {
-        app.detail(&id)
-            .unwrap()
-            .runs
-            .iter()
-            .all(|r| r.status != "running")
+        let detail = app.detail(&id).unwrap();
+        detail.meeting.status != "recording" && detail.runs.iter().all(|r| r.status != "running")
     });
     let detail = app.detail(&id).unwrap();
     assert_eq!(detail.meeting.status, "ready");

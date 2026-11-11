@@ -61,6 +61,7 @@
 | Database | `<root>/vantranscribe.db`, manifest version 1 |
 | SQLite | WAL, `synchronous=FULL`, `fullfsync=ON`, foreign keys enabled |
 | SQLite busy timeout | Normal returned connections: 5 seconds |
+| Shared app writer | The recorder keeps its own connection (this table's settings) and contends with the app's [shared writer](../../storage/database-access/database-access.md) at the SQLite level; the app writer waits up to its own `wait` (30 s default, 5 s while `runtime`/`backlog` is held) for the recorder's lock, the recorder retries up to `MANIFEST_LOCK_BUDGET` |
 | Initialization lock budget | One five-second monotonic deadline across all attempts/phases, including busy waits and retry sleep |
 | Manifest write lock budget | `MANIFEST_LOCK_BUDGET` 60 s total; `LOCK_ATTEMPT_TIMEOUT` 250 ms per attempt; backoff 5 ms doubling to 100 ms |
 | Initialization retry | Only SQLite Busy/Locked; fresh connection; 1 ms exponential backoff capped at 25 ms and remaining budget |

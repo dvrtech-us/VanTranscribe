@@ -4,6 +4,7 @@ mod audio_preferences;
 mod audio_service;
 mod backlog;
 mod capture_health;
+mod db;
 mod health;
 mod live_models;
 mod live_transcript;
@@ -195,14 +196,14 @@ pub struct AppService {
     detection_worker: Mutex<Option<meeting_detection::DetectionWorker>>,
     #[cfg(test)]
     test_workers: Mutex<Option<Arc<backlog::TestWorkers>>>,
-    backlog: Mutex<backlog::Controller>,
+    backlog: db::OrderedMutex<backlog::Controller>,
     resources: Arc<dyn health::ResourceProbe>,
     health_monitor: Mutex<health::HealthMonitor>,
     inference_suspended: AtomicBool,
     resource_stop: AtomicBool,
     root: PathBuf,
     helper: PathBuf,
-    runtime: Mutex<Runtime>,
+    runtime: db::OrderedMutex<Runtime>,
     cancel_download: Arc<AtomicBool>,
     cancel_processing: Arc<AtomicBool>,
     cancel_refinement_download: Arc<AtomicBool>,
@@ -212,6 +213,11 @@ pub struct AppService {
     preferences: Mutex<Preferences>,
     audio_preferences: Mutex<AudioPreferences>,
     playback: Mutex<Option<vt_playback::Playback>>,
+    /// The one shared write connection of this library's database. Held for
+    /// the service's lifetime so every `store::write` on this root (looked up
+    /// by canonical path) reuses it. Declared before the instance lock so the
+    /// connection closes before another instance can open the library.
+    _db_writer: Arc<db::Writer>,
     _instance_lock: std::fs::File,
 }
 
@@ -233,6 +239,7 @@ impl AppService {
             .truncate(false)
             .open(root.join(".desktop.lock"))?;
         instance_lock.try_lock().map_err(|error|anyhow::anyhow!("This recordings folder is already in use, or cannot be locked. Close the other VanTranscribe instance and retry: {error}"))?;
+        let db_writer = db::Writer::for_root(&root)?;
         store::initialize(&root)?;
         health::initialize(&root)?;
         backlog::initialize(&root)?;
@@ -253,33 +260,36 @@ impl AppService {
             detection_worker: Mutex::new(None),
             #[cfg(test)]
             test_workers: Mutex::new(None),
-            backlog: Mutex::new(backlog::Controller::default()),
+            backlog: db::OrderedMutex::new("backlog", backlog::Controller::default()),
             resources,
             health_monitor: Mutex::new(health::HealthMonitor::default()),
             inference_suspended: AtomicBool::new(false),
             resource_stop: AtomicBool::new(false),
             root,
             helper,
-            runtime: Mutex::new(Runtime {
-                model: ModelStatus {
-                    installed,
-                    error: model_selection.warning,
+            runtime: db::OrderedMutex::new(
+                "runtime",
+                Runtime {
+                    model: ModelStatus {
+                        installed,
+                        error: model_selection.warning,
+                        ..Default::default()
+                    },
+                    refinement_model: ModelStatus {
+                        installed: refinement_installed,
+                        ..Default::default()
+                    },
+                    vad_model: ModelStatus {
+                        installed: vad_installed,
+                        ..Default::default()
+                    },
+                    diarization_model: ModelStatus {
+                        installed: diarization_installed,
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
-                refinement_model: ModelStatus {
-                    installed: refinement_installed,
-                    ..Default::default()
-                },
-                vad_model: ModelStatus {
-                    installed: vad_installed,
-                    ..Default::default()
-                },
-                diarization_model: ModelStatus {
-                    installed: diarization_installed,
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
+            ),
             cancel_download: Arc::new(AtomicBool::new(false)),
             cancel_processing: Arc::new(AtomicBool::new(false)),
             cancel_refinement_download: Arc::new(AtomicBool::new(false)),
@@ -289,6 +299,7 @@ impl AppService {
             preferences: Mutex::new(prefs),
             audio_preferences: Mutex::new(audio_prefs),
             playback: Mutex::new(None),
+            _db_writer: db_writer,
             _instance_lock: instance_lock,
         });
         service.refresh_health(true)?;
@@ -869,18 +880,29 @@ impl AppService {
         if text.trim().is_empty() {
             bail!("Notes must contain 1–32,000 bytes of text.");
         }
+        // Timing is copied; the write runs without `runtime`, which the
+        // capture loop needs for every source-clock event.
+        drop(runtime);
         store::save_note_with_metadata(&self.root, id, timing.elapsed_ms, text, |db, note| {
             health::note_timing(db, note, &timing)
         })?;
         Ok(())
     }
     pub fn rename(&self, id: &str, title: &str) -> Result<()> {
-        let mut runtime = self
+        let runtime = self
             .runtime
             .lock()
             .map_err(|_| anyhow::anyhow!("session state unavailable"))?;
         Self::ensure_not_maintenance(&runtime)?;
+        // The database write runs without `runtime` (renaming is allowed
+        // while recording, and the capture loop takes `runtime`); the lock is
+        // retaken only to update the in-memory view.
+        drop(runtime);
         store::rename(&self.root, id, title)?;
+        let mut runtime = self
+            .runtime
+            .lock()
+            .map_err(|_| anyhow::anyhow!("session state unavailable"))?;
         if let Some(current) = runtime.current.as_mut().filter(|c| c.view.id == id) {
             current.view.title = title.trim().into();
         }
@@ -1028,6 +1050,8 @@ impl AppService {
         {
             bail!("Wait for processing to finish before reviewing bleed.");
         }
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::set_bleed_decision(&self.root, id, run, segment, decision)
     }
     pub fn resolve_bleed_review(&self, id: &str, run: &str, decision: &str) -> Result<()> {
@@ -1043,6 +1067,8 @@ impl AppService {
         {
             bail!("Wait for processing to finish before reviewing bleed.");
         }
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::resolve_bleed_review(&self.root, id, run, decision)
     }
     pub fn rename_speaker(&self, id: &str, speaker: &str, name: &str) -> Result<()> {
@@ -1058,6 +1084,8 @@ impl AppService {
         {
             bail!("Wait for processing to finish before changing speakers.");
         }
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::rename_speaker(&self.root, id, speaker, name)
     }
     pub fn set_speaker_shared_room(
@@ -1081,6 +1109,8 @@ impl AppService {
         {
             bail!("Finish recording and processing before changing shared-room settings.");
         }
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::set_speaker_shared_room(&self.root, id, speaker, shared_room)?;
         store::detail(&self.root, id)
     }
@@ -1104,6 +1134,8 @@ impl AppService {
         {
             bail!("Wait for processing to finish before changing speakers.");
         }
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::add_speaker_constraint(&self.root, id, run, left, right, kind)
     }
     pub fn resolve_speaker_review(
@@ -1126,6 +1158,8 @@ impl AppService {
         {
             bail!("Wait for processing to finish before changing speakers.");
         }
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::resolve_speaker_review(&self.root, id, run, review, previous, target)
     }
     pub fn revoke_speaker_constraint(&self, id: &str, constraint: &str) -> Result<()> {
@@ -1141,6 +1175,8 @@ impl AppService {
         {
             bail!("Wait for processing to finish before changing speakers.");
         }
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::revoke_speaker_constraint(&self.root, id, constraint)
     }
     pub fn correct_segment(
@@ -1155,6 +1191,8 @@ impl AppService {
             .lock()
             .map_err(|_| anyhow::anyhow!("session state unavailable"))?;
         Self::ensure_not_maintenance(&runtime)?;
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::correct_segment(&self.root, id, run, segment, replacement)
     }
     pub fn resolve_correction(
@@ -1168,6 +1206,8 @@ impl AppService {
             .lock()
             .map_err(|_| anyhow::anyhow!("session state unavailable"))?;
         Self::ensure_not_maintenance(&runtime)?;
+        // Checks passed; write without holding `runtime`.
+        drop(runtime);
         store::resolve_correction(&self.root, id, correction, segment)
     }
     pub fn update_preferences(

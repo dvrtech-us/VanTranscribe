@@ -397,7 +397,7 @@ struct RouteLookup {
 impl RouteLookup {
     fn at(
         &mut self,
-        db: &rusqlite::Connection,
+        root: &std::path::Path,
         id: &str,
         ms: u64,
     ) -> Result<Option<&RouteObservation>> {
@@ -405,8 +405,15 @@ impl RouteLookup {
             .checked_mul(1_000_000)
             .ok_or_else(|| anyhow::anyhow!("Audio time overflow"))?;
         if !self.initialized || self.next.is_some_and(|next| ns >= next) {
-            self.current = echo_store::route_at(db, id, ms)?;
-            self.next=db.query_row("SELECT MIN(start_ns) FROM app_output_routes WHERE meeting_id=?1 AND start_ns>?2",rusqlite::params![id,i64::try_from(ns)?],|r|r.get::<_,Option<i64>>(0))?.map(u64::try_from).transpose()?;
+            // Looked up only at route boundaries, each on a fresh read
+            // connection, so audio decoding never runs inside a database read.
+            let (current, next) = store::read(root, |db| {
+                let current = echo_store::route_at(db, id, ms)?;
+                let next=db.query_row("SELECT MIN(start_ns) FROM app_output_routes WHERE meeting_id=?1 AND start_ns>?2",rusqlite::params![id,i64::try_from(ns)?],|r|r.get::<_,Option<i64>>(0))?.map(u64::try_from).transpose()?;
+                Ok((current, next))
+            })?;
+            self.current = current;
+            self.next = next;
             self.initialized = true;
         }
         Ok(self.current.as_ref())
@@ -419,8 +426,7 @@ pub(super) fn saved(
     enabled: bool,
     mut consume: impl FnMut(processing::AudioPacket, f64) -> Result<()>,
 ) -> Result<EchoInfo> {
-    let db = store::open(&service.root)?;
-    let complete = echo_store::routes_complete(&db, id)?;
+    let complete = store::read(&service.root, |db| echo_store::routes_complete(db, id))?;
     let mut stream = EchoStream::new(enabled)?;
     if enabled && !complete {
         stream.eligibility_block = Some(INCOMPLETE_HISTORY);
@@ -441,7 +447,7 @@ pub(super) fn saved(
             } => {
                 deliver_saved(
                     &mut consume,
-                    stream.observe(lookup.at(&db, id, start_ms)?, start_ms)?,
+                    stream.observe(lookup.at(&service.root, id, start_ms)?, start_ms)?,
                     fraction,
                 )?;
                 deliver_saved(

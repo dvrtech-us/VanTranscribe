@@ -15,20 +15,25 @@ const LAST_REPORT_KEY: &str = "maintenance_last_report";
 
 fn load<T: DeserializeOwned>(root: &Path, key: &str) -> Result<Option<T>> {
     use rusqlite::OptionalExtension;
-    let value: Option<String> = store::open(root)?
-        .query_row(
-            "SELECT value_json FROM app_settings WHERE key=?1",
-            [key],
-            |r| r.get(0),
-        )
-        .optional()?;
+    let value: Option<String> = store::read(root, |db| {
+        Ok(db
+            .query_row(
+                "SELECT value_json FROM app_settings WHERE key=?1",
+                [key],
+                |r| r.get(0),
+            )
+            .optional()?)
+    })?;
     value
         .map(|value| serde_json::from_str(&value).map_err(Into::into))
         .transpose()
 }
 fn save<T: Serialize>(root: &Path, key: &str, value: &T) -> Result<()> {
-    store::open(root)?.execute("INSERT INTO app_settings(key,value_json) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",rusqlite::params![key,serde_json::to_string(value)?])?;
-    Ok(())
+    let json = serde_json::to_string(value)?;
+    store::write(root, |db| {
+        db.execute("INSERT INTO app_settings(key,value_json) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",rusqlite::params![key,json])?;
+        Ok(())
+    })
 }
 fn idle(runtime: &Runtime) -> Result<()> {
     if runtime.saved_audio_readers > 0 {
@@ -101,16 +106,16 @@ impl AppService {
             .lock()
             .map_err(|_| anyhow::anyhow!("Session state unavailable"))?;
         idle(&runtime)?;
-        let mut db = store::open(&self.root)?;
-        let tx = db.transaction()?;
-        tx.execute("INSERT INTO app_settings(key,value_json) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", rusqlite::params![POLICY_KEY,serde_json::to_string(&policy)?])?;
-        // A newly saved policy may be applied at the next idle check.
-        tx.execute(
-            "DELETE FROM app_settings WHERE key IN (?1,?2)",
-            [LAST_ATTEMPT_KEY, LAST_CHECK_KEY],
-        )?;
-        tx.commit()?;
-        Ok(policy)
+        drop(runtime);
+        store::write(&self.root, |tx| {
+            tx.execute("INSERT INTO app_settings(key,value_json) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", rusqlite::params![POLICY_KEY,serde_json::to_string(&policy)?])?;
+            // A newly saved policy may be applied at the next idle check.
+            tx.execute(
+                "DELETE FROM app_settings WHERE key IN (?1,?2)",
+                [LAST_ATTEMPT_KEY, LAST_CHECK_KEY],
+            )?;
+            Ok(policy)
+        })
     }
     pub fn preview_deletion(&self, id: &str, kind: DeletionKind) -> Result<DeletionPreview> {
         self.with_maintenance(id, "Checking stored recording", false, || {
@@ -149,13 +154,12 @@ impl AppService {
         if let Ok(mut runtime) = self.runtime.lock()
             && let Some(current) = runtime.current.as_ref()
         {
-            let exists = store::open(&self.root).and_then(|db| {
-                db.query_row(
+            let exists = store::read(&self.root, |db| {
+                Ok(db.query_row(
                     "SELECT EXISTS(SELECT 1 FROM app_meetings WHERE id=?1)",
                     [&current.view.id],
                     |r| r.get::<_, bool>(0),
-                )
-                .map_err(Into::into)
+                )?)
             });
             match exists {Ok(false)=>{runtime.current=None;runtime.partials.clear();},Ok(true)=>(),Err(error)=>report.errors.push(format!("The operation finished, but the session display could not be refreshed: {error}"))}
         }
@@ -233,7 +237,7 @@ impl AppService {
             // cannot regenerate full inventories on every scheduler tick.
             save(&self.root, LAST_ATTEMPT_KEY, &now)?;
             // Biometric expiry is keyless and applies even when memory is off.
-            vt_speakers::expire(&store::open(&self.root)?, now)?;
+            store::write(&self.root, |db| Ok(vt_speakers::expire(db, now)?))?;
             audio_service::stop(self)?;
             let mut report = retention::recover(&self.root)?;
             let preview = retention::preview_policy(&self.root, &self.maintenance_policy()?);
@@ -295,7 +299,7 @@ impl AppService {
 }
 
 pub(super) fn recover_startup(root: &Path) -> Result<()> {
-    vt_speakers::expire(&store::open(root)?, Utc::now())?;
+    store::write(root, |db| Ok(vt_speakers::expire(db, Utc::now())?))?;
     let report = retention::recover(root)?;
     if report.completed > 0 || !report.pending_cleanup.is_empty() || !report.errors.is_empty() {
         // Recovery is already durable. A receipt write must not prevent the

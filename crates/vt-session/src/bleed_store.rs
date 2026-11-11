@@ -89,61 +89,60 @@ pub(crate) fn set_decision(
     if !matches!(decision, "bleed" | "genuine") {
         bail!("Decision must be bleed or genuine.");
     }
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    editable(&tx, meeting, run)?;
-    let (track, start, end, text): (String, i64, i64, String) = tx.query_row(
-        "SELECT track,start_ms,end_ms,text FROM app_run_segments WHERE run_id=?1 AND id=?2",
-        params![run, segment],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-    )?;
-    if track != "mic" {
-        bail!("Only microphone transcript lines can be marked as bleed.");
-    }
-    let hash = text_hash(&text);
-    let current:Option<String>=tx.query_row("SELECT d.lineage_id FROM app_bleed_run_matches m JOIN app_bleed_decisions d ON d.id=m.decision_id WHERE m.run_id=?1 AND m.segment_id=?2 AND m.status='applied' ORDER BY d.seq DESC LIMIT 1",params![run,segment],|r|r.get(0)).optional()?;
-    let lineage = if let Some(current) = current {
-        current
-    } else {
-        let mut possible = Vec::new();
-        for e in latest(&tx, meeting)? {
-            if !e.retired && e.start == start && e.end == end && e.hash == hash {
-                let used:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM app_bleed_run_matches m JOIN app_bleed_decisions d ON d.id=m.decision_id WHERE m.run_id=?1 AND d.lineage_id=?2 AND m.status='applied' AND m.segment_id<>?3)",params![run,e.lineage,segment],|r|r.get(0))?;
-                if !used {
-                    possible.push(e.lineage);
+    super::write(root, |tx| {
+        editable(tx, meeting, run)?;
+        let (track, start, end, text): (String, i64, i64, String) = tx.query_row(
+            "SELECT track,start_ms,end_ms,text FROM app_run_segments WHERE run_id=?1 AND id=?2",
+            params![run, segment],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )?;
+        if track != "mic" {
+            bail!("Only microphone transcript lines can be marked as bleed.");
+        }
+        let hash = text_hash(&text);
+        let current:Option<String>=tx.query_row("SELECT d.lineage_id FROM app_bleed_run_matches m JOIN app_bleed_decisions d ON d.id=m.decision_id WHERE m.run_id=?1 AND m.segment_id=?2 AND m.status='applied' ORDER BY d.seq DESC LIMIT 1",params![run,segment],|r|r.get(0)).optional()?;
+        let lineage = if let Some(current) = current {
+            current
+        } else {
+            let mut possible = Vec::new();
+            for e in latest(tx, meeting)? {
+                if !e.retired && e.start == start && e.end == end && e.hash == hash {
+                    let used:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM app_bleed_run_matches m JOIN app_bleed_decisions d ON d.id=m.decision_id WHERE m.run_id=?1 AND d.lineage_id=?2 AND m.status='applied' AND m.segment_id<>?3)",params![run,e.lineage,segment],|r|r.get(0))?;
+                    if !used {
+                        possible.push(e.lineage);
+                    }
                 }
             }
-        }
-        if possible.len() == 1 {
-            possible.remove(0)
-        } else {
-            uuid::Uuid::new_v4().to_string()
-        }
-    };
-    let e = Event {
-        id: uuid::Uuid::new_v4().to_string(),
-        lineage,
-        source_run: run.into(),
-        source_segment: segment.into(),
-        start,
-        end,
-        hash,
-        decision: decision.into(),
-        reason: if decision == "bleed" {
-            "User confirmed microphone speech as bleed."
-        } else {
-            "User kept microphone speech as genuine."
-        }
-        .into(),
-        retired: false,
-    };
-    append(&tx, meeting, &e)?;
-    tx.execute("UPDATE app_bleed_run_matches SET status='superseded' WHERE run_id=?1 AND (segment_id=?2 OR decision_id IN(SELECT id FROM app_bleed_decisions WHERE lineage_id=?3))",params![run,segment,e.lineage])?;
-    snapshot(&tx, run, &e, Some(segment), "applied", &e.reason)?;
-    bump_revision(&tx, meeting)?;
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+            if possible.len() == 1 {
+                possible.remove(0)
+            } else {
+                uuid::Uuid::new_v4().to_string()
+            }
+        };
+        let e = Event {
+            id: uuid::Uuid::new_v4().to_string(),
+            lineage,
+            source_run: run.into(),
+            source_segment: segment.into(),
+            start,
+            end,
+            hash,
+            decision: decision.into(),
+            reason: if decision == "bleed" {
+                "User confirmed microphone speech as bleed."
+            } else {
+                "User kept microphone speech as genuine."
+            }
+            .into(),
+            retired: false,
+        };
+        append(tx, meeting, &e)?;
+        tx.execute("UPDATE app_bleed_run_matches SET status='superseded' WHERE run_id=?1 AND (segment_id=?2 OR decision_id IN(SELECT id FROM app_bleed_decisions WHERE lineage_id=?3))",params![run,segment,e.lineage])?;
+        snapshot(tx, run, &e, Some(segment), "applied", &e.reason)?;
+        bump_revision(tx, meeting)?;
+        refresh_search_after_edit(tx, meeting)?;
+        Ok(())
+    })
 }
 /// Retire an unmatched decision without inventing a correspondence to current speech.
 pub(crate) fn dismiss_pending(
@@ -152,33 +151,32 @@ pub(crate) fn dismiss_pending(
     run: &str,
     decision_id: &str,
 ) -> Result<()> {
-    let mut db = open(root)?;
-    let tx = db.transaction()?;
-    editable(&tx, meeting, run)?;
-    let pending:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM app_bleed_run_matches WHERE run_id=?1 AND decision_id=?2 AND status='needs_review')",params![run,decision_id],|r|r.get(0))?;
-    if !pending {
-        bail!("This bleed review is no longer pending.");
-    }
-    let Some(mut e) = latest(&tx, meeting)?
-        .into_iter()
-        .find(|e| e.id == decision_id)
-    else {
-        bail!("This bleed decision has been superseded.");
-    };
-    e.id = uuid::Uuid::new_v4().to_string();
-    e.decision = "genuine".into();
-    e.reason = "User dismissed the unmatched bleed decision and kept speech visible.".into();
-    e.retired = true;
-    append(&tx, meeting, &e)?;
-    tx.execute(
+    super::write(root, |tx| {
+        editable(tx, meeting, run)?;
+        let pending:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM app_bleed_run_matches WHERE run_id=?1 AND decision_id=?2 AND status='needs_review')",params![run,decision_id],|r|r.get(0))?;
+        if !pending {
+            bail!("This bleed review is no longer pending.");
+        }
+        let Some(mut e) = latest(tx, meeting)?
+            .into_iter()
+            .find(|e| e.id == decision_id)
+        else {
+            bail!("This bleed decision has been superseded.");
+        };
+        e.id = uuid::Uuid::new_v4().to_string();
+        e.decision = "genuine".into();
+        e.reason = "User dismissed the unmatched bleed decision and kept speech visible.".into();
+        e.retired = true;
+        append(tx, meeting, &e)?;
+        tx.execute(
         "UPDATE app_bleed_run_matches SET status='superseded' WHERE run_id=?1 AND decision_id=?2",
         params![run, decision_id],
     )?;
-    snapshot(&tx, run, &e, None, "dismissed", &e.reason)?;
-    bump_revision(&tx, meeting)?;
-    rebuild_fts(&tx, meeting)?;
-    tx.commit()?;
-    Ok(())
+        snapshot(tx, run, &e, None, "dismissed", &e.reason)?;
+        bump_revision(tx, meeting)?;
+        refresh_search_after_edit(tx, meeting)?;
+        Ok(())
+    })
 }
 /// Invoke inside the publication transaction, while this run is still running.
 pub(crate) fn reapply(db: &Connection, meeting: &str, run: &str) -> Result<()> {

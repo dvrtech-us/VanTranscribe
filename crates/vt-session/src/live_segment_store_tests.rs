@@ -276,3 +276,152 @@ fn live_save_budget_waits_about_one_second_at_most() {
     assert!(waited >= Duration::from_millis(900), "{waited:?}");
     assert!(waited < Duration::from_millis(2_000), "{waited:?}");
 }
+
+/// The same race through the shared writer: the write lock is taken at BEGIN,
+/// so a commit by another connection (the recorder) between the closure's read
+/// and its write waits for the closure instead of breaking it.
+#[test]
+fn a_shared_write_cannot_lose_its_snapshot_to_a_concurrent_commit() {
+    let temp = fixture();
+    let root = temp.path().to_path_buf();
+    let (tx_started, rx_started) = std::sync::mpsc::channel();
+    let committed = write(&root, |tx| {
+        let run: String = tx.query_row("SELECT r.id FROM app_processing_runs r JOIN app_meeting_revision v ON v.active_run_id=r.id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running'",["fixture"],|r|r.get(0))?;
+        let other = {
+            let root = root.clone();
+            std::thread::spawn(move || {
+                let db = open(&root).unwrap();
+                tx_started.send(()).unwrap();
+                db.execute(
+                    "UPDATE app_meetings SET duration_ms=duration_ms+1 WHERE id='fixture'",
+                    [],
+                )
+            })
+        };
+        rx_started.recv().unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        insert_segments(tx, &run, &[line("late", 0, "Late line")])?;
+        Ok(other)
+    })
+    .unwrap();
+    assert_eq!(committed.join().unwrap().unwrap(), 1);
+    assert_eq!(
+        segment_ids(&open(&root).unwrap(), &live_run(&root)),
+        ["late"]
+    );
+}
+
+/// In-process contention: another writer closure holds the shared writer for
+/// longer than the live budget. The save waits at most the budget, then
+/// reports lock contention (so the transcript writer keeps the line queued).
+#[test]
+fn live_save_budget_also_bounds_waiting_for_the_shared_writer() {
+    let temp = fixture();
+    let root = temp.path().to_path_buf();
+    let run = live_run(&root);
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+    let holder = {
+        let root = root.clone();
+        std::thread::spawn(move || {
+            write(&root, |_| {
+                started_tx.send(()).unwrap();
+                let _ = release_rx.recv();
+                Ok(())
+            })
+        })
+    };
+    started_rx.recv().unwrap();
+    let started = std::time::Instant::now();
+    let error = save_live_segments(
+        &root,
+        "fixture",
+        &run,
+        &[line("held", 0, "Held")],
+        LiveSaveBudget::PRODUCTION,
+    )
+    .unwrap_err();
+    let waited = started.elapsed();
+    release_tx.send(()).unwrap();
+    holder.join().unwrap().unwrap();
+    assert!(sqlite_busy(&error), "{}", describe_error(&error));
+    assert!(waited >= Duration::from_millis(900), "{waited:?}");
+    assert!(waited < Duration::from_millis(2_000), "{waited:?}");
+    // Once released, the same save succeeds.
+    assert_eq!(
+        save_live_segments(
+            &root,
+            "fixture",
+            &run,
+            &[line("held", 0, "Held")],
+            LiveSaveBudget::PRODUCTION
+        )
+        .unwrap(),
+        1
+    );
+}
+
+fn search_hits(root: &Path, query: &str) -> usize {
+    search_meetings(root, query).unwrap().len()
+}
+
+/// During an active recording, user edits do not rebuild the whole meeting's
+/// search rows in front of the recorder: notes and titles update their own
+/// rows at once, other edits are deferred, and sealing the live run at stop
+/// leaves exactly the rows a full rebuild derives.
+#[test]
+fn edits_during_a_recording_defer_the_search_rebuild_until_the_live_run_is_sealed() {
+    let temp = fixture();
+    let root = temp.path();
+    let run = live_run(root);
+    save_live_segments(
+        root,
+        "fixture",
+        &run,
+        &[line("one", 0, "Original wording")],
+        LiveSaveBudget::PRODUCTION,
+    )
+    .unwrap();
+    // Incremental: searchable immediately.
+    save_note(root, "fixture", 0, "Notedzebra").unwrap();
+    assert_eq!(search_hits(root, "Notedzebra"), 1);
+    rename(root, "fixture", "Renamedokapi").unwrap();
+    assert_eq!(search_hits(root, "Renamedokapi"), 1);
+    assert_eq!(search_hits(root, "fixture"), 0, "old title row replaced");
+    // Deferred: the correction is saved, its search row follows at stop.
+    correct_segment(root, "fixture", &run, "one", "Correctedquokka").unwrap();
+    assert_eq!(search_hits(root, "Correctedquokka"), 0);
+    assert_eq!(
+        detail(root, "fixture").unwrap().segments[0].text,
+        "Correctedquokka"
+    );
+    complete_live_run(root, "fixture").unwrap();
+    assert_eq!(search_hits(root, "Correctedquokka"), 1);
+    assert_eq!(search_hits(root, "Original"), 0);
+    assert_eq!(fts_rows(&open(root).unwrap()), rebuilt(root));
+    // After the seal, edits rebuild in full again.
+    correct_segment(root, "fixture", &run, "one", "Laterlemur").unwrap();
+    assert_eq!(search_hits(root, "Laterlemur"), 1);
+}
+
+/// An interrupted recording catches up its deferred search rebuild at
+/// startup recovery.
+#[test]
+fn startup_recovery_rebuilds_search_deferred_by_an_interrupted_recording() {
+    let temp = fixture();
+    let root = temp.path();
+    let run = live_run(root);
+    save_live_segments(
+        root,
+        "fixture",
+        &run,
+        &[line("one", 0, "Original wording")],
+        LiveSaveBudget::PRODUCTION,
+    )
+    .unwrap();
+    correct_segment(root, "fixture", &run, "one", "Recoveredquokka").unwrap();
+    assert_eq!(search_hits(root, "Recoveredquokka"), 0);
+    recover_interrupted(root).unwrap();
+    assert_eq!(search_hits(root, "Recoveredquokka"), 1);
+    assert_eq!(fts_rows(&open(root).unwrap()), rebuilt(root));
+}

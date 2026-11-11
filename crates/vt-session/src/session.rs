@@ -1170,17 +1170,18 @@ pub(super) fn run(
         &mut recorder,
         controls,
     );
-    let elapsed = if let Ok(mut runtime) = service.runtime.lock() {
+    let finished = if let Ok(mut runtime) = service.runtime.lock() {
         runtime.source_timeline.finish();
         let timing = runtime
             .source_timeline
             .snapshot(service.resources.uptime_ns());
-        let _ = health::timing(
-            &service.root,
-            &id,
-            &timing,
-            runtime.source_timeline.origin_ns,
-        );
+        Some((timing, runtime.source_timeline.origin_ns))
+    } else {
+        None
+    };
+    // The timing is copied under `runtime` and written without it.
+    let elapsed = if let Some((timing, origin)) = finished {
+        let _ = health::timing(&service.root, &id, &timing, origin);
         timing.elapsed_ms
     } else {
         0
@@ -1208,6 +1209,11 @@ pub(super) fn run(
         if service.ensure_saved_audio(&id).is_ok() {
             let _ = Recording::recover(&service.root, &id);
         }
+        // The live run was not sealed, so its catch-up search rebuild did not
+        // run; do it here for edits deferred during the recording.
+        let _ = store::retry_busy(AFTER_STOP_BUDGET, |busy_timeout| {
+            store::rebuild_search_with(&service.root, &id, busy_timeout)
+        });
         let _ = store::retry_busy(AFTER_STOP_BUDGET, |busy_timeout| {
             store::set_status_with(&service.root, &id, "failed", Some(&error), busy_timeout)
         });
@@ -1460,6 +1466,9 @@ fn record_session(
     let mut housekeeping_warned = false;
     let mut capture = crate::capture_health::CaptureMonitor::default();
     let outcome = (|| -> Result<()> {
+        // Housekeeping writes on this loop give up the in-process writer
+        // queue after a few ms (they are skipped and retried later).
+        let _capture_loop = crate::db::CaptureLoopScope::enter();
         loop {
             {
                 // Measured at the top of each iteration: a late loop is the

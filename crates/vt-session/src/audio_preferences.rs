@@ -22,13 +22,15 @@ impl Default for AudioPreferences {
 }
 
 pub(crate) fn load(root: &Path) -> Result<AudioPreferences> {
-    let saved: Option<String> = super::store::open(root)?
-        .query_row(
-            "SELECT value_json FROM app_settings WHERE key='audio_preferences'",
-            [],
-            |row| row.get(0),
-        )
-        .optional()?;
+    let saved: Option<String> = super::store::read(root, |db| {
+        Ok(db
+            .query_row(
+                "SELECT value_json FROM app_settings WHERE key='audio_preferences'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?)
+    })?;
     saved
         .map(|json| serde_json::from_str(&json))
         .transpose()
@@ -37,9 +39,12 @@ pub(crate) fn load(root: &Path) -> Result<AudioPreferences> {
 }
 
 pub(crate) fn save(root: &Path, prefs: &AudioPreferences) -> Result<()> {
-    super::store::open(root)?.execute(
-        "INSERT INTO app_settings(key,value_json) VALUES ('audio_preferences',?1) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
-        [serde_json::to_string(prefs)?]
-    )?;
-    Ok(())
+    let json = serde_json::to_string(prefs)?;
+    super::store::write(root, |db| {
+        db.execute(
+            "INSERT INTO app_settings(key,value_json) VALUES ('audio_preferences',?1) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
+            [json],
+        )?;
+        Ok(())
+    })
 }
