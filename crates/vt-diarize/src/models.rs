@@ -14,8 +14,14 @@ use std::{
 pub const MODEL_ID: &str = "pyannote3-eres2net-2024-v1";
 pub const SEGMENTATION: &str = "segmentation.int8.onnx";
 pub const EMBEDDING: &str = "embedding.onnx";
+/// Identity of the clustering profile that produced a run's speaker turns:
+/// pinned weights, preprocessing and the ASSIGN/MERGE/MARGIN values (see the
+/// `embedding_version_hash_covers_...` test). It changes when thresholds change,
+/// so a run refined under other thresholds is recognisably not current. It is
+/// not part of model-pack identity (see `verify`) and not the voiceprint
+/// version (`voice_embedding_version`, which excludes clustering thresholds).
 pub const EMBEDDING_VERSION: &str =
-    "fb58e351faac141e86cc27aff963f9818a9753dafee0561b381a685fd59c2d52";
+    "ff29acb384a0273fbb07878cab865746d2af4ddd5579d20655ded122328da6c4";
 pub const SEGMENTATION_SOURCE: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2";
 pub const EMBEDDING_SOURCE: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx";
 const ARCHIVE_HASH: &str = "24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488";
@@ -24,12 +30,21 @@ pub(crate) fn embedding_weight_hash() -> &'static str {
     EMB_HASH
 }
 const EMB_HASH: &str = "1a331345f04805badbb495c775a6ddffcdd1a732567d5ec8b3d5749e3c7a5e4b";
-pub(crate) const ASSIGN: f32 = 0.55;
-pub(crate) const MERGE: f32 = 0.70;
-pub(crate) const MARGIN: f32 = 0.10;
+// Clustering thresholds for this embedder (ERes2Net, this preprocessing).
+// Derived 2026-11-10 by a rule fixed in advance from 6 public AMI calibration
+// meetings and checked on 7 speaker-disjoint held-out meetings; see
+// documentation/features/diarization/speaker-turns/trail/2026-11-11-ami-derived-clustering-thresholds.md.
+// Still experimental: not validated for remote-call audio or accepted for
+// production. Cosine similarities, not identification probabilities.
+pub(crate) const ASSIGN: f32 = 0.50;
+pub(crate) const MERGE: f32 = 0.60;
+pub(crate) const MARGIN: f32 = 0.05;
+/// Written into a newly installed pack's manifest as a record of the profile
+/// at install time. It is not checked by `verify`: retuning thresholds must
+/// never make installed model files look broken.
 fn calibration_profile() -> String {
     format!(
-        "experimental_uncalibrated; assign={ASSIGN:.2} merge={MERGE:.2} margin={MARGIN:.2}; NOT identification confidence"
+        "experimental_ami_rule_v1; assign={ASSIGN:.2} merge={MERGE:.2} margin={MARGIN:.2}; derived from 6 public AMI in-person meetings by a fixed rule, checked on 7 held-out meetings; not validated for remote calls or production; NOT identification confidence"
     )
 }
 const ARCHIVE_BYTES: u64 = 6_958_444;
@@ -249,12 +264,13 @@ pub(crate) fn verify(dir: &Path, full: bool) -> Result<()> {
     }
     let m: Manifest =
         serde_json::from_slice(&fs::read(manifest_path)?).map_err(|_| DiarizeError::Model)?;
-    if m.id != MODEL_ID
-        || m.embedding_version != EMBEDDING_VERSION
-        || m.segmentation_sha256 != SEG_HASH
-        || m.embedding_sha256 != EMB_HASH
-        || m.calibration != calibration_profile()
-    {
+    // Pack identity is the id plus the pinned weight hashes (and, below, the
+    // notices and the weights themselves). `embedding_version` and
+    // `calibration` are install-time records of the clustering profile and are
+    // deliberately not compared: a threshold change must not invalidate an
+    // installed pack (and `install` refuses to replace a pack that fails
+    // verification, so comparing them would strand existing installs).
+    if m.id != MODEL_ID || m.segmentation_sha256 != SEG_HASH || m.embedding_sha256 != EMB_HASH {
         return Err(DiarizeError::Model);
     }
     for (name, expected) in [
@@ -304,4 +320,77 @@ pub(crate) fn verify(dir: &Path, full: bool) -> Result<()> {
     Ok(())
 }
 
-pub const MODEL_NOTICE: &str = "Experimental local speaker models: pyannote segmentation 3 ONNX, MIT (Copyright 2022 CNRS), and 3D-Speaker ERes2Net, Apache-2.0 per original ModelScope model card. Public sherpa release downloads are explicit; no models are bundled. Original pyannote Hugging Face acquisition has publisher conditions that this app does not accept. Thresholds and English/channel DER are not calibrated.";
+pub const MODEL_NOTICE: &str = "Experimental local speaker models: pyannote segmentation 3 ONNX, MIT (Copyright 2022 CNRS), and 3D-Speaker ERes2Net, Apache-2.0 per original ModelScope model card. Public sherpa release downloads are explicit; no models are bundled. Original pyannote Hugging Face acquisition has publisher conditions that this app does not accept. Clustering thresholds are experimental: derived from a small public set of English in-person meetings, not validated for remote calls or accepted for production.";
+
+#[cfg(test)]
+mod manifest_tests {
+    use super::*;
+    /// A pack laid out like a real install (weights sized as pinned; content
+    /// is only hashed by the full check), with the given manifest strings.
+    fn pack(dir: &Path, embedding_version: &str, calibration: &str, emb_hash: &str) {
+        fs::create_dir_all(dir).unwrap();
+        File::create(dir.join(SEGMENTATION))
+            .unwrap()
+            .set_len(SEG_BYTES)
+            .unwrap();
+        File::create(dir.join(EMBEDDING))
+            .unwrap()
+            .set_len(EMB_BYTES)
+            .unwrap();
+        fs::write(
+            dir.join("pyannote-MIT.txt"),
+            include_str!("../resources/pyannote-MIT.txt"),
+        )
+        .unwrap();
+        fs::write(
+            dir.join("3D-Speaker-Apache-2.0.txt"),
+            include_str!("../resources/Apache-2.0.txt"),
+        )
+        .unwrap();
+        let manifest = Manifest {
+            id: MODEL_ID.into(),
+            embedding_version: embedding_version.into(),
+            calibration: calibration.into(),
+            segmentation_sha256: SEG_HASH.into(),
+            embedding_sha256: emb_hash.into(),
+            source_urls: vec![],
+            licenses: vec![],
+            attribution: String::new(),
+            acquisition: String::new(),
+        };
+        fs::write(
+            dir.join("manifest.json"),
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+    }
+    #[test]
+    fn retuned_thresholds_do_not_invalidate_an_installed_pack() {
+        // Manifest written by the 0.55/0.70/0.10 build (verbatim strings).
+        let temp = tempfile::TempDir::new().unwrap();
+        let manager = ModelManager::new(temp.path().into());
+        pack(
+            &manager.model_dir(),
+            "fb58e351faac141e86cc27aff963f9818a9753dafee0561b381a685fd59c2d52",
+            "experimental_uncalibrated; assign=0.55 merge=0.70 margin=0.10; NOT identification confidence",
+            EMB_HASH,
+        );
+        assert_ne!(
+            EMBEDDING_VERSION,
+            "fb58e351faac141e86cc27aff963f9818a9753dafee0561b381a685fd59c2d52"
+        );
+        assert!(manager.installed());
+    }
+    #[test]
+    fn pack_identity_still_rejects_other_weights() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let manager = ModelManager::new(temp.path().into());
+        pack(
+            &manager.model_dir(),
+            EMBEDDING_VERSION,
+            &calibration_profile(),
+            &"0".repeat(64),
+        );
+        assert!(!manager.installed());
+    }
+}

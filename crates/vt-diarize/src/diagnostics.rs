@@ -24,7 +24,7 @@ impl std::fmt::Display for CapacityLimit {
 }
 /// Best-score buckets: 20 buckets of 0.1 covering [-1, 1].
 pub const SCORE_BUCKETS: usize = 20;
-/// Margin buckets: 10 buckets of 0.01 covering [0, 0.1) (a margin failure is < MARGIN).
+/// Margin buckets: 10 equal buckets covering [0, MARGIN) (a margin failure is < MARGIN).
 pub const MARGIN_BUCKETS: usize = 10;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -46,7 +46,7 @@ pub struct TrackDiagnostics {
     pub best_below_assign_hist: [u32; SCORE_BUCKETS],
     /// Best cosine for opens caused by margin failure (best >= ASSIGN).
     pub best_margin_failure_hist: [u32; SCORE_BUCKETS],
-    /// Margin (best - second) for margin-failure opens; bucket i = [0.01i, 0.01(i+1)).
+    /// Margin (best - second) for margin-failure opens; bucket i = [MARGIN*i/10, MARGIN*(i+1)/10).
     pub margin_failure_hist: [u32; MARGIN_BUCKETS],
     /// Every margin failure (best >= ASSIGN, best - second < MARGIN, no must-link
     /// cluster), whether it opened a cluster or was left unattributed.

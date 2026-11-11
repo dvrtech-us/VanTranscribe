@@ -503,7 +503,7 @@ fn finish_using_replay(
         }
     };
     let cap_reached = clusters.iter().any(|c| c.diagnostics().cap_reached());
-    let mut warnings=vec!["Experimental uncalibrated speaker clustering; labels are not verified identities. English/channel-specific DER, thresholds, overlap attribution and long-call acceptance remain unvalidated.".into(),context_warning.into()];
+    let mut warnings=vec!["Experimental speaker clustering; labels are not verified identities. Thresholds were tuned on a small public set of in-person English meetings only; accuracy on remote calls, overlap attribution and long-call acceptance remain unvalidated.".into(),context_warning.into()];
     if cap_reached {
         warnings.push(CAP_WARNING.into());
     }

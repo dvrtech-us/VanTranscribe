@@ -10,10 +10,12 @@
 - Emitted turns below one second receive Unknown and no speaker ID; they never inherit a preceding voice.
 - Overlap never updates a clean speaker exemplar. Two labels are retained only when supported by clean same-window speaker links; otherwise overlap remains explicit.
 - Remote microphone Me is a channel prior, not voice recognition. A microphone cannot-link present at construction overrides it with actual embeddings/clustering. A late correction without microphone embeddings produces Unknown regions and a pending review; system clusters never receive the prior. In-person microphone voices are clustered.
-- A margin failure (best at least 0.55 but not 0.10 ahead of the runner-up) with best at least 0.70 leaves the turn unattributed: no cluster is opened, the embedding joins no cluster, and the turn is emitted Unknown, uncertain, not provisional, with no speaker id or score. The embedding record is kept so `finish` replays the decision. With best below 0.70 a new cluster opens. Best below 0.55 or no candidate opens a cluster. A must-link or cannot-link endpoint always opens a cluster instead of being left unattributed.
+- A margin failure (best at least 0.50 but not 0.05 ahead of the runner-up) with best at least 0.60 leaves the turn unattributed: no cluster is opened, the embedding joins no cluster, and the turn is emitted Unknown, uncertain, not provisional, with no speaker id or score. The embedding record is kept so `finish` replays the decision. With best below 0.60 a new cluster opens. Best below 0.50 or no candidate opens a cluster. A must-link or cannot-link endpoint always opens a cluster instead of being left unattributed.
 - An ambiguous window is never assigned to an existing cluster and never contributes an exemplar, member or speech time.
-- Scores are uncalibrated cosine similarities, not identity probabilities. Result calibrated is false.
+- Scores are cosine similarities, not identity probabilities. Result calibrated is false. The thresholds are derived from a small public in-person calibration set and are not production-accepted.
 - User must-links override similarity and cannot-links block assignments/merges using transitive must-link components.
+- Model-pack verification compares only the manifest id, pinned weight hashes, notice files and weight sizes/hashes. The manifest `embedding_version` and `calibration` strings are install-time records and are never compared, so changing clustering thresholds never makes an installed pack fail verification or require a download.
+- `EMBEDDING_VERSION` covers the clustering thresholds and changes with them; runs record it. Voiceprints use `voice_embedding_version()`, which excludes clustering thresholds, so a threshold change never invalidates stored voiceprints.
 - Missing, tied, under-covered, overlapping, contradictory or unavailable-evidence constraints produce individual reviews and mask affected connected regions Unknown; they do not abort the full transcript pipeline.
 - Defensive replay recovery isolates only the implicated connected constraint component and retries at most the initial candidate count plus one; unrelated same-track and other-track corrections remain active.
 - Dependent valid corrections wait under the original failed source review. Their anchors are included, but their valid source UUID is not presented as a removable failure.
@@ -25,7 +27,7 @@
 - A refinement stopped by a turns, embeddings or (constraint-endpoint) clusters capacity limit never saves partial separation output; it carries the previous run's speaker annotations onto the new run and records the limit in the run's speaker warnings.
 - A live speaker save that hits lock contention never stops the speaker worker; unsaved turns are retained and dropped turns become `persistence_failed` inference gaps. Engine errors and non-lock database errors still stop it, and the speaker worker is not restarted (only the speech worker recovers in place; see live-english).
 - `Diarizer::diagnostics()` holds counters only and does not change clustering. It reports `margin_failures`, `margin_failure_best_at_least_merge`, `margin_failure_centroid_hist`, `ambiguous_unattributed` and the cap counters `cap_merges`, `cap_evictions`, `cap_evicted_ms`, `cap_unattributed`, `cap_reassigned`.
-- At 64 clusters on a track a window that needs a new cluster is handled in this order: merge duplicate pairs (centroid cosine at least 0.70, at least one provisional, not cannot-linked) until at most 56 clusters remain; evict the oldest unanchored single-member cluster under 3,000 ms of speech; merge the most similar pair of established clusters (cosine at least 0.70); re-score the window if any merge happened and join a clear winner (0.55 / 0.10); otherwise leave the window unattributed (Unknown, uncertain, no speaker id). Merge ties keep the lowest indices, so replay is deterministic.
+- At 64 clusters on a track a window that needs a new cluster is handled in this order: merge duplicate pairs (centroid cosine at least 0.60, at least one provisional, not cannot-linked) until at most 56 clusters remain; evict the oldest unanchored single-member cluster under 3,000 ms of speech; merge the most similar pair of established clusters (cosine at least 0.60); re-score the window if any merge happened and join a clear winner (0.50 / 0.05); otherwise leave the window unattributed (Unknown, uncertain, no speaker id). Merge ties keep the lowest indices, so replay is deterministic.
 - `DiarizeError::Capacity(CapacityLimit::Clusters)` is returned at the cluster cap only for a must-link or cannot-link endpoint that cannot get a cluster (`capacity_refused`). No other turn fails at the cap.
 - Merges and evictions are recorded (`record_merge`, `retired`); turns built in the same window follow them (merged id, or Unknown for an evicted id); `mic:me` is never rewritten. Merges made while streaming seed `refine`'s published merge history.
 - `finish` adds `CAP_WARNING` ("Speaker separation reached its cluster limit; some similar voices were merged and some speech is shown as Unknown.") to `DiarizationResult.warnings` when any track has `cap_merges`, `cap_evictions` or `cap_unattributed` above zero.
@@ -45,9 +47,9 @@
 | Explicit enrollment extractor | 1–5 seconds contiguous finite mono at 8–192 kHz; fresh resampler per span; 512 dimensions; no identification calibration |
 | Result segmentation context | Some(actual phase configuration); legacy missing=None |
 | Minimum eligible clean turn / visible cluster | 1000 ms / 3000 ms |
-| Experimental assign / merge / margin | 0.55 / 0.70 / 0.10 |
+| Experimental assign / merge / margin | 0.50 / 0.60 / 0.05 (AMI rule, 2026-11-11; were 0.55 / 0.70 / 0.10) |
 | Speaker state | 64 clusters/track, 20 exemplars/cluster |
-| Cluster-cap handling | `CAP_HEADROOM` 8 (merge pass targets 56), `ESTABLISHED_MS` 3000, merge threshold `MERGE` 0.70, re-score with `ASSIGN` 0.55 / `MARGIN` 0.10 |
+| Cluster-cap handling | `CAP_HEADROOM` 8 (merge pass targets 56), `ESTABLISHED_MS` 3000, merge threshold `MERGE` 0.60, re-score with `ASSIGN` 0.50 / `MARGIN` 0.05 |
 | Live speaker save | IMMEDIATE transaction; 3 attempts, 300 ms busy timeout, 50/100 ms backoff (1.05 s worst case; shared `LiveSaveBudget::PRODUCTION` with the live transcript writer); at most 2048 unsaved turns carried |
 | Replay embeddings / turn metadata | 8192 / 32768 per meeting |
 | Constraint count | 4096 pairs and 4096 temporal constraints |
@@ -60,14 +62,14 @@
 
 | Condition | Severity | Blocks complete publication? |
 | --- | --- | --- |
-| Missing/corrupt model hash/manifest | Error | Yes |
+| Missing/corrupt model hash/manifest (id, weight hashes, notices, weights) | Error | Yes |
 | Missing model-setup acknowledgement | Error | Setup only |
 | Cluster cap reached for an ordinary window | Merge, evict or Unknown; `CAP_WARNING` on the result | No; raw audio and transcript unaffected, some speech Unknown |
 | Capacity reached in `Diarizer` (turns, embeddings, constraints, or clusters for a constraint endpoint) | Error from `Diarizer`; never silent truncation | Constraints: yes. Turns/embeddings/clusters during refinement: no; the refined transcript is published, previous speaker labels are retained (or channel/Unknown labels) and a run warning names the limit |
 | Constraint conflict/missing/ambiguous anchor | Needs review | No; publish timed transcript with affected voices Unknown and review metadata |
-| Ambiguous window (margin failure, best at least 0.70) | Uncertain | No; emitted Unknown with no speaker id, decided again by the `finish` replay |
+| Ambiguous window (margin failure, best at least 0.60) | Uncertain | No; emitted Unknown with no speaker id, decided again by the `finish` replay |
 | Short/overlap/provisional speaker turn | Uncertain | No; explicit unknown/overlap metadata |
-| Uncalibrated profile | Experimental | Always visible; no calibrated identity claim |
+| Experimental clustering profile | Experimental | Always visible as the first run warning ("Experimental speaker clustering; labels are not verified identities. Thresholds were tuned on a small public set of in-person English meetings only; …"); no calibrated identity claim |
 
 ## Side effects and integration
 

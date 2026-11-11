@@ -10,6 +10,51 @@ fn constraint(kind: ConstraintKind) -> PairConstraint {
         provenance: "synthetic-user-correction".into(),
     }
 }
+// ---- fixtures expressed relative to the clustering thresholds ----
+// Fixture geometry is derived from ASSIGN/MERGE/MARGIN so a future retune
+// either keeps each test's meaning or fails a stated precondition, instead of
+// silently testing something else.
+use crate::models::{ASSIGN, MARGIN, MERGE};
+use std::f32::consts::FRAC_1_SQRT_2;
+/// Unit 3-vector with cosine `cos` to both e0 and e1 (margin 0 between two
+/// orthogonal voices). Only possible for `cos <= 1/sqrt(2)`.
+fn equidistant(cos: f32) -> Vec<f32> {
+    assert!((0. ..=FRAC_1_SQRT_2).contains(&cos), "{cos}");
+    vec![cos, cos, (1. - 2. * cos * cos).max(0.).sqrt()]
+}
+/// A margin-failure best score at or above MERGE.
+fn ambiguous_above_merge() -> f32 {
+    (MERGE + FRAC_1_SQRT_2) / 2.
+}
+/// A margin-failure best score in [ASSIGN, MERGE).
+fn ambiguous_below_merge() -> f32 {
+    (ASSIGN + MERGE) / 2.
+}
+fn dot(a: &[f32], b: &[f32]) -> f32 {
+    a.iter().zip(b).map(|(x, y)| x * y).sum()
+}
+fn centroid(vectors: &[&Vec<f32>]) -> Vec<f32> {
+    normalize(
+        (0..vectors[0].len())
+            .map(|i| vectors.iter().map(|v| v[i]).sum())
+            .collect(),
+    )
+    .unwrap()
+}
+#[test]
+fn thresholds_leave_room_for_the_ambiguity_fixtures() {
+    // Margin-0 windows between orthogonal voices reach at most 1/sqrt(2); the
+    // ambiguity tests need both sides of MERGE below that.
+    const { assert!(0. < MARGIN && ASSIGN < MERGE && MERGE < FRAC_1_SQRT_2) };
+    let (a, b) = ([1., 0., 0.], [0., 1., 0.]);
+    for best in [ambiguous_above_merge(), ambiguous_below_merge()] {
+        let v = equidistant(best);
+        assert!((dot(&v, &a) - best).abs() < 1e-6 && (dot(&v, &b) - best).abs() < 1e-6);
+        assert!((dot(&v, &v) - 1.).abs() < 1e-6);
+    }
+    assert!(ambiguous_above_merge() >= MERGE);
+    assert!((ASSIGN..MERGE).contains(&ambiguous_below_merge()));
+}
 #[test]
 fn no_model_is_enabled_or_downloaded_by_construction() {
     let temp = tempfile::TempDir::new().unwrap();
@@ -36,15 +81,15 @@ fn same_voice_accumulates_three_seconds_before_visibility() {
 #[test]
 fn second_best_margin_does_not_silently_assign_ambiguous_voice() {
     // An ambiguous window is never given an existing speaker. Equidistant
-    // with best ~0.707 (>= MERGE): left unattributed. Equidistant with best
-    // ~0.65 (in [ASSIGN, MERGE)): a new provisional cluster, still not a or b.
+    // with best >= MERGE: left unattributed. Equidistant with best in
+    // [ASSIGN, MERGE): a new provisional cluster, still not a or b.
     let mut c = Clusters::new("mic", &[]);
     let a = c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap().0;
     let b = c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap().0;
-    let high = normalize(vec![1., 1., 0.]).unwrap();
+    let high = equidistant(ambiguous_above_merge());
     assert!(c.assign("high", high, 1500).unwrap().is_none());
     assert!(c.speaker_for("high").is_none());
-    let low = normalize(vec![0.65, 0.65, 0.394]).unwrap();
+    let low = equidistant(ambiguous_below_merge());
     let provisional = c.assign("low", low, 1500).unwrap().unwrap();
     assert_ne!(provisional.0, a);
     assert_ne!(provisional.0, b);
@@ -100,15 +145,24 @@ fn contradictory_constraints_fail_instead_of_guessing() {
 }
 #[test]
 fn agglomeration_uses_silhouette_without_erasing_all_speaker_separation() {
-    // c opens far from a (0.5 < ASSIGN); a then drifts toward c through two
+    // c opens 10 degrees past ASSIGN from a; a then drifts toward c through two
     // clear assignments, so refinement finds a >= MERGE pair to merge.
     let mut c = Clusters::new("mic", &[]);
     let deg = |d: f32| vec![d.to_radians().cos(), 0., d.to_radians().sin()];
-    c.assign("a1", deg(0.), 3000).unwrap().unwrap();
-    c.assign("c", deg(60.), 1500).unwrap().unwrap();
+    let far = ASSIGN.acos().to_degrees() + 10.;
+    let (a1, cv, a2, a3) = (deg(0.), deg(far), deg(far - 45.), deg(far - 35.));
+    // Preconditions: c opens; a2 and a3 clearly join a; a's centroid then
+    // reaches MERGE against c.
+    assert!(dot(&cv, &a1) < ASSIGN);
+    let a12 = centroid(&[&a1, &a2]);
+    assert!(dot(&a2, &a1) >= ASSIGN && dot(&a2, &a1) - dot(&a2, &cv) >= MARGIN);
+    assert!(dot(&a3, &a12) >= ASSIGN && dot(&a3, &a12) - dot(&a3, &cv) >= MARGIN);
+    assert!(dot(&centroid(&[&a1, &a2, &a3]), &cv) >= MERGE);
+    c.assign("a1", a1, 3000).unwrap().unwrap();
+    c.assign("c", cv, 1500).unwrap().unwrap();
     c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
-    c.assign("a2", deg(20.), 3000).unwrap().unwrap();
-    c.assign("a3", deg(25.), 3000).unwrap().unwrap();
+    c.assign("a2", a2, 3000).unwrap().unwrap();
+    c.assign("a3", a3, 3000).unwrap().unwrap();
     assert_eq!(c.speakers("mic").len(), 3);
     let merges = c.refine(Some(2));
     assert!(!merges.is_empty());
@@ -899,11 +953,11 @@ fn diagnostics_record_margin_failures() {
     let mut c = Clusters::new("mic", &[]);
     c.assign("a", vec![1., 0., 0.], 3000).unwrap();
     c.assign("b", vec![0., 1., 0.], 3000).unwrap();
-    // equidistant, best ~0.707 >= MERGE, margin 0: unattributed
-    c.assign("m", normalize(vec![1., 1., 0.]).unwrap(), 3000)
+    // equidistant, best >= MERGE, margin 0: unattributed
+    c.assign("m", equidistant(ambiguous_above_merge()), 3000)
         .unwrap();
-    // equidistant, best ~0.65 in [ASSIGN, MERGE): opens
-    c.assign("n", normalize(vec![0.65, 0.65, 0.394]).unwrap(), 3000)
+    // equidistant, best in [ASSIGN, MERGE): opens
+    c.assign("n", equidistant(ambiguous_below_merge()), 3000)
         .unwrap();
     let d = c.diagnostics();
     assert_eq!(d.margin_failures, 2);
@@ -976,6 +1030,12 @@ fn interleaved(
     }
     records
 }
+/// Two well-separated voices (cosine 0.3) with noisy midpoint windows. The
+/// midpoint noise scales with MARGIN so the midpoints stay margin failures
+/// (top-two difference well under MARGIN), not near-ties that one voice wins.
+fn two_voice_call() -> Vec<crate::finalize::Record> {
+    interleaved(0.3, 150, 0.6, 1.5 * MARGIN)
+}
 fn turns_for(records: &[crate::finalize::Record]) -> Vec<SpeakerTurn> {
     records
         .iter()
@@ -997,7 +1057,7 @@ fn ambiguous_window_at_or_above_merge_opens_nothing_and_leaves_centroids_unchang
     c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
     let before = c.speakers("mic");
     assert!(
-        c.assign("m", normalize(vec![1., 1., 0.]).unwrap(), 1500)
+        c.assign("m", equidistant(ambiguous_above_merge()), 1500)
             .unwrap()
             .is_none()
     );
@@ -1020,7 +1080,7 @@ fn ambiguous_window_between_assign_and_merge_still_opens() {
     let mut c = Clusters::new("mic", &[]);
     c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap();
     c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
-    let v = normalize(vec![0.65, 0.65, 0.394]).unwrap();
+    let v = equidistant(ambiguous_below_merge());
     let opened = c.assign("m", v, 1500).unwrap().unwrap();
     assert_eq!(c.speakers("mic").len(), 3);
     assert_eq!(c.speaker_for("m"), Some(opened.0.as_str()));
@@ -1032,7 +1092,7 @@ fn genuinely_new_voice_still_opens_after_many_ambiguous_windows() {
     c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap();
     c.assign("b", vec![0., 1., 0.], 3000).unwrap().unwrap();
     for n in 0..200 {
-        let m = normalize(vec![1., 1., 0.]).unwrap();
+        let m = equidistant(ambiguous_above_merge());
         assert!(c.assign(&format!("m{n}"), m, 1500).unwrap().is_none());
     }
     assert_eq!(c.speakers("mic").len(), 2);
@@ -1045,7 +1105,7 @@ fn genuinely_new_voice_still_opens_after_many_ambiguous_windows() {
 }
 #[test]
 fn long_noisy_two_voice_call_with_midpoints_stays_far_below_cap() {
-    let records = interleaved(0.3, 150, 0.6, 0.15);
+    let records = two_voice_call();
     assert!(records.len() >= 400);
     let mut c = Clusters::new("mic", &[]);
     for r in &records {
@@ -1073,7 +1133,12 @@ fn long_noisy_two_voice_call_with_midpoints_stays_far_below_cap() {
 }
 #[test]
 fn close_voices_keep_two_speakers_and_midpoints_surface_unknown_in_both_phases() {
-    let records = interleaved(0.65, 60, 0.6, 0.);
+    // Close, but distinct: voice centres just below MERGE, so refinement has
+    // no eligible pair; their exact midpoints are margin-0 windows above MERGE.
+    let cos = MERGE - 0.05;
+    let (_, _, mid) = voices(cos);
+    assert!(dot(&mid, &voices(cos).0) >= MERGE);
+    let records = interleaved(cos, 60, 0.6, 0.);
     for phase in [Phase::Refined, Phase::Live] {
         let result =
             crate::finalize::finish(turns_for(&records), &records, &in_person(phase), true, &[])
@@ -1103,7 +1168,7 @@ fn close_voices_keep_two_speakers_and_midpoints_surface_unknown_in_both_phases()
 }
 #[test]
 fn record_order_permutation_gives_same_refined_speaker_count() {
-    let records = interleaved(0.3, 150, 0.6, 0.15);
+    let records = two_voice_call();
     let turns = turns_for(&records);
     let config = in_person(Phase::Refined);
     let base = crate::finalize::finish(turns.clone(), &records, &config, true, &[]).unwrap();
@@ -1182,15 +1247,26 @@ fn planar(k: usize, deg: f32) -> Vec<f32> {
     v
 }
 /// Pair k: an established voice A_k = e_{2k} (3 s) and a duplicate D_k that
-/// opened far from it (60°, below ASSIGN) and drifted towards it through two
-/// clear windows (40°, 33°): centroid cosine ~0.715 (>= MERGE). `dup_ms` is
-/// the speech of each D_k window.
+/// opened 6 degrees past ASSIGN from it and drifted towards it through two
+/// clear windows, ending with a centroid 2 degrees inside MERGE (cosine ~0.63
+/// at ASSIGN 0.50 / MERGE 0.60). `dup_ms` is the speech of each D_k window.
 fn drifted_pair(k: usize, dup_ms: u64) -> Vec<crate::finalize::Record> {
+    let open = ASSIGN.acos().to_degrees() + 6.;
+    let target = MERGE.acos().to_degrees() - 2.;
+    let drift = (3. * target - open) / 2.;
+    // Preconditions, in plane k: D opens; each drift window clearly joins D
+    // (not A); D's final centroid is at or above MERGE against A.
+    let (a, d1, d) = (planar(k, 0.), planar(k, open), planar(k, drift));
+    assert!(dot(&d1, &a) < ASSIGN);
+    let d12 = centroid(&[&d1, &d]);
+    assert!(dot(&d, &d1) >= ASSIGN && dot(&d, &d1) - dot(&d, &a) >= MARGIN);
+    assert!(dot(&d, &d12) >= ASSIGN && dot(&d, &d12) - dot(&d, &a) >= MARGIN);
+    assert!(dot(&centroid(&[&d1, &d, &d]), &a) >= MERGE);
     [
         (0., "a", 3000),
-        (60., "d1", dup_ms),
-        (40., "d2", dup_ms),
-        (33., "d3", dup_ms),
+        (open, "d1", dup_ms),
+        (drift, "d2", dup_ms),
+        (drift, "d3", dup_ms),
     ]
     .into_iter()
     .map(|(deg, name, duration)| crate::finalize::Record {
@@ -1419,7 +1495,7 @@ fn cannot_linked_duplicates_never_merge_at_the_cap() {
 #[test]
 fn established_similar_voices_are_not_merged_while_smaller_duplicates_exist() {
     // Pairs 0..20 are provisional duplicates; pair 20 is two established
-    // voices (each window 3 s) with the same ~0.715 centroid cosine.
+    // voices (each window 3 s) with the same centroid cosine (>= MERGE).
     let mut records = (0..20)
         .flat_map(|k| drifted_pair(k, 500))
         .collect::<Vec<_>>();
@@ -1507,6 +1583,12 @@ fn finalize_with_cap_merges_and_evictions_is_deterministic_and_keeps_constraints
 }
 #[test]
 fn long_four_voice_call_with_midpoints_finishes_with_few_speakers() {
+    // Pair midpoints of near-orthogonal voices sit at ~0.707 to both; noise r
+    // lowers that to ~0.707/sqrt(1+r^2). Aim just under ASSIGN so the
+    // midpoints keep opening stray clusters (below ASSIGN or margin
+    // failures under MERGE) and drive the stream into the cap.
+    let target = ASSIGN - 0.02;
+    let mid_noise = (0.5 / (target * target) - 1.).sqrt();
     let mut rng = Rng(0x2545_f491_4f6c_dd1d);
     let centers = (0..4)
         .map(|_| normalize((0..DIM).map(|_| rng.uniform()).collect()).unwrap())
@@ -1531,7 +1613,7 @@ fn long_four_voice_call_with_midpoints_finishes_with_few_speakers() {
         .unwrap();
         records.push(crate::finalize::Record {
             turn: format!("mic:m-{round}"),
-            embedding: rng.noisy(&mid, 0.8),
+            embedding: rng.noisy(&mid, mid_noise),
             duration: 1500,
         });
     }

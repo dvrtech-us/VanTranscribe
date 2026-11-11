@@ -646,7 +646,7 @@ test('voice detection and provisional speakers require explicit setup and speake
   await expect(download).toBeDisabled();
   expect(await page.evaluate(() => (window as any).__testCalls.some((call: any) => ['install_vad_model', 'install_diarization_model', 'update_audio_preferences'].includes(call.command)))).toBe(false);
   await page.getByText('Speaker model sources and license notice', { exact: true }).click();
-  await expect(page.getByText(/English and meeting-channel thresholds are not calibrated/)).toBeVisible();
+  await expect(page.getByText(/Clustering thresholds are experimental/)).toBeVisible();
   await page.getByRole('checkbox', { name: 'I have read the speaker model source and license notice.', exact: true }).check();
   await download.click();
   await expect(page.getByRole('progressbar', { name: 'Speaker model download progress' })).toHaveJSProperty('value', 0.3);
