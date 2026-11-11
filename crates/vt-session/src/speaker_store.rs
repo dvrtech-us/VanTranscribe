@@ -395,9 +395,11 @@ pub(crate) fn save_result(
     save_result_inner(root, meeting, run, result, reconcile, true)
 }
 
-/// Bounded lock-contention budget for one live speaker publication. The worst
-/// case is `attempts * busy_timeout` plus the doubling backoff between attempts,
-/// which must stay well below `backlog::LAG_LIMIT_MS` (10 s).
+/// Bounded lock-contention budget for one live save (speaker labels and live
+/// transcript lines). The worst-case wait is `attempts * busy_timeout` plus the
+/// doubling backoff between attempts. It is kept near one second: the recorder's
+/// chunk writer has a 5 s lock budget and never retries, so live writers must
+/// neither queue for seconds nor hold the lock for more than point operations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LiveSaveBudget {
     pub busy_timeout: Duration,
@@ -405,12 +407,21 @@ pub(crate) struct LiveSaveBudget {
     pub backoff: Duration,
 }
 impl LiveSaveBudget {
-    /// 3 x 1.5 s + 100 ms + 200 ms = 4.8 s worst case.
+    /// 3 x 300 ms + 50 ms + 100 ms = 1.05 s worst-case wait.
     pub(crate) const PRODUCTION: Self = Self {
-        busy_timeout: Duration::from_millis(1_500),
+        busy_timeout: Duration::from_millis(300),
         attempts: 3,
-        backoff: Duration::from_millis(100),
+        backoff: Duration::from_millis(50),
     };
+    /// Worst-case time one save can spend waiting for the write lock.
+    #[cfg(test)]
+    pub(crate) fn worst_case(self) -> Duration {
+        let attempts = self.attempts.max(1);
+        let backoff = (0..attempts - 1)
+            .map(|n| self.backoff.saturating_mul(1 << n.min(8)))
+            .sum::<Duration>();
+        self.busy_timeout.saturating_mul(attempts) + backoff
+    }
 }
 
 /// Incremental live publication writes only the supplied bounded update. It
@@ -438,24 +449,13 @@ pub(crate) fn save_live_updates_with(
     result: &DiarizationResult,
     budget: LiveSaveBudget,
 ) -> Result<()> {
-    let mut attempt = 1;
-    loop {
-        let outcome = (|| -> Result<()> {
-            let mut db = open(root)?;
-            db.busy_timeout(budget.busy_timeout)?;
-            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-            save_result_body(&tx, meeting, run, result, false, false)?;
-            tx.commit()?;
-            Ok(())
-        })();
-        match outcome {
-            Err(error) if attempt < budget.attempts.max(1) && sqlite_busy(&error) => {
-                std::thread::sleep(budget.backoff.saturating_mul(1 << (attempt - 1).min(8)));
-                attempt += 1;
-            }
-            other => return other,
-        }
-    }
+    super::retry_busy(budget, |busy_timeout| {
+        let mut db = super::open_with_timeout(root, busy_timeout)?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        save_result_body(&tx, meeting, run, result, false, false)?;
+        tx.commit()?;
+        Ok(())
+    })
 }
 
 /// Constraint ambiguity is review metadata, never an invented assignment. Keep

@@ -30,8 +30,26 @@ export interface ActiveRecording {
   gaps: number;
   transcription_configured?: boolean;
   transcription_active?: boolean;
+  live_transcription?: LiveTranscriptionView | null;
+  capture?: CaptureView;
   error?: string | null;
 }
+
+export type LiveStopReason = 'worker_failed' | 'recovery_budget_exhausted' | 'sustained_backlog' | 'disk_protection' | 'audio_pipeline_stopped' | 'worker_unavailable';
+export interface LiveTranscriptionView { state: 'active' | 'stopped'; since_source_ms?: number | null; reason?: LiveStopReason | null }
+export type CaptureStallKind = 'no_audio_callbacks' | 'helper_silent' | 'consumer_slow';
+export function liveStopReasonText(reason?: LiveStopReason | null): string {
+  switch (reason) {
+    case 'disk_protection': return 'Disk space was running low, so live transcription was stopped to protect your recording.';
+    case 'sustained_backlog': return 'Live transcription could not keep up with the audio.';
+    case 'audio_pipeline_stopped': return 'Live audio processing stopped unexpectedly.';
+    case 'worker_unavailable': return 'The transcription engine was not available.';
+    case 'worker_failed':
+    case 'recovery_budget_exhausted': return 'A processing fault interrupted live transcription.';
+    default: return '';
+  }
+}
+export interface CaptureView { state: 'ok' | 'stalled' | 'consumer_slow'; since_source_ms?: number | null; kind?: CaptureStallKind | null }
 
 export interface EchoInfo { enabled: boolean; applied_mic_ms: number; bypassed_mic_ms: number; engine: string; warnings: string[] }
 export interface OutputRoute { kind: 'built_in_speakers' | 'headphones' | 'external' | 'unknown'; reason: string; transport: string }
@@ -196,4 +214,21 @@ export interface LiveModelCatalog { selected: LiveModel; choices: LiveModelChoic
 
 export type BacklogStage = 'normal' | 'partials_disabled' | 'speakers_disabled' | 'stt_disabled';
 export interface BacklogSnapshot { stage: BacklogStage; lag_ms: number; partials_enabled: boolean; speakers_enabled: boolean; stt_enabled: boolean; warning: string | null }
-export interface BacklogReport { complete?: boolean; stages: { stage: BacklogStage; source_ms: number; lag_ms: number }[]; gaps: { worker: string; track: string; generation: number; start_ms: number; end_ms: number; reason: string }[]; warnings: string[]; truncated: boolean; max_lag_ms: number }
+export interface BacklogReport { complete?: boolean; stages: { stage: BacklogStage; source_ms: number; lag_ms: number }[]; gaps: { worker: string; track: string; generation: number; start_ms: number; end_ms: number; reason: string }[]; warnings: string[]; truncated: boolean; max_lag_ms: number; failures?: WorkerFailure[]; capture?: CaptureHealth }
+export interface WorkerFailure { worker: 'dsp' | 'stt' | 'speakers'; source_ms: number; cause: string; terminal: boolean; count?: number }
+export interface CaptureHealth {
+  rebuilds: { source_ms: number; reason: 'device_change' | 'process_exclusion_change' | 'unknown'; trigger: 'notification' | 'poll' | 'wake' | 'settle_check' | 'unknown'; previous_epoch: number; epoch: number; trigger_age_ms: number; fingerprint_ms: number; stop_ms: number; start_ms: number; result: 'ok' | 'failed' | 'cancelled' | 'unknown' }[];
+  rebuilds_total: number;
+  slow_calls: { source_ms: number; call: string; duration_ms: number; phase: 'idle' | 'stop' | 'start' | 'fingerprint' | 'route' | 'unknown' }[];
+  slow_calls_total: number;
+  epochs: { source_ms: number; epoch: number; sample_rate: number; mic_channels: number; system_channels: number; quantum: number; input_transport: 'built_in' | 'bluetooth' | 'usb' | 'aggregate' | 'virtual' | 'other' | 'unknown'; settle_ms?: number | null; settle_stable?: boolean | null }[];
+  epochs_total: number;
+  stalls: { kind: CaptureStallKind; since_source_ms: number; duration_ms?: number | null }[];
+  stalls_total: number;
+  heartbeats: number;
+  max_emit_ms: number;
+  max_queued_packets: number;
+  slow_iterations: number;
+  max_iteration_ms: number;
+  truncated: boolean;
+}

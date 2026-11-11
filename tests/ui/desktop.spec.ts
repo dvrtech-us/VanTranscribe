@@ -500,6 +500,79 @@ test('live partials are visually distinct and never expose editing controls', as
   await expect(page.getByRole('button', { name: 'Regenerate AI notes', exact: true })).toBeDisabled();
 });
 
+test('stopped live transcription is shown in the transcript pane with existing segments', async ({ page }) => {
+  await seedSavedMeeting(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).__testFixture;
+    fixture.detail.meeting.status = 'recording';
+    fixture.detail.runs[0].kind = 'live';
+    fixture.detail.runs[0].status = 'running';
+    fixture.snapshot.recording = { id: 'saved-fixture', title: 'Design fixture', status: 'recording', elapsed_ms: 2861000, mic_level: 0.4, system_level: 0.1, gaps: 0, transcription_configured: true, transcription_active: false, live_transcription: { state: 'stopped', since_source_ms: 2861000, reason: 'disk_protection' } };
+  });
+  const notice = page.locator('.live-stopped');
+  await expect(notice).toContainText('Live transcription stopped at 00:47:41');
+  await expect(notice).toContainText('Audio is still being recorded');
+  await expect(notice).toContainText('produced from the saved audio after you stop recording');
+  await expect(notice).toContainText('Disk space was running low');
+  await expect(notice).not.toContainText('disk_protection');
+  await expect(notice).toHaveAttribute('role', 'status');
+  await expect(page.locator('.transcript-hint')).toHaveText('Live transcription stopped');
+  await expect(page.locator('.transcript-entry').first()).toBeVisible();
+  await page.screenshot({ path: 'test-results/live-transcription-stopped.png', fullPage: true });
+});
+
+test('stopped live transcription with no segments replaces the listening empty state', async ({ page }) => {
+  await seedSavedMeeting(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).__testFixture;
+    fixture.detail.meeting.status = 'recording';
+    fixture.detail.segments = [];
+    fixture.snapshot.recording = { id: 'saved-fixture', title: 'Design fixture', status: 'recording', elapsed_ms: 70000, mic_level: 0, system_level: 0, gaps: 0, transcription_configured: true, transcription_active: true, live_transcription: { state: 'stopped', since_source_ms: 65000, reason: 'worker_failed' } };
+  });
+  await expect(page.locator('.live-stopped')).toContainText('Live transcription stopped at 00:01:05');
+  await expect(page.locator('.live-stopped')).toContainText('A processing fault interrupted live transcription.');
+  await expect(page.getByRole('heading', { name: 'Listening for the conversation' })).toHaveCount(0);
+  await expect(page.locator('.transcript-entry')).toHaveCount(0);
+});
+
+test('capture stall warning appears with live outage time and clears on recovery', async ({ page }) => {
+  await seedSavedMeeting(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).__testFixture;
+    fixture.detail.meeting.status = 'recording';
+    fixture.snapshot.recording = { id: 'saved-fixture', title: 'Design fixture', status: 'recording', elapsed_ms: 100000, mic_level: 0, system_level: 0, gaps: 0, transcription_configured: true, transcription_active: true, capture: { state: 'ok' } };
+  });
+  await expect(page.locator('.capture-stall')).toHaveCount(0);
+  await page.evaluate(() => { (window as any).__testFixture.snapshot.recording = { ...(window as any).__testFixture.snapshot.recording, elapsed_ms: 147000, capture: { state: 'stalled', since_source_ms: 100000, kind: 'helper_silent' } }; });
+  const warning = page.locator('.capture-stall');
+  await expect(warning).toHaveAttribute('role', 'alert');
+  await expect(warning).toContainText('No audio is being captured right now');
+  await expect(warning).toContainText('Nothing has been recorded for 00:00:47');
+  await expect(warning).toContainText('Check your microphone or audio device');
+  await page.evaluate(() => { (window as any).__testFixture.snapshot.recording = { ...(window as any).__testFixture.snapshot.recording, elapsed_ms: 152000 }; });
+  await expect(warning).toContainText('Nothing has been recorded for 00:00:52');
+  await page.screenshot({ path: 'test-results/capture-stalled.png', fullPage: true });
+  await page.evaluate(() => { (window as any).__testFixture.snapshot.recording = { ...(window as any).__testFixture.snapshot.recording, elapsed_ms: 153000, capture: { state: 'ok' } }; });
+  await expect(page.locator('.capture-stall')).toHaveCount(0);
+});
+
+test('consumer_slow is not shown as a capture outage; absent fields render nothing', async ({ page }) => {
+  await seedSavedMeeting(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).__testFixture;
+    fixture.detail.meeting.status = 'recording';
+    fixture.snapshot.recording = { id: 'saved-fixture', title: 'Design fixture', status: 'recording', elapsed_ms: 9000, mic_level: 0, system_level: 0, gaps: 0, transcription_configured: true, transcription_active: true, capture: { state: 'consumer_slow', since_source_ms: 5000, kind: 'consumer_slow' } };
+  });
+  await expect(page.getByText('Audio processing is running slowly. Recording is not affected.')).toBeVisible();
+  await expect(page.locator('.capture-stall')).toHaveCount(0);
+  await page.evaluate(() => { const f = (window as any).__testFixture; const r = { ...f.snapshot.recording, live_transcription: null }; delete r.capture; f.snapshot.recording = r; });
+  await expect(page.getByText('Audio processing is running slowly.')).toHaveCount(0);
+  await expect(page.locator('.live-stopped')).toHaveCount(0);
+  await page.evaluate(() => { const f = (window as any).__testFixture; const r = { ...f.snapshot.recording }; delete r.live_transcription; f.snapshot.recording = r; });
+  await expect(page.locator('.live-stopped, .capture-stall')).toHaveCount(0);
+  await expect(page.getByText('Saved as the conversation unfolds')).toBeVisible();
+});
+
 async function setAudioRange(control: import('@playwright/test').Locator, value: string) {
   await expect(control).toBeEnabled();
   await control.evaluate((element, next) => {

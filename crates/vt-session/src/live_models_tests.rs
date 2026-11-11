@@ -63,6 +63,8 @@ fn model_choice_cannot_change_during_any_active_work() {
                 gaps: 0,
                 transcription_configured: false,
                 transcription_active: false,
+                live_transcription: None,
+                capture: Default::default(),
                 error: None,
             },
         });

@@ -350,11 +350,23 @@ fn helper_gap_reason(reason: &str) -> GapReason {
     }
 }
 
+/// Per-worker context for live transcript publication, resolved once at
+/// worker start (the meeting mode no longer costs a connection per event).
+pub(super) struct LiveTranscript {
+    pub(super) in_person: bool,
+    pub(super) sink: crate::live_transcript::TranscriptSink,
+}
+
+/// Publishes one recognizer event. Partials update the runtime view only.
+/// Finals are shown at once through `Runtime::live_finals` and handed to the
+/// session's transcript writer; this never touches SQLite and cannot fail, so
+/// persistence can neither block nor stop recognition.
 pub(super) fn save_transcript(
     service: &AppService,
-    id: &str,
+    live: &LiveTranscript,
+    generation: u64,
     event: TranscriptEvent,
-) -> Result<()> {
+) {
     if !event.is_final
         && !service
             .backlog
@@ -362,11 +374,10 @@ pub(super) fn save_transcript(
             .unwrap_or_else(|e| e.into_inner())
             .partials()
     {
-        return Ok(());
+        return;
     }
 
-    let in_person = store::meeting_mode(&service.root, id)? == vt_diarize::MeetingMode::InPerson;
-    let speaker = if in_person {
+    let speaker = if live.in_person {
         "Unknown"
     } else if event.track == TrackKind::Mic {
         "Me"
@@ -395,18 +406,21 @@ pub(super) fn save_transcript(
             .collect(),
     };
     if event.is_final {
-        if !segment.text.trim().is_empty() {
-            store::save_segment(&service.root, id, &segment)?;
-        }
+        let keep = !segment.text.trim().is_empty();
         if let Ok(mut runtime) = service.runtime.lock() {
             runtime.partials.remove(&event.track);
+            if keep {
+                runtime.live_finals.push(segment.clone());
+            }
+        }
+        if keep {
+            live.sink.push(generation, event.track, segment);
         }
     } else if let Ok(mut runtime) = service.runtime.lock()
         && !segment.text.trim().is_empty()
     {
         runtime.partials.insert(event.track, segment);
     }
-    Ok(())
 }
 
 // Completion measures accepted input, including silence and VAD-suppressed audio.
@@ -414,7 +428,7 @@ pub(super) fn save_transcript(
 pub(super) fn consume_inference(
     service: &AppService,
     worker: backlog::Worker,
-    rx: Receiver<Inference>,
+    rx: &Receiver<Inference>,
     mut accept: impl FnMut(Inference) -> Result<()>,
 ) -> Result<()> {
     let mut previous = None;
@@ -454,7 +468,7 @@ pub(super) fn consume_inference(
     }
     Ok(())
 }
-fn spawn_inference_worker(
+pub(crate) fn spawn_inference_worker(
     service: Arc<AppService>,
     worker: backlog::Worker,
     name: &str,
@@ -462,15 +476,25 @@ fn spawn_inference_worker(
 ) -> Option<std::thread::JoinHandle<Result<()>>> {
     let finished = service.clone();
     let thread_name = name.to_owned();
-    match std::thread::Builder::new().name(name.into()).spawn(move|| {
-        let result=work();
-        let mut controller=finished.backlog.lock().unwrap_or_else(|e|e.into_inner());
-        if let Err(error)=&result {controller.defer_pending(worker,"worker_failed");controller.warn("A live inference worker failed. Raw audio is preserved; refine saved audio after stopping.");controller.warn(&worker_failure_warning(&thread_name,error));}
-        controller.stopped(worker);
-        result
-    }) {
-        Ok(worker)=>Some(worker),
-        Err(_)=>{let mut controller=service.backlog.lock().unwrap_or_else(|e|e.into_inner());controller.stopped(worker);controller.warn("A live inference worker could not start. Raw audio is preserved.");None}
+    match std::thread::Builder::new()
+        .name(name.into())
+        .spawn(move || {
+            let result = work();
+            // A no-op when the worker already recorded its own exit.
+            finished
+                .backlog
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .worker_exit(worker, &thread_name, &result);
+            result
+        }) {
+        Ok(worker) => Some(worker),
+        Err(_) => {
+            let mut controller = service.backlog.lock().unwrap_or_else(|e| e.into_inner());
+            controller.stopped_because(worker, backlog::LiveStopReason::WorkerUnavailable);
+            controller.warn("A live inference worker could not start. Raw audio is preserved.");
+            None
+        }
     }
 }
 /// The fatal cause, including any SQLite extended result code, bounded so a
@@ -482,59 +506,123 @@ pub(crate) fn worker_failure_warning(name: &str, error: &anyhow::Error) -> Strin
     }
     format!("Live inference worker {name} stopped: {cause}")
 }
-fn infer_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>) -> Result<()> {
-    if !service.inference_allowed(backlog::Worker::Stt) {
-        return Ok(());
-    }
-    #[cfg(test)]
-    let fake = service.test_workers.lock().unwrap().clone();
-    #[cfg(test)]
-    if let Some(fake) = fake {
-        return consume_inference(&service, backlog::Worker::Stt, rx, |message| {
-            let generation = match &message {
-                Inference::Audio { generation, .. } | Inference::Reset(_, generation) => {
-                    *generation
-                }
-            };
-            let events = (fake.accept)(backlog::Worker::Stt, &message)?;
-            if service.inference_allowed(backlog::Worker::Stt)
-                && service.inference_current(generation)
-            {
-                for event in events {
-                    save_transcript(&service, &id, event)?;
-                }
-            }
-            Ok(())
-        });
-    }
 
-    let manager = service.live_model_manager()?;
-    let vad = service.vad_path();
-    let mut engine = match live_models::recognizer(&manager, vad.as_deref()) {
-        Ok(engine) => {
-            if let Ok(mut runtime) = service.runtime.lock() {
-                runtime.live_processing.vad_active = vad.is_some();
-            }
-            engine
-        }
-        Err(error) if vad.is_some() => {
-            if let Ok(mut runtime) = service.runtime.lock() {
-                runtime.live_processing.vad_warning = Some(format!(
-                    "Voice activity detection is unavailable; live recognition continues without it: {error}"
-                ));
-            }
-            live_models::recognizer(&manager, None)?
-        }
-        Err(error) => return Err(error),
-    };
-    if let Ok(mut runtime) = service.runtime.lock()
-        && let Some(current) = runtime.current.as_mut().filter(|c| c.view.id == id)
-    {
-        current.view.transcription_configured = true;
-        current.view.transcription_active = service.inference_allowed(backlog::Worker::Stt);
+/// Speech engine errors the live speech worker recovers from in one recording.
+/// Each recovery loses at most the failing packet (at most 2 s) plus the
+/// recognizer context of one track, so 20 bounds the live text lost to roughly
+/// 40 s even when alternating causes defeat the repeat rule, while a transient
+/// fault (one bad packet, a resampler that could not be created after a device
+/// change) never ends live transcription. Raw audio and refine are unaffected.
+pub(crate) const STT_RECOVERY_BUDGET: u32 = 20;
+/// Inference gap reason for the packet whose recognition failed and recovered.
+pub(crate) const RECOGNIZER_ERROR_GAP: &str = "recognizer_error";
+pub(crate) const STT_RECOVERED_WARNING: &str = "Live transcription recovered from a speech engine error; a short stretch of live text may be missing. Raw audio is preserved; refine saved audio for complete coverage.";
+
+/// The recognizer operations used by the live speech worker.
+pub(crate) trait LiveRecognizer {
+    fn accept(
+        &mut self,
+        track: TrackKind,
+        samples: &[f32],
+        rate: u32,
+        start_ms: u64,
+        generation: u64,
+    ) -> Result<Vec<TranscriptEvent>>;
+    /// Finalizes and clears one track; returns its pending hypothesis.
+    fn reset_track(&mut self, track: TrackKind, generation: u64) -> Result<Vec<TranscriptEvent>>;
+    fn finish(&mut self) -> Result<Vec<TranscriptEvent>>;
+    /// Replaces the engine. Used only after the engine itself failed: it may
+    /// reload model files.
+    fn rebuild(&mut self) -> Result<()>;
+}
+
+struct SherpaRecognizer {
+    engine: vt_stt::StreamingRecognizer,
+    manager: vt_stt::ModelManager,
+    vad: Option<std::path::PathBuf>,
+}
+impl LiveRecognizer for SherpaRecognizer {
+    fn accept(
+        &mut self,
+        track: TrackKind,
+        samples: &[f32],
+        rate: u32,
+        start_ms: u64,
+        _: u64,
+    ) -> Result<Vec<TranscriptEvent>> {
+        Ok(self.engine.accept(track, samples, rate, start_ms)?)
     }
-    let mut last_generation = None;
-    consume_inference(&service, backlog::Worker::Stt, rx, |message| {
+    fn reset_track(&mut self, track: TrackKind, _: u64) -> Result<Vec<TranscriptEvent>> {
+        Ok(self.engine.reset_track(track)?)
+    }
+    fn finish(&mut self) -> Result<Vec<TranscriptEvent>> {
+        Ok(self.engine.finish()?)
+    }
+    fn rebuild(&mut self) -> Result<()> {
+        self.engine = match live_models::recognizer(&self.manager, self.vad.as_deref()) {
+            Ok(engine) => engine,
+            Err(_) if self.vad.is_some() => live_models::recognizer(&self.manager, None)?,
+            Err(error) => return Err(error),
+        };
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+struct FakeRecognizer(Arc<backlog::FakeAccept>);
+#[cfg(test)]
+impl LiveRecognizer for FakeRecognizer {
+    fn accept(
+        &mut self,
+        track: TrackKind,
+        samples: &[f32],
+        rate: u32,
+        start_ms: u64,
+        generation: u64,
+    ) -> Result<Vec<TranscriptEvent>> {
+        (self.0)(
+            backlog::Worker::Stt,
+            &Inference::Audio {
+                track,
+                samples: samples.to_vec(),
+                rate,
+                start_ms,
+                generation,
+            },
+        )
+    }
+    fn reset_track(&mut self, track: TrackKind, generation: u64) -> Result<Vec<TranscriptEvent>> {
+        (self.0)(backlog::Worker::Stt, &Inference::Reset(track, generation))
+    }
+    fn finish(&mut self) -> Result<Vec<TranscriptEvent>> {
+        Ok(Vec::new())
+    }
+    fn rebuild(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+fn track_index(track: TrackKind) -> usize {
+    usize::from(track == TrackKind::System)
+}
+
+/// Per-message speech recognition with in-place recovery. Recovery must happen
+/// on this thread: it owns the only receiver of the speech queue.
+struct SpeechWorker<'a, R> {
+    service: &'a AppService,
+    live: LiveTranscript,
+    engine: R,
+    recoveries: u32,
+    /// Cause of the previous error while no message has succeeded since.
+    last_cause: Option<String>,
+    /// End of the audio accepted per track since its last reset.
+    fed_end: [Option<u64>; 2],
+    /// Last final published per track: (start_ms, text).
+    last_final: [Option<(u64, String)>; 2],
+    last_generation: Option<u64>,
+}
+impl<R: LiveRecognizer> SpeechWorker<'_, R> {
+    fn handle(&mut self, message: Inference) -> Result<()> {
         match message {
             Inference::Audio {
                 track,
@@ -543,33 +631,253 @@ fn infer_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>) -
                 start_ms,
                 generation,
             } => {
-                last_generation = Some(generation);
-                let events = engine.accept(track, &samples, rate, start_ms)?;
-                if service.inference_allowed(backlog::Worker::Stt)
-                    && service.inference_current(generation)
+                let end = start_ms.saturating_add(samples.len() as u64 * 1000 / u64::from(rate));
+                // The hypothesis pending before a generation change belongs
+                // to the previous generation; it is saved by the reset.
+                match self
+                    .engine
+                    .accept(track, &samples, rate, start_ms, generation)
                 {
-                    for event in events {
-                        save_transcript(&service, &id, event)?;
+                    Ok(events) => {
+                        self.last_generation = Some(generation);
+                        self.last_cause = None;
+                        let fed = &mut self.fed_end[track_index(track)];
+                        *fed = Some(fed.map_or(end, |old| old.max(end)));
+                        if self.service.inference_allowed(backlog::Worker::Stt)
+                            && self.service.inference_current(generation)
+                        {
+                            for event in events {
+                                self.publish(generation, event);
+                            }
+                        }
                     }
+                    Err(error) => self.recover(error, track, generation, start_ms, end)?,
                 }
             }
-            Inference::Reset(track, _) => {
-                let _ = engine.reset_track(track)?;
-                if let Ok(mut runtime) = service.runtime.lock() {
+            Inference::Reset(track, generation) => {
+                match self.engine.reset_track(track, generation) {
+                    Ok(events) => {
+                        self.last_cause = None;
+                        self.save_pending(track, events);
+                    }
+                    Err(error) => self.recover(error, track, generation, 0, 0)?,
+                }
+                if let Ok(mut runtime) = self.service.runtime.lock() {
                     runtime.partials.remove(&track);
                 }
             }
         }
         Ok(())
-    })?;
-    if service.inference_allowed(backlog::Worker::Stt)
-        && last_generation.is_some_and(|g| service.inference_current(g))
-    {
-        for event in engine.finish()? {
-            save_transcript(&service, &id, event)?;
+    }
+    fn publish(&mut self, generation: u64, event: TranscriptEvent) {
+        if event.is_final {
+            self.last_final[track_index(event.track)] = Some((event.start_ms, event.text.clone()));
+        }
+        save_transcript(self.service, &self.live, generation, event);
+    }
+    /// Saves the finals a reset or finish returned for `track`: bounded by the
+    /// audio accepted before the reset (so never past a gap start) and skipped
+    /// when identical to the last final already published for the track.
+    fn save_pending(&mut self, track: TrackKind, events: Vec<TranscriptEvent>) {
+        let index = track_index(track);
+        let bound = self.fed_end[index].take();
+        if !self.service.inference_allowed(backlog::Worker::Stt) {
+            return;
+        }
+        let generation = self.last_generation.unwrap_or_default();
+        for mut event in events {
+            if !event.is_final || event.track != track || event.text.trim().is_empty() {
+                continue;
+            }
+            if let Some(bound) = bound {
+                event.end_ms = event.end_ms.min(bound);
+                event.start_ms = event.start_ms.min(event.end_ms);
+                for word in &mut event.words {
+                    word.end_ms = word.end_ms.min(event.end_ms);
+                    word.start_ms = word.start_ms.clamp(event.start_ms, word.end_ms);
+                }
+            }
+            if self.last_final[index]
+                .as_ref()
+                .is_some_and(|(start, text)| *start == event.start_ms && *text == event.text)
+            {
+                continue;
+            }
+            self.publish(generation, event);
         }
     }
-    Ok(())
+    fn save_all_pending(&mut self, events: Vec<TranscriptEvent>) {
+        for track in [TrackKind::Mic, TrackKind::System] {
+            let mine = events
+                .iter()
+                .filter(|e| e.track == track)
+                .cloned()
+                .collect();
+            self.save_pending(track, mine);
+        }
+    }
+    /// Records a recognition error as an STT gap and failure, resets the
+    /// affected recognizer state, and continues. The same cause twice with no
+    /// successful message in between, or an exhausted budget, is terminal.
+    fn recover(
+        &mut self,
+        error: anyhow::Error,
+        track: TrackKind,
+        generation: u64,
+        start_ms: u64,
+        end_ms: u64,
+    ) -> Result<()> {
+        let cause = store::describe_error(&error);
+        if self.last_cause.as_deref() == Some(cause.as_str()) {
+            return Err(error);
+        }
+        if self.recoveries >= STT_RECOVERY_BUDGET {
+            return Err(error.context(backlog::RecoveryExhausted));
+        }
+        self.recoveries += 1;
+        {
+            let mut controller = self
+                .service
+                .backlog
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            controller.gap(
+                backlog::Worker::Stt,
+                track,
+                generation,
+                start_ms,
+                end_ms,
+                RECOGNIZER_ERROR_GAP,
+            );
+            controller.failure(
+                backlog::Worker::Stt,
+                (end_ms > start_ms).then_some(start_ms),
+                &cause,
+                false,
+            );
+            controller.warn(STT_RECOVERED_WARNING);
+        }
+        self.last_cause = Some(cause);
+        let engine_failed = error
+            .downcast_ref::<vt_stt::SttError>()
+            .is_some_and(|error| matches!(error, vt_stt::SttError::Engine));
+        if !engine_failed && let Ok(events) = self.engine.reset_track(track, generation) {
+            self.save_pending(track, events);
+            return Ok(());
+        }
+        // The engine itself failed: save what both tracks had, then replace it.
+        if let Ok(events) = self.engine.finish() {
+            self.save_all_pending(events);
+        }
+        self.fed_end = [None; 2];
+        self.engine.rebuild()
+    }
+    fn finish(mut self) -> Result<()> {
+        // Saved even when the last generation is no longer current (a pause or
+        // gap just before stop): the audio was real and is bounded above.
+        if self.service.inference_allowed(backlog::Worker::Stt) {
+            let events = self.engine.finish()?;
+            self.save_all_pending(events);
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn infer_worker(
+    service: Arc<AppService>,
+    id: String,
+    rx: Receiver<Inference>,
+    sink: crate::live_transcript::TranscriptSink,
+) -> Result<()> {
+    let result = speech_worker(&service, &id, &rx, sink);
+    // Record how the worker ended while its queue is still open, so the audio
+    // stage sees the real reason (not a closed queue) when its sends fail.
+    service
+        .backlog
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .worker_exit(backlog::Worker::Stt, "speech-inference", &result);
+    drop(rx);
+    result
+}
+fn speech_worker(
+    service: &Arc<AppService>,
+    id: &str,
+    rx: &Receiver<Inference>,
+    sink: crate::live_transcript::TranscriptSink,
+) -> Result<()> {
+    if !service.inference_allowed(backlog::Worker::Stt) {
+        return Ok(());
+    }
+    let live = LiveTranscript {
+        in_person: store::meeting_mode(&service.root, id)? == vt_diarize::MeetingMode::InPerson,
+        sink,
+    };
+    #[cfg(test)]
+    let fake = service.test_workers.lock().unwrap().clone();
+    #[cfg(test)]
+    if let Some(fake) = fake {
+        return run_speech(service, id, rx, live, FakeRecognizer(fake.accept.clone()));
+    }
+
+    let manager = service.live_model_manager()?;
+    let vad = service.vad_path();
+    let (engine, vad) = match live_models::recognizer(&manager, vad.as_deref()) {
+        Ok(engine) => {
+            if let Ok(mut runtime) = service.runtime.lock() {
+                runtime.live_processing.vad_active = vad.is_some();
+            }
+            (engine, vad)
+        }
+        Err(error) if vad.is_some() => {
+            if let Ok(mut runtime) = service.runtime.lock() {
+                runtime.live_processing.vad_warning = Some(format!(
+                    "Voice activity detection is unavailable; live recognition continues without it: {error}"
+                ));
+            }
+            (live_models::recognizer(&manager, None)?, None)
+        }
+        Err(error) => return Err(error),
+    };
+    run_speech(
+        service,
+        id,
+        rx,
+        live,
+        SherpaRecognizer {
+            engine,
+            manager,
+            vad,
+        },
+    )
+}
+fn run_speech<R: LiveRecognizer>(
+    service: &AppService,
+    id: &str,
+    rx: &Receiver<Inference>,
+    live: LiveTranscript,
+    engine: R,
+) -> Result<()> {
+    if let Ok(mut runtime) = service.runtime.lock()
+        && let Some(current) = runtime.current.as_mut().filter(|c| c.view.id == id)
+    {
+        current.view.transcription_configured = true;
+        current.view.transcription_active = service.inference_allowed(backlog::Worker::Stt);
+    }
+    let mut worker = SpeechWorker {
+        service,
+        live,
+        engine,
+        recoveries: 0,
+        last_cause: None,
+        fed_end: [None; 2],
+        last_final: [None, None],
+        last_generation: None,
+    };
+    consume_inference(service, backlog::Worker::Stt, rx, |message| {
+        worker.handle(message)
+    })?;
+    worker.finish()
 }
 fn speaker_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>) -> Result<()> {
     let outcome = (|| -> Result<()> {
@@ -592,7 +900,7 @@ fn speaker_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>)
                     )
                 })
                 .transpose()?;
-            return consume_inference(&service, backlog::Worker::Speakers, rx, |message| {
+            return consume_inference(&service, backlog::Worker::Speakers, &rx, |message| {
                 (fake.accept)(backlog::Worker::Speakers, &message)?;
                 if let (Some(publisher), Some(turns), Inference::Audio { generation, .. }) =
                     (publisher.as_mut(), fake.speaker_turns.as_ref(), &message)
@@ -609,7 +917,7 @@ fn speaker_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>)
             return Ok(());
         };
         let mut last_generation = None;
-        consume_inference(&service, backlog::Worker::Speakers, rx, |message| {
+        consume_inference(&service, backlog::Worker::Speakers, &rx, |message| {
             if service.shutting_down.load(Ordering::Relaxed) {
                 bail!(
                     "Live speaker work was interrupted while closing. Refine saved audio to finish labels."
@@ -647,6 +955,36 @@ fn speaker_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>)
         }
     }
     outcome
+}
+
+pub(crate) const HOUSEKEEPING_BUSY_WARNING: &str = "Recording details (duration, status or health) could not be saved while the database was busy; recording continues and they are saved again on the next update.";
+
+/// Housekeeping writes on the capture consumer loop must not end a recording
+/// because the database is momentarily locked: a lock error is skipped (the
+/// next periodic write or the final write at stop supersedes it) and reported
+/// once per recording. Any other error keeps today's fatal behaviour.
+fn tolerate_busy(service: &AppService, warned: &mut bool, result: Result<()>) -> Result<()> {
+    match result {
+        Err(error) if store::sqlite_busy(&error) => {
+            if !*warned {
+                *warned = true;
+                service.backlog_warn(&format!(
+                    "{HOUSEKEEPING_BUSY_WARNING} Cause: {}",
+                    store::describe_error(&error)
+                ));
+            }
+            Ok(())
+        }
+        other => other,
+    }
+}
+
+fn publish_capture(service: &AppService, monitor: &crate::capture_health::CaptureMonitor) {
+    if let Ok(mut runtime) = service.runtime.lock()
+        && let Some(current) = &mut runtime.current
+    {
+        current.view.capture = monitor.view().clone();
+    }
 }
 
 fn warning(service: &AppService, message: String) {
@@ -806,10 +1144,23 @@ fn record_session(
         .unwrap_or_else(|e| e.into_inner())
         .configure(installed, speakers_enabled);
     service.refresh_backlog();
-    let audit = if installed || speakers_enabled {
-        let run = store::detail(&service.root, id)?
-            .active_run_id
-            .context("Missing live run")?;
+    let live_run = if installed || speakers_enabled {
+        Some(
+            store::detail(&service.root, id)?
+                .active_run_id
+                .context("Missing live run")?,
+        )
+    } else {
+        None
+    };
+    // The health report also carries capture diagnostics, so it is kept for
+    // every recording, not only for those with live inference.
+    let audit_run = live_run.clone().or_else(|| {
+        store::detail(&service.root, id)
+            .ok()
+            .and_then(|detail| detail.active_run_id)
+    });
+    let audit = if let Some(run) = audit_run {
         match backlog::AuditWriter::start(service.clone(), id.into(), run) {
             Ok(writer) => Some(writer),
             Err(error) => {
@@ -825,17 +1176,50 @@ fn record_session(
     } else {
         None
     };
-    let (inference, inference_worker) = if installed {
+    // Live transcript lines are saved by this session-owned writer, joined
+    // after the speech worker and before the live run is sealed.
+    let transcript_writer = match live_run.clone().filter(|_| installed) {
+        Some(run) => {
+            #[cfg(not(test))]
+            let budget = store::LiveSaveBudget::PRODUCTION;
+            #[cfg(test)]
+            let budget = service
+                .test_workers
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|fake| fake.live_save)
+                .unwrap_or(store::LiveSaveBudget::PRODUCTION);
+            match crate::live_transcript::TranscriptWriter::start(
+                service.clone(),
+                id.into(),
+                run,
+                budget,
+            ) {
+                Ok(writer) => Some(writer),
+                Err(_) => {
+                    let mut controller = service.backlog.lock().unwrap_or_else(|e| e.into_inner());
+                    controller.stopped(backlog::Worker::Stt);
+                    controller
+                        .warn("A live inference worker could not start. Raw audio is preserved.");
+                    None
+                }
+            }
+        }
+        None => None,
+    };
+    let (inference, inference_worker) = if let Some(writer) = &transcript_writer {
         let (tx, rx) = mpsc::sync_channel(600);
         let worker_service = service.clone();
         let worker_id = id.to_owned();
+        let sink = writer.sink();
         (
             Some(tx),
             spawn_inference_worker(
                 service.clone(),
                 backlog::Worker::Stt,
                 "speech-inference",
-                move || infer_worker(worker_service, worker_id, rx),
+                move || infer_worker(worker_service, worker_id, rx, sink),
             ),
         )
     } else {
@@ -893,9 +1277,35 @@ fn record_session(
     let mut resource_stop = false;
     let mut last_duration = Instant::now();
     let mut audio_received = false;
+    let mut housekeeping_warned = false;
+    let mut capture = crate::capture_health::CaptureMonitor::default();
     let outcome = (|| -> Result<()> {
         loop {
-            service.refresh_health(false)?;
+            {
+                // Measured at the top of each iteration: a late loop is the
+                // consumer's delay, never evidence against the helper.
+                let now = service.resources.tick_ns();
+                let source_ms = source_audio_clock_ms(&tracks);
+                let active = !paused && stopping.is_none();
+                let mut changed = false;
+                service
+                    .backlog
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .capture_health(|health| {
+                        changed = capture.iteration(now, source_ms, health)
+                            | capture.evaluate(now, active, health);
+                        changed
+                    });
+                if changed {
+                    publish_capture(service, &capture);
+                }
+            }
+            tolerate_busy(
+                service,
+                &mut housekeeping_warned,
+                service.refresh_health(false).map(drop),
+            )?;
             service.refresh_backlog();
             if service.inference_suspended.load(Ordering::Relaxed) {
                 dsp_input = None;
@@ -944,7 +1354,11 @@ fn record_session(
                                     .generation,
                             });
                         }
-                        store::set_status(&service.root, id, "paused", None)?;
+                        tolerate_busy(
+                            service,
+                            &mut housekeeping_warned,
+                            store::set_status(&service.root, id, "paused", None),
+                        )?;
                     }
                     Control::Resume => {
                         paused = false;
@@ -953,7 +1367,11 @@ fn record_session(
                             .lock()
                             .unwrap_or_else(|e| e.into_inner())
                             .resume();
-                        store::set_status(&service.root, id, "recording", None)?;
+                        tolerate_busy(
+                            service,
+                            &mut housekeeping_warned,
+                            store::set_status(&service.root, id, "recording", None),
+                        )?;
                     }
                 }
             }
@@ -975,8 +1393,14 @@ fn record_session(
                             .elapsed_ms
                     })
                     .unwrap_or(0);
-                store::set_duration(&service.root, id, elapsed)?;
+                // A busy database skips this update; the next one (2 s later)
+                // or the final duration write at stop supersedes it.
                 last_duration = Instant::now();
+                tolerate_busy(
+                    service,
+                    &mut housekeeping_warned,
+                    store::set_duration_with(&service.root, id, elapsed, store::LOOP_BUSY_TIMEOUT),
+                )?;
             }
             let event = match capture_rx.recv_timeout(Duration::from_millis(50)) {
                 Ok(event) => event?,
@@ -1017,7 +1441,18 @@ fn record_session(
                             runtime.source_timeline.origin_ns,
                         )
                     };
-                    health::timing(&service.root, id, &timing, origin)?;
+                    // The final timing is written again after capture ends.
+                    tolerate_busy(
+                        service,
+                        &mut housekeeping_warned,
+                        health::timing_with(
+                            &service.root,
+                            id,
+                            &timing,
+                            origin,
+                            store::LOOP_BUSY_TIMEOUT,
+                        ),
+                    )?;
                 }
                 CaptureEvent::OutputRoute {
                     epoch,
@@ -1212,6 +1647,32 @@ fn record_session(
                         }
                     }
                 }
+                CaptureEvent::Status {
+                    diagnostic: Some(diagnostic),
+                    ..
+                } => {
+                    let now = service.resources.tick_ns();
+                    let source_ms = source_audio_clock_ms(&tracks);
+                    let mut changed = false;
+                    service
+                        .backlog
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .capture_health(|health| {
+                            // Heartbeat counters ride along with the next
+                            // persisted change instead of forcing a write.
+                            changed = match &diagnostic {
+                                vt_capture::CaptureDiagnostic::Heartbeat { .. } => {
+                                    capture.heartbeat(now, source_ms, &diagnostic, health)
+                                }
+                                other => health.record(source_ms, other),
+                            };
+                            changed
+                        });
+                    if changed {
+                        publish_capture(service, &capture);
+                    }
+                }
                 CaptureEvent::Status { .. } => (),
                 CaptureEvent::Error { message, fatal } => {
                     if fatal {
@@ -1225,6 +1686,14 @@ fn record_session(
             }
         }
     })();
+    // Worker exits from here on are shutdown, not a live failure to report.
+    service
+        .backlog
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .closing();
+    capture.finish();
+    publish_capture(service, &capture);
     let _ = process.stop();
     drop(capture_rx);
     let _ = reader.join();
@@ -1295,6 +1764,11 @@ fn record_session(
                 "The speech engine stopped unexpectedly. The recorded audio is available.".into(),
             ),
         }
+    }
+    // Drain every queued final into the still-running live run before the
+    // inference audit is finalized and before `run` seals the live run.
+    if let Some(writer) = transcript_writer {
+        writer.finish();
     }
     if let Some(audit) = audit {
         audit.finish();
@@ -1498,6 +1972,10 @@ fn stage_final(
 #[cfg(test)]
 #[path = "live_speaker_persistence_tests.rs"]
 mod live_speaker_persistence_tests;
+
+#[cfg(test)]
+#[path = "live_recovery_tests.rs"]
+mod live_recovery_tests;
 
 #[cfg(test)]
 mod regression_tests {

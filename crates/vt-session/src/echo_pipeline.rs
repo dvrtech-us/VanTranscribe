@@ -5,6 +5,13 @@ use vt_dsp::{DspConfig, EchoProcessor, ProcessedAudio, RouteEligibility};
 #[path = "echo_pipeline_tests.rs"]
 mod tests;
 
+/// Final echo-info save at stop: 3 x 1 s + 100 ms + 200 ms worst case.
+const FINAL_SAVE_BUDGET: store::LiveSaveBudget = store::LiveSaveBudget {
+    busy_timeout: std::time::Duration::from_secs(1),
+    attempts: 3,
+    backoff: std::time::Duration::from_millis(100),
+};
+pub(crate) const ECHO_SAVE_BUSY_WARNING: &str = "Live echo processing details could not be saved because the database stayed busy. Raw audio is preserved.";
 const INCOMPLETE_HISTORY: &str = "Capture-time output route history is incomplete or unavailable. Saved audio is transcribed without echo cancellation.";
 
 pub(super) enum Input {
@@ -338,7 +345,11 @@ pub(super) fn worker(
         }
     }
     if !service.inference_allowed(backlog::Worker::Dsp) {
-        stream.warn("Live audio inference was deferred by recording resource protection. Raw audio is preserved.");
+        // Name the real reason: a stopped speech worker, load shedding or disk
+        // protection (a dead speaker worker alone never stops this stage).
+        let warning = backlog::audio_stage_stopped_warning(service.audio_stage_stop_reason());
+        stream.warn(warning);
+        service.backlog_warn(warning);
     } else if service.inference_current(generation) {
         deliver(
             &service,
@@ -349,7 +360,28 @@ pub(super) fn worker(
         );
     }
 
-    echo_store::save_info(&service.root, &id, &run, &stream.info)?;
+    // The final save may meet a busy database at stop: retry briefly, and do
+    // not fail the worker for lock contention (the info is diagnostic only).
+    #[cfg(not(test))]
+    let budget = FINAL_SAVE_BUDGET;
+    #[cfg(test)]
+    let budget = service
+        .test_workers
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|fake| fake.live_save)
+        .unwrap_or(FINAL_SAVE_BUDGET);
+    match store::retry_busy(budget, |busy_timeout| {
+        echo_store::save_info_with(&service.root, &id, &run, &stream.info, busy_timeout)
+    }) {
+        Ok(()) => (),
+        Err(error) if store::sqlite_busy(&error) => service.backlog_warn(&format!(
+            "{ECHO_SAVE_BUSY_WARNING} Cause: {}",
+            store::describe_error(&error)
+        )),
+        Err(error) => return Err(error),
+    }
     if let Ok(mut runtime) = service.runtime.lock() {
         runtime.live_processing.echo = Some(stream.info);
     }

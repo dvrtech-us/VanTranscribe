@@ -143,10 +143,38 @@ pub struct SummaryInfo {
 }
 
 pub(crate) fn open(root: &Path) -> Result<Connection> {
+    open_with_timeout(root, Duration::from_secs(5))
+}
+
+/// Busy timeout for housekeeping writes made on the capture consumer loop.
+/// That loop also feeds the recorder, so it must never wait seconds for a lock.
+pub(crate) const LOOP_BUSY_TIMEOUT: Duration = Duration::from_millis(250);
+
+pub(crate) fn open_with_timeout(root: &Path, busy_timeout: Duration) -> Result<Connection> {
     let db = Connection::open(root.join("vantranscribe.db"))?;
-    db.busy_timeout(Duration::from_secs(5))?;
+    db.busy_timeout(busy_timeout)?;
     db.pragma_update(None, "foreign_keys", "ON")?;
     Ok(db)
+}
+
+/// Runs one live save under `budget`, retrying only lock contention
+/// (`sqlite_busy`). Each attempt must open its own connection and transaction so
+/// a failed attempt releases everything before the backoff. Other errors return
+/// at once. Worst case: `attempts * busy_timeout` plus the doubling backoff.
+pub(crate) fn retry_busy<T>(
+    budget: LiveSaveBudget,
+    mut attempt: impl FnMut(Duration) -> Result<T>,
+) -> Result<T> {
+    let mut count = 1;
+    loop {
+        match attempt(budget.busy_timeout) {
+            Err(error) if count < budget.attempts.max(1) && sqlite_busy(&error) => {
+                std::thread::sleep(budget.backoff.saturating_mul(1 << (count - 1).min(8)));
+                count += 1;
+            }
+            other => return other,
+        }
+    }
 }
 
 /// SQLite (primary, extended) result codes carried anywhere in an error chain.
@@ -515,12 +543,24 @@ pub(crate) fn set_status(root: &Path, id: &str, status: &str, error: Option<&str
     Ok(())
 }
 pub(crate) fn set_duration(root: &Path, id: &str, duration: u64) -> Result<()> {
-    open(root)?.execute(
+    set_duration_with(root, id, duration, Duration::from_secs(5))
+}
+pub(crate) fn set_duration_with(
+    root: &Path,
+    id: &str,
+    duration: u64,
+    busy_timeout: Duration,
+) -> Result<()> {
+    open_with_timeout(root, busy_timeout)?.execute(
         "UPDATE app_meetings SET duration_ms=?2 WHERE id=?1",
         params![id, duration.min(i64::MAX as u64) as i64],
     )?;
     Ok(())
 }
+/// The original per-segment live save: a DEFERRED transaction that reads before
+/// it writes, then rebuilds the whole meeting's search rows. Recording now uses
+/// `save_live_segments`; this remains for fixtures and the regression record.
+#[cfg(test)]
 pub(crate) fn save_segment(root: &Path, id: &str, segment: &Segment) -> Result<()> {
     let mut db = open(root)?;
     let tx = db.transaction()?;
@@ -529,6 +569,85 @@ pub(crate) fn save_segment(root: &Path, id: &str, segment: &Segment) -> Result<(
     invalidate_summaries(&tx, id)?;
     rebuild_fts(&tx, id)?;
     tx.commit()?;
+    Ok(())
+}
+
+/// Live transcript persistence. One IMMEDIATE transaction (the write lock is
+/// taken at BEGIN, so a concurrent commit makes it wait in the busy handler
+/// instead of failing with SQLITE_BUSY_SNAPSHOT) holding only point operations:
+/// a primary-key check of the run, one idempotent insert and one search row per
+/// new segment, and summary invalidation. Segment IDs are minted before the
+/// first attempt, so a retried batch never duplicates rows. Returns how many
+/// segments were newly inserted.
+pub(crate) fn save_live_segments(
+    root: &Path,
+    meeting: &str,
+    run: &str,
+    segments: &[Segment],
+    budget: LiveSaveBudget,
+) -> Result<usize> {
+    for segment in segments {
+        validate_segment(segment)?;
+    }
+    retry_busy(budget, |busy_timeout| {
+        let mut db = open_with_timeout(root, busy_timeout)?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let added = insert_live_segments(&tx, meeting, run, segments)?;
+        tx.commit()?;
+        Ok(added)
+    })
+}
+
+fn insert_live_segments(
+    db: &Connection,
+    meeting: &str,
+    run: &str,
+    segments: &[Segment],
+) -> Result<usize> {
+    let state: Option<(bool, bool)> = db
+        .query_row(
+            "SELECT r.status='running',COALESCE(v.active_run_id=r.id,0) FROM app_processing_runs r LEFT JOIN app_meeting_revision v ON v.meeting_id=r.meeting_id WHERE r.id=?1 AND r.meeting_id=?2 AND r.kind='live'",
+            params![run, meeting],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    match state {
+        Some((true, true)) => (),
+        Some((false, _)) => bail!("Only running runs accept segments."),
+        _ => bail!("Live segments can only be added to the meeting's active live run."),
+    }
+    let mut added = 0;
+    for s in segments {
+        let inserted = db.execute("INSERT INTO app_run_segments(run_id,id,track,start_ms,end_ms,text,speaker,words_json) VALUES (?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT(run_id,id) DO NOTHING",params![run,s.id,s.track,s.start_ms as i64,s.end_ms as i64,s.text,s.speaker,serde_json::to_string(&s.words)?])?;
+        if inserted == 1 {
+            // A new segment has no correction or bleed match yet, so its
+            // effective search text is its raw text (as rebuild_fts derives).
+            db.execute("INSERT INTO app_search_fts(meeting_id,source,ref_id,text) VALUES (?1,'segment',?2,?3)",params![meeting,s.id,s.text])?;
+            added += 1;
+        }
+    }
+    if added > 0 {
+        invalidate_summaries_incremental(db, meeting)?;
+    }
+    Ok(added)
+}
+
+/// Same end state as `invalidate_summaries` followed by `rebuild_fts`'s
+/// summary rows: every summary of the meeting becomes stale, so none stays
+/// searchable. The full-table search delete runs only if summaries exist.
+fn invalidate_summaries_incremental(db: &Connection, meeting: &str) -> Result<()> {
+    let any: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM app_summaries WHERE meeting_id=?1)",
+        [meeting],
+        |r| r.get(0),
+    )?;
+    if any {
+        invalidate_summaries(db, meeting)?;
+        db.execute(
+            "DELETE FROM app_search_fts WHERE meeting_id=?1 AND source='summary'",
+            [meeting],
+        )?;
+    }
     Ok(())
 }
 
@@ -1263,6 +1382,9 @@ pub(crate) fn save_summary(
     Ok(summary)
 }
 
+#[cfg(test)]
+#[path = "live_segment_store_tests.rs"]
+mod live_segment_tests;
 #[cfg(test)]
 #[path = "speaker_store_tests.rs"]
 mod speaker_regressions;

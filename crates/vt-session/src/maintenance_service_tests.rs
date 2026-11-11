@@ -44,6 +44,8 @@ fn current(service: &AppService, status: &str) {
             gaps: 0,
             transcription_configured: false,
             transcription_active: false,
+            live_transcription: None,
+            capture: Default::default(),
             error: None,
         },
         control,

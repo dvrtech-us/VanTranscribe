@@ -22,8 +22,18 @@ void vt_ring_pop(VTAudioRing *ring);
 bool vt_ring_final_gap(VTAudioRing *ring, VTFrameInfo *info);
 void vt_request_stop(void);
 bool vt_stop_requested(void);
+// Rebuild requests carry diagnostic sources (bit flags) and the first request time.
+enum { VT_REBUILD_NOTIFICATION = 1, VT_REBUILD_POLL = 2, VT_REBUILD_WAKE = 4 };
 void vt_request_rebuild(void);
+void vt_request_rebuild_from(uint32_t source);
 bool vt_take_rebuild(void);
+// Either pointer may be NULL. Zero outputs mean the timing was not captured.
+bool vt_take_rebuild_info(uint32_t *sources, uint64_t *first_ticks);
+// Lock-free, allocation-free: safe from the IOProc. Monotonic for the process lifetime.
+void vt_count_callback(void);
+uint64_t vt_callback_count(void);
+// Packets written but not yet popped (control-thread backlog).
+uint64_t vt_ring_queued(VTAudioRing *ring);
 uint64_t vt_elapsed_ns(uint64_t ticks, uint64_t origin_ticks);
 int32_t vt_parent_pid(int32_t pid);
 // Optional OS responsibility attribution; -1 means unavailable/unresolved.

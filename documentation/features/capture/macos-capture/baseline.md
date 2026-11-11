@@ -10,8 +10,10 @@
 - The IOProc copies into a preallocated SPSC ring and performs no allocations, locks, JSON encoding or pipe IO.
 - The ring provides at least ten seconds of capacity for its configured IO quantum. Callback frames above that configured bound are dropped rather than overrun storage.
 - Overflow advances native frame indexes and emits explicit gaps; the final pending overflow is reported only after the producer is stopped.
+- Overflow drop runs separated by less than one second of delivered audio are coalesced into one `overflow` gap; its length equals `dropped_frames + discarded_frames` (both exact at the epoch rate) and `overflow_runs` counts the merged runs. Audio between runs is discarded and counted, never published as if it were continuous; held audio is bounded to two seconds of frames.
 - Worker audio packets retain observed hardware host time and epoch-local frame indexes. Helper restarts reset native origins; the session owns continuous timeline mapping.
 - Native property notifications alone never rebuild capture. A snapshot equal to the configured fingerprint is ignored; volatile stream IDs/reserved bytes are not format evidence.
+- A device change produces one rebuild: the baseline fingerprint is taken after the new stream settles (unchanged 75 ms and at least 1 s, forced after 10 s). Changes to what the running ring was opened for and confirmed device death are never absorbed. A further rebuild before new audio continues from the earlier gap.
 - Actual configuration changes must remain stable for 75 ms. Confirmed input-device death is handled immediately; uncertain reads alone receive the short stability check.
 - The fingerprint includes selected input identity/aliveness/rate/channels, aggregate formats/channels/quantum, default output identity/rate/channels and exclusion IDs. Bluetooth profile changes on an unchanged output ID remain detectable.
 - Public process-parent traversal determines process AudioObjectID exclusions. Launchd-parented WebKit attribution remains unproven; playback is disabled during capture by the caller.
@@ -24,6 +26,9 @@
 - AEC eligibility requires verified built-in speakers (selected data source, active speaker terminals and explicitly disconnected output jack), an available global tap reference, and exact same-device output routes for every active included process. Built-in transport or default output alone is insufficient.
 - Output evidence uses control-thread reads/listeners and a 250 ms monotonic fallback poll; the real-time callback is unchanged. Route events alone never force capture rebuilds.
 - Route metadata contains no PID, app name, output object ID, device UID or name.
+- Diagnostics (`status` events with a typed `diagnostic`, capability `capture_diagnostics`, `helper_protocol` still 4) are only emitted by capture sessions, never by read-only probes, and contain only durations, counts, enumerated reasons and API names. The sole identity-adjacent field is the owner-approved exception `input_transport`: the input TRANSPORT TYPE (`built_in`, `bluetooth`, `usb`, `aggregate`, `virtual`, `other`, `unknown`) and nothing else. No device UID or name is persisted or logged.
+- Slow Core Audio calls (over 100 ms) and rebuilds are reported; there is no watchdog. The helper is never killed or respawned for a stall, and a call that never returns is visible only as missing heartbeats.
+- A parent ignores unknown event types and unknown or malformed diagnostics instead of ending the recording; a malformed event of a known type still fails.
 
 - Capture requires an explicit valid `--mode`. CLI validation rejects unknown/repeated/mixed commands, missing values and invalid parent PIDs before permission requests or audio setup. Read-only commands are exclusive.
 - The established read-only `--list-devices` command advertises protocol/capabilities; callers verify support before issuing a newer flag to an unknown helper. Legacy handshake fields default to zero/empty.
@@ -49,7 +54,7 @@
 | Microphone access unavailable | Fatal error | Capture; user must change OS permission |
 | System process tap creation fails | Nonfatal error | System track only; microphone continues |
 | Unexpected channels, rate, byte order or stream type | Fatal error | Capture; never silently mislabel data |
-| Ring full, oversized callback or insufficient channels | Overflow gap | That callback's audio range |
+| Ring full, oversized callback or insufficient channels | Overflow gap (coalesced when runs are under 1 s apart) | The dropped audio plus audio discarded between runs |
 | Unchanged property notification | Ignored | No |
 | Changed configuration snapshot | Stable 75 ms, then rebuild and gap | Capture during rebuild |
 | Confirmed input `alive=false` or wake after suspension | Immediate rebuild | Capture during rebuild |
@@ -61,7 +66,9 @@
 | Unsupported meeting-app protocol/capability | Incomplete unsupported observation | New flag is never sent; no absence evidence |
 | Unknown active process, unresolved ancestry, partial/unstable input inventory | Incomplete observation | No absence evidence |
 | Unknown/mismatched app tuple or malformed meeting snapshot | Transport error | No absence evidence |
-| Malformed event or event over 4 MiB | Transport error | Further events from that iterator |
+| Malformed event of a known type, or event over 4 MiB | Transport error | Further events from that iterator |
+| Unknown event type, or unknown/malformed `diagnostic` | Ignored as status | No |
+| Core Audio call blocks the control thread over 100 ms | `slow_call` diagnostic | No; observation only |
 | Callback cannot be detached and aggregate destruction also fails | Fatal error | Continued capture; retain callback storage until process exit |
 | Helper does not exit after stop | Forced termination | Graceful shutdown after three seconds |
 
@@ -92,6 +99,9 @@
 | Output-route evidence poll | 250 monotonic milliseconds, plus native notifications; at most 4,096 process objects |
 | Fallback configuration poll | Every two monotonic seconds in both capture modes |
 | Changed snapshot stabilization | 75 ms; confirmed input-device death bypasses it |
+| Post-start baseline settle | Unchanged 75 ms and at least 1 s; forced after 10 s |
+| Overflow coalescing window | Runs under 1 s apart; held audio at most 2 s of frames |
+| Diagnostics | Capability `capture_diagnostics`; heartbeat about 1 s; slow call over 100 ms |
 | Rate fingerprint precision | Millihertz; ignores smaller floating-point representation noise |
 | Native timestamp origin | Helper startup Mach host time |
 | Device inventory deadline/output cap | Three seconds / 256 KiB; meeting handshake+probe share that budget |

@@ -18,10 +18,32 @@ struct VTAudioRing {
     float *storage;
 };
 static _Atomic bool stopped = false, rebuild = false;
+static _Atomic uint32_t rebuild_sources = 0;
+static _Atomic uint64_t rebuild_first_ticks = 0, callbacks = 0;
 void vt_request_stop(void) { atomic_store_explicit(&stopped, true, memory_order_release); }
 bool vt_stop_requested(void) { return atomic_load_explicit(&stopped, memory_order_acquire); }
-void vt_request_rebuild(void) { atomic_store_explicit(&rebuild, true, memory_order_release); }
-bool vt_take_rebuild(void) { return atomic_exchange_explicit(&rebuild, false, memory_order_acq_rel); }
+void vt_request_rebuild_from(uint32_t source) {
+    // Diagnostics only: remember the first request time and every source until taken.
+    uint64_t expected = 0, now = mach_absolute_time();
+    atomic_fetch_or_explicit(&rebuild_sources, source, memory_order_relaxed);
+    atomic_compare_exchange_strong_explicit(&rebuild_first_ticks, &expected, now ? now : 1,
+                                            memory_order_relaxed, memory_order_relaxed);
+    atomic_store_explicit(&rebuild, true, memory_order_release);
+}
+void vt_request_rebuild(void) { vt_request_rebuild_from(VT_REBUILD_NOTIFICATION); }
+bool vt_take_rebuild(void) { return vt_take_rebuild_info(NULL, NULL); }
+bool vt_take_rebuild_info(uint32_t *sources, uint64_t *first_ticks) {
+    if (!atomic_exchange_explicit(&rebuild, false, memory_order_acq_rel)) return false;
+    // A request racing this take may leave its source for the next take; the
+    // caller treats zero sources/ticks as unknown timing, never as no request.
+    uint32_t s = atomic_exchange_explicit(&rebuild_sources, 0, memory_order_relaxed);
+    uint64_t t = atomic_exchange_explicit(&rebuild_first_ticks, 0, memory_order_relaxed);
+    if (sources) *sources = s;
+    if (first_ticks) *first_ticks = t;
+    return true;
+}
+void vt_count_callback(void) { atomic_fetch_add_explicit(&callbacks, 1, memory_order_relaxed); }
+uint64_t vt_callback_count(void) { return atomic_load_explicit(&callbacks, memory_order_relaxed); }
 uint64_t vt_elapsed_ns(uint64_t ticks, uint64_t origin) {
     mach_timebase_info_data_t timebase; mach_timebase_info(&timebase);
     if (ticks < origin) return 0;
@@ -119,6 +141,11 @@ void vt_ring_copy_track(VTAudioRing *q,uint32_t track,float *out) {
 void vt_ring_pop(VTAudioRing *q) {
     uint64_t read=atomic_load_explicit(&q->read_index,memory_order_relaxed);
     atomic_store_explicit(&q->read_index,read+1,memory_order_release);
+}
+uint64_t vt_ring_queued(VTAudioRing *q) {
+    if(!q)return 0;
+    uint64_t read=atomic_load_explicit(&q->read_index,memory_order_relaxed);
+    return atomic_load_explicit(&q->write_index,memory_order_acquire)-read;
 }
 bool vt_ring_final_gap(VTAudioRing *q,VTFrameInfo *info) {
     if(q->dropped_frames==0)return false;

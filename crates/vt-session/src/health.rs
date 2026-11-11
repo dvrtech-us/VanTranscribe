@@ -169,8 +169,9 @@ pub(crate) fn persist(
     source_ms: u64,
     snapshot: &HealthSnapshot,
     append: bool,
+    busy_timeout: std::time::Duration,
 ) -> Result<()> {
-    let mut db = store::open(root)?;
+    let mut db = store::open_with_timeout(root, busy_timeout)?;
     let tx = db.transaction()?;
     let now = chrono::Utc::now().to_rfc3339();
     tx.execute("INSERT INTO app_resource_health(id,snapshot_json,checked_at) VALUES (1,?1,?2) ON CONFLICT(id) DO UPDATE SET snapshot_json=excluded.snapshot_json,checked_at=excluded.checked_at",params![serde_json::to_string(snapshot)?,now])?;
@@ -186,7 +187,22 @@ pub(crate) fn timing(
     value: &SourceTiming,
     origin: Option<u64>,
 ) -> Result<()> {
-    store::open(root)?.execute("INSERT INTO app_source_timing(meeting_id,timing_json,origin_ns) VALUES (?1,?2,?3) ON CONFLICT(meeting_id) DO UPDATE SET timing_json=excluded.timing_json,origin_ns=excluded.origin_ns",params![meeting,serde_json::to_string(value)?,origin.map(i64::try_from).transpose()?])?;
+    timing_with(
+        root,
+        meeting,
+        value,
+        origin,
+        std::time::Duration::from_secs(5),
+    )
+}
+pub(crate) fn timing_with(
+    root: &Path,
+    meeting: &str,
+    value: &SourceTiming,
+    origin: Option<u64>,
+    busy_timeout: std::time::Duration,
+) -> Result<()> {
+    store::open_with_timeout(root, busy_timeout)?.execute("INSERT INTO app_source_timing(meeting_id,timing_json,origin_ns) VALUES (?1,?2,?3) ON CONFLICT(meeting_id) DO UPDATE SET timing_json=excluded.timing_json,origin_ns=excluded.origin_ns",params![meeting,serde_json::to_string(value)?,origin.map(i64::try_from).transpose()?])?;
     Ok(())
 }
 pub(crate) fn note_timing(db: &Connection, note: &str, value: &SourceTiming) -> Result<()> {

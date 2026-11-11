@@ -19,21 +19,60 @@ func address(_ selector: AudioObjectPropertySelector, _ scope: AudioObjectProper
     AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
 }
 
+// Capture diagnostics: durations, counts and enumerated names only. They are
+// published only by a capture session (never by read-only probes, whose stdout
+// must remain one JSON document) as `status` events carrying a typed
+// `diagnostic` object, so a parent that predates them ignores them as status.
+var diagnosticsEnabled = false
+var diagnosticPhase = "idle"
+var maxEmitNs: UInt64 = 0
+let slowCallThresholdNs: UInt64 = 100_000_000
+
+func diagnosticEvent(_ kind: String, _ fields: [String: Any]) -> [String: Any] {
+    var diagnostic = fields
+    diagnostic["kind"] = kind
+    return ["type": "status", "message": "Capture diagnostic.", "diagnostic": diagnostic]
+}
+
+func emitDiagnostic(_ kind: String, _ fields: [String: Any]) {
+    if diagnosticsEnabled { emit(diagnosticEvent(kind, fields)) }
+}
+
+// Property selectors are public Core Audio constants, not device identity.
+func fourCC(_ value: UInt32) -> String {
+    let bytes = [24, 16, 8, 0].map { UInt8((value >> UInt32($0)) & 0xff) }
+    let readable = bytes.allSatisfy { (0x30...0x39).contains($0) || (0x41...0x5a).contains($0) || (0x61...0x7a).contains($0) || $0 == 0x23 }
+    return readable ? String(decoding: bytes, as: UTF8.self) : String(format: "%08x", value)
+}
+
+// Reports one Core Audio call that blocked the control thread for more than
+// 100 ms. A call that never returns is visible only as missing heartbeats.
+func timedCall<T>(_ name: @autoclosure () -> String, _ body: () throws -> T) rethrows -> T {
+    let begin = mach_absolute_time()
+    defer {
+        let spent = vt_elapsed_ns(mach_absolute_time(), begin)
+        if spent > slowCallThresholdNs {
+            emitDiagnostic("slow_call", ["call": name(), "duration_ns": spent, "phase": diagnosticPhase])
+        }
+    }
+    return try body()
+}
+
 func scalar<T: BitwiseCopyable>(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ initial: T, _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) throws -> T {
     var property = address(selector, scope)
     var value = initial
     var size = UInt32(MemoryLayout<T>.size)
-    try checked(AudioObjectGetPropertyData(object, &property, 0, nil, &size, &value), "Read audio device property")
+    try checked(timedCall("AudioObjectGetPropertyData:\(fourCC(selector))") { AudioObjectGetPropertyData(object, &property, 0, nil, &size, &value) }, "Read audio device property")
     return value
 }
 
 func objects(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) throws -> [AudioObjectID] {
     var property = address(selector, scope)
     var size: UInt32 = 0
-    try checked(AudioObjectGetPropertyDataSize(object, &property, 0, nil, &size), "Read audio object list size")
+    try checked(timedCall("AudioObjectGetPropertyDataSize:\(fourCC(selector))") { AudioObjectGetPropertyDataSize(object, &property, 0, nil, &size) }, "Read audio object list size")
     if size == 0 { return [] }
     var values = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-    try checked(AudioObjectGetPropertyData(object, &property, 0, nil, &size, &values), "Read audio object list")
+    try checked(timedCall("AudioObjectGetPropertyData:\(fourCC(selector))") { AudioObjectGetPropertyData(object, &property, 0, nil, &size, &values) }, "Read audio object list")
     return values
 }
 
@@ -41,7 +80,7 @@ func stringProperty(_ object: AudioObjectID, _ selector: AudioObjectPropertySele
     var property = address(selector)
     var value: Unmanaged<CFString>?
     var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
-    try checked(AudioObjectGetPropertyData(object, &property, 0, nil, &size, &value), "Read audio device name")
+    try checked(timedCall("AudioObjectGetPropertyData:\(fourCC(selector))") { AudioObjectGetPropertyData(object, &property, 0, nil, &size, &value) }, "Read audio device name")
     guard let value = value else { throw CaptureFailure.message("The audio device returned no name.") }
     return value.takeRetainedValue() as String
 }
@@ -178,16 +217,22 @@ func testMeetingApps() {
 func streamChannels(_ device: AudioObjectID, _ scope: AudioObjectPropertyScope) throws -> UInt32 {
     var property = address(kAudioDevicePropertyStreamConfiguration, scope)
     var size: UInt32 = 0
-    try checked(AudioObjectGetPropertyDataSize(device, &property, 0, nil, &size), "Read input stream configuration")
+    try checked(timedCall("AudioObjectGetPropertyDataSize:slay") { AudioObjectGetPropertyDataSize(device, &property, 0, nil, &size) }, "Read input stream configuration")
     guard size >= MemoryLayout<UInt32>.size else { return 0 }
     let storage = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
     defer { storage.deallocate() }
-    try checked(AudioObjectGetPropertyData(device, &property, 0, nil, &size, storage), "Read input channels")
+    try checked(timedCall("AudioObjectGetPropertyData:slay") { AudioObjectGetPropertyData(device, &property, 0, nil, &size, storage) }, "Read input channels")
     return UnsafeMutableAudioBufferListPointer(storage.assumingMemoryBound(to: AudioBufferList.self)).reduce(0) { $0 + $1.mNumberChannels }
 }
 
 func inputChannels(_ device: AudioObjectID) throws -> UInt32 {
     try streamChannels(device, kAudioDevicePropertyScopeInput)
+}
+
+// Owner-approved per-epoch evidence: transport class only, never name or UID.
+func inputTransport(_ value: UInt32?) -> String {
+    let transport = outputTransport(value)
+    return ["built_in", "bluetooth", "usb", "aggregate", "virtual", "unknown"].contains(transport) ? transport : "other"
 }
 
 func isBluetooth(_ device: AudioObjectID) -> Bool {
@@ -202,14 +247,82 @@ func emit(_ value: [String: Any]) {
     do {
         var bytes = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
         bytes.append(10)
+        // Pipe backpressure blocks this control thread; heartbeats report the
+        // longest single write so a slow consumer is distinguishable.
+        let begin = mach_absolute_time()
         try FileHandle.standardOutput.write(contentsOf: bytes)
+        maxEmitNs = max(maxEmitNs, vt_elapsed_ns(mach_absolute_time(), begin))
     } catch { vt_request_stop() }
 }
 
-func emitGap(epoch: UInt32, start: UInt64, end: UInt64, reason: String, mic: Bool, system: Bool) {
+func emitGap(epoch: UInt32, start: UInt64, end: UInt64, reason: String, mic: Bool, system: Bool, overflow: OverflowGap? = nil) {
     guard end > start else { return }
     for track in [mic ? "mic" : nil, system ? "system" : nil].compactMap({ $0 }) {
-        emit(["type": "gap", "track": track, "epoch": epoch, "start_ns": start, "end_ns": end, "reason": reason])
+        var event: [String: Any] = ["type": "gap", "track": track, "epoch": epoch, "start_ns": start, "end_ns": end, "reason": reason]
+        if let overflow = overflow {
+            // Exact frame accounting for a coalesced overflow burst (see OverflowCoalescer).
+            event["dropped_frames"] = overflow.droppedFrames
+            event["discarded_frames"] = overflow.discardedFrames
+            event["overflow_runs"] = overflow.runs
+        }
+        emit(event)
+    }
+}
+
+// Overflow runs separated by less than one second of delivered audio are
+// published as one gap from the first dropped frame to the last dropped
+// frame. The delivered audio between runs is discarded and counted, so
+// gap duration = dropped frames + discarded frames (host-timestamp range).
+// During ring saturation each freed slot admits roughly one IO quantum
+// (~10 ms) between drops, so the extra discarded audio is small, while one
+// gap replaces up to dozens of live-inference resets. A run followed by a
+// full second of clean audio is closed; the held audio is then released.
+struct OverflowGap: Equatable {
+    let epoch: UInt32
+    var start: UInt64
+    var end: UInt64
+    var droppedFrames: UInt64
+    var discardedFrames: UInt64
+    var runs: UInt32
+}
+
+struct OverflowCoalescer<Packet> {
+    enum Output { case gap(OverflowGap), packet(Packet) }
+    static var windowNs: UInt64 { 1_000_000_000 }
+    let maxHeldFrames: UInt64
+    private(set) var pending: OverflowGap?
+    private var held: [(packet: Packet, frames: UInt64)] = []
+    private var heldFrames: UInt64 = 0
+    init(maxHeldFrames: UInt64) { self.maxHeldFrames = maxHeldFrames }
+
+    mutating func drop(epoch: UInt32, start: UInt64, end: UInt64, frames: UInt64) -> [Output] {
+        if var gap = pending, gap.epoch == epoch, start < gap.end || start - gap.end < Self.windowNs {
+            gap.discardedFrames += heldFrames
+            held.removeAll(); heldFrames = 0
+            gap.end = max(gap.end, end)
+            gap.droppedFrames += frames
+            gap.runs += 1
+            pending = gap
+            return []
+        }
+        let closed = finish()
+        pending = OverflowGap(epoch: epoch, start: start, end: max(start, end), droppedFrames: frames, discardedFrames: 0, runs: 1)
+        return closed
+    }
+
+    mutating func packet(_ packet: Packet, end: UInt64, frames: UInt64) -> [Output] {
+        guard let gap = pending else { return [.packet(packet)] }
+        held.append((packet, frames)); heldFrames += frames
+        // The frame bound keeps memory finite even if host timestamps stall.
+        if (end >= gap.end && end - gap.end >= Self.windowNs) || heldFrames >= maxHeldFrames { return finish() }
+        return []
+    }
+
+    mutating func finish() -> [Output] {
+        guard let gap = pending else { return [] }
+        let result = [Output.gap(gap)] + held.map { Output.packet($0.packet) }
+        pending = nil; held.removeAll(); heldFrames = 0
+        return result
     }
 }
 
@@ -222,7 +335,7 @@ func listDevices() throws {
                        "name": try stringProperty(device, kAudioObjectPropertyName),
                        "is_default": device == defaultInput, "bluetooth": isBluetooth(device)])
     }
-    emit(["helper_protocol": 4, "supported_commands": supportedCommands, "capture_capabilities": ["source_clock_uptime_raw"], "devices": result, "system_supported": ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 4, patchVersion: 0))])
+    emit(["helper_protocol": 4, "supported_commands": supportedCommands, "capture_capabilities": captureCapabilities, "devices": result, "system_supported": ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 14, minorVersion: 4, patchVersion: 0))])
 }
 
 func inputIdentity(uid: String?) throws -> AudioObjectID {
@@ -283,15 +396,85 @@ struct CaptureFingerprint: Equatable {
     var outputRate: Int64?
     var outputChannels: UInt32?
     var exclusions: [AudioObjectID]
+
+    // A failed query is not evidence: keep the last successfully read value.
+    func merging(_ newer: CaptureFingerprint) -> CaptureFingerprint {
+        CaptureFingerprint(
+            input: newer.input ?? input, inputAlive: newer.inputAlive ?? inputAlive,
+            inputRate: newer.inputRate ?? inputRate, inputChannels: newer.inputChannels ?? inputChannels,
+            aggregateChannels: newer.aggregateChannels ?? aggregateChannels,
+            aggregateFormat: newer.aggregateFormat ?? aggregateFormat, streams: newer.streams ?? streams,
+            quantum: newer.quantum ?? quantum, output: newer.output ?? output,
+            outputRate: newer.outputRate ?? outputRate, outputChannels: newer.outputChannels ?? outputChannels,
+            exclusions: exclusions)
+    }
+}
+
+// What the running ring was sized and labeled for. A change to any of these
+// means the running stream is wrong and must be rebuilt even while settling.
+struct OpenedStream: Equatable {
+    let input: AudioObjectID
+    let channels: UInt32
+    let format: StreamFingerprint
+    let streams: [StreamFingerprint]
+    let quantum: UInt32
+
+    func invalidated(by current: CaptureFingerprint) -> Bool {
+        if let value = current.input, value != input { return true }
+        if let value = current.aggregateChannels, value != channels { return true }
+        if let value = current.aggregateFormat, value != format { return true }
+        if let value = current.streams, value != streams { return true }
+        // A smaller IO quantum fits the ring; a larger one would drop every callback.
+        if let value = current.quantum, value > quantum { return true }
+        return false
+    }
 }
 
 struct ConfigurationChangeGate {
-    let baseline: CaptureFingerprint
+    private(set) var baseline: CaptureFingerprint
     var candidate: CaptureFingerprint?
     var candidateSince: UInt64 = 0
+    let opened: OpenedStream?
+    private(set) var settleStartedAt: UInt64?
+    private(set) var provisionalSince: UInt64 = 0
+    private(set) var absorbed: UInt32 = 0
+    private(set) var settledStable = false
     static let stabilityWindowNs: UInt64 = 75_000_000
+    // Opening an input can itself change the route (for example a Bluetooth
+    // headset switching to its call profile, or the aggregate/output format
+    // renegotiating). Those consequences of our own start are absorbed into the
+    // baseline until it has been unchanged for the stability window and at least
+    // one second has passed; a stream that never settles is armed after ten.
+    static let settleMinimumNs: UInt64 = 1_000_000_000
+    static let settleMaximumNs: UInt64 = 10_000_000_000
+    static let settleCheckIntervalNs: UInt64 = 250_000_000
+
+    init(baseline: CaptureFingerprint) { self.baseline = baseline; opened = nil }
+    init(settling provisional: CaptureFingerprint, opened: OpenedStream, at now: UInt64) {
+        baseline = provisional; self.opened = opened
+        settleStartedAt = now; provisionalSince = now
+    }
+
+    var settling: Bool { settleStartedAt != nil }
 
     mutating func observe(_ current: CaptureFingerprint, at now: UInt64) -> String? {
+        if let started = settleStartedAt, let opened = opened {
+            if current.inputAlive == false { candidate = nil; return "device_change" }
+            // A real change to the opened device or ring format is never absorbed.
+            if opened.invalidated(by: current) { return confirm(current, at: now, reason: "device_change") }
+            candidate = nil
+            // Published exclusions stay in the baseline, so an exclusion change
+            // seen while settling still rebuilds once the gate is armed.
+            let adopted = baseline.merging(current)
+            if adopted != baseline { baseline = adopted; provisionalSince = now; absorbed += 1 }
+            let elapsed = now >= started ? now - started : 0
+            let stable = now >= provisionalSince && now - provisionalSince >= Self.stabilityWindowNs
+            if (elapsed >= Self.settleMinimumNs && stable) || elapsed >= Self.settleMaximumNs {
+                settleStartedAt = nil
+                settledStable = stable
+            }
+            return nil
+        }
         if current == baseline { candidate = nil; return nil }
         // Do not debounce a confirmed dead selected microphone. A failed
         // identity/property query alone is uncertain, so it gets the same short
@@ -300,6 +483,10 @@ struct ConfigurationChangeGate {
             candidate = nil
             return "device_change"
         }
+        return confirm(current, at: now, reason: current.exclusions != baseline.exclusions ? "process_exclusion_change" : "device_change")
+    }
+
+    private mutating func confirm(_ current: CaptureFingerprint, at now: UInt64, reason: String) -> String? {
         if candidate != current {
             candidate = current
             candidateSince = now
@@ -307,7 +494,7 @@ struct ConfigurationChangeGate {
         }
         guard now >= candidateSince, now - candidateSince >= Self.stabilityWindowNs else { return nil }
         candidate = nil
-        return current.exclusions != baseline.exclusions ? "process_exclusion_change" : "device_change"
+        return reason
     }
 }
 
@@ -463,6 +650,7 @@ func observeOutputRoute(exclusions: [AudioObjectID], referenceAvailable: Bool) -
 }
 
 let captureIOProc: AudioDeviceIOProc = { _, _, input, inputTime, _, _, client in
+    vt_count_callback()
     guard let client = client else { return noErr }
     guard inputTime.pointee.mFlags.contains(.hostTimeValid) else { return noErr }
     vt_ring_write(OpaquePointer(client), input, inputTime.pointee.mHostTime)
@@ -500,6 +688,23 @@ final class Accumulator {
     }
 }
 
+struct CapturedPacket {
+    let info: VTFrameInfo
+    let tracks: [[Float]]
+}
+
+struct RebuildTrigger {
+    let source: String
+    let observedAt: UInt64
+    static func from(sources: UInt32, firstTicks: UInt64, now: UInt64) -> RebuildTrigger {
+        let source = sources & UInt32(VT_REBUILD_WAKE) != 0 ? "wake"
+            : sources & UInt32(VT_REBUILD_NOTIFICATION) != 0 ? "notification"
+            : sources & UInt32(VT_REBUILD_POLL) != 0 ? "poll" : "unknown"
+        let observed = firstTicks == 0 ? now : min(now, vt_elapsed_ns(firstTicks, originTicks))
+        return RebuildTrigger(source: source, observedAt: observed)
+    }
+}
+
 final class CaptureEngine {
     let parentPID: Int32
     let micUID: String?
@@ -519,6 +724,10 @@ final class CaptureEngine {
     var lastEnd: UInt64 = 0
     var started = false
     var suspended = false
+    var overflow = OverflowCoalescer<CapturedPacket>(maxHeldFrames: 0)
+    var trigger: RebuildTrigger?
+    var lastFingerprintNs: UInt64 = 0
+    var nextSettleCheck: UInt64 = 0
     init(parentPID: Int32, micUID: String?, remote: Bool) { self.parentPID = parentPID; self.micUID = micUID; self.remote = remote }
     deinit { stop() }
 
@@ -527,11 +736,11 @@ final class CaptureEngine {
         // A notification requests a value check; it does not prove a route or
         // format change, and must not rebuild the aggregate by itself.
         let block: AudioObjectPropertyListenerBlock = { _, _ in vt_request_rebuild() }
-        if AudioObjectAddPropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) == noErr { listeners.append((object, property, block)) }
+        if timedCall("AudioObjectAddPropertyListenerBlock:\(fourCC(selector))", { AudioObjectAddPropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) }) == noErr { listeners.append((object, property, block)) }
     }
 
     func clearRouteListeners() {
-        for (object, var property, block) in routeListeners { _ = AudioObjectRemovePropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) }
+        for (object, var property, block) in routeListeners { _ = timedCall("AudioObjectRemovePropertyListenerBlock:\(fourCC(property.mSelector))") { AudioObjectRemovePropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) } }
         routeListeners.removeAll()
     }
 
@@ -548,7 +757,7 @@ final class CaptureEngine {
             func routeWatch(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) {
                 var property = address(selector, scope)
                 let block: AudioObjectPropertyListenerBlock = { _, _ in vt_request_rebuild() }
-                if AudioObjectAddPropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) == noErr { routeListeners.append((object, property, block)) }
+                if timedCall("AudioObjectAddPropertyListenerBlock:\(fourCC(selector))", { AudioObjectAddPropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) }) == noErr { routeListeners.append((object, property, block)) }
             }
             routeWatch(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyProcessObjectList)
             if let output = current.output {
@@ -595,10 +804,37 @@ final class CaptureEngine {
 
     var hasPendingConfigurationChange: Bool { configurationGate?.candidate != nil }
 
-    func configurationChangeReason() -> String? {
-        let current = fingerprint()
-        return configurationGate?.observe(current, at: elapsedNow())
+    // While the new stream settles the loop observes on its own cadence, because
+    // a consequence of our own start may arrive without a usable notification.
+    func settleCheckDue(_ now: UInt64) -> Bool {
+        guard configurationGate?.settling == true, now >= nextSettleCheck else { return false }
+        nextSettleCheck = now + ConfigurationChangeGate.settleCheckIntervalNs
+        return true
     }
+
+    func noteTrigger(_ value: RebuildTrigger) { if trigger == nil { trigger = value } }
+
+    // A trigger whose observation found no change is forgotten, so a rebuild's
+    // trigger age measures from the first observation of the change itself.
+    func forgetIdleTrigger() { if !hasPendingConfigurationChange { trigger = nil; lastFingerprintNs = 0 } }
+
+    func configurationChangeReason() -> String? {
+        let previousPhase = diagnosticPhase
+        diagnosticPhase = "fingerprint"
+        defer { diagnosticPhase = previousPhase }
+        let begin = elapsedNow()
+        let current = fingerprint()
+        let now = elapsedNow()
+        lastFingerprintNs = now - begin
+        let wasSettling = configurationGate?.settling == true
+        let reason = configurationGate?.observe(current, at: now)
+        if wasSettling, let gate = configurationGate, !gate.settling {
+            emitDiagnostic("settled", ["epoch": epoch, "settle_ns": now - streamStartedAt, "absorbed": gate.absorbed, "stable": gate.settledStable])
+        }
+        return reason
+    }
+
+    var streamStartedAt: UInt64 = 0
 
     func start() throws {
         do {
@@ -621,7 +857,7 @@ final class CaptureEngine {
                 tapDescription.name = "VanTranscribe System Audio"
                 tapDescription.isPrivate = true
                 tapDescription.muteBehavior = .unmuted
-                let status = AudioHardwareCreateProcessTap(tapDescription, &tap)
+                let status = timedCall("AudioHardwareCreateProcessTap") { AudioHardwareCreateProcessTap(tapDescription, &tap) }
                 if status == noErr {
                     systemChannels = 2
                     description[kAudioAggregateDeviceTapListKey] = [[kAudioSubTapUIDKey: tapDescription.uuid.uuidString, kAudioSubTapDriftCompensationKey: true]]
@@ -632,7 +868,7 @@ final class CaptureEngine {
                     emit(["type": "error", "fatal": false, "message": "System audio is unavailable (Core Audio \(status)); recording the microphone only. Verify System Audio Recording permission in System Settings."])
                 }
             }
-            try checked(AudioHardwareCreateAggregateDevice(description as CFDictionary, &aggregate), "Create shared-clock microphone/system aggregate")
+            try checked(timedCall("AudioHardwareCreateAggregateDevice") { AudioHardwareCreateAggregateDevice(description as CFDictionary, &aggregate) }, "Create shared-clock microphone/system aggregate")
             let actualChannels = try inputChannels(aggregate)
             guard actualChannels == micChannels + systemChannels else {
                 throw CaptureFailure.message("The aggregate input channel layout is unexpected (\(actualChannels), expected \(micChannels + systemChannels)). Recording stopped to avoid mislabeling the two tracks.")
@@ -645,8 +881,10 @@ final class CaptureEngine {
                 throw CaptureFailure.message("The capture device exposes an unsupported sample rate or byte order.")
             }
             let rate = UInt32(format.mSampleRate.rounded())
+            var openedStreams: [StreamFingerprint] = []
             for stream in try objects(aggregate, kAudioDevicePropertyStreams, kAudioDevicePropertyScopeInput) {
                 let streamFormat = try scalar(stream, kAudioStreamPropertyVirtualFormat, AudioStreamBasicDescription())
+                openedStreams.append(StreamFingerprint(streamFormat))
                 guard streamFormat.mFormatID == kAudioFormatLinearPCM,
                       streamFormat.mFormatFlags & kAudioFormatFlagIsFloat != 0,
                       streamFormat.mFormatFlags & kAudioFormatFlagIsBigEndian == 0,
@@ -657,23 +895,32 @@ final class CaptureEngine {
             }
             var quantum: UInt32 = 512
             var property = address(kAudioDevicePropertyBufferFrameSize)
-            _ = AudioObjectSetPropertyData(aggregate, &property, 0, nil, UInt32(MemoryLayout<UInt32>.size), &quantum)
+            _ = timedCall("AudioObjectSetPropertyData:fsiz") { AudioObjectSetPropertyData(aggregate, &property, 0, nil, UInt32(MemoryLayout<UInt32>.size), &quantum) }
             quantum = try scalar(aggregate, kAudioDevicePropertyBufferFrameSize, UInt32(0))
             guard let queue = vt_ring_create(rate, micChannels, systemChannels, quantum, epoch, originTicks) else {
                 throw CaptureFailure.message("Could not allocate the bounded capture buffer for this input format.")
             }
             ring = queue
+            overflow = OverflowCoalescer(maxHeldFrames: UInt64(rate) * 2)
             mic = Accumulator(track: "mic", channels: micChannels, rate: rate)
             system = systemChannels > 0 ? Accumulator(track: "system", channels: systemChannels, rate: rate) : nil
-            configurationGate = ConfigurationChangeGate(baseline: fingerprint(publishedExclusions: true))
+            configurationGate = nil
             refreshOutputRoute(force: true)
             let start = elapsedNow()
             for item in [mic, system].compactMap({ $0 }) {
                 emit(["type": "format", "track": item.track, "sample_rate": rate, "channels": item.channels, "epoch": epoch, "start_ns": start])
             }
-            try checked(AudioDeviceCreateIOProcID(aggregate, captureIOProc, UnsafeMutableRawPointer(queue), &ioProc), "Create capture callback")
-            try checked(AudioDeviceStart(aggregate, ioProc), "Start audio capture")
+            try checked(timedCall("AudioDeviceCreateIOProcID") { AudioDeviceCreateIOProcID(aggregate, captureIOProc, UnsafeMutableRawPointer(queue), &ioProc) }, "Create capture callback")
+            try checked(timedCall("AudioDeviceStart") { AudioDeviceStart(aggregate, ioProc) }, "Start audio capture")
             started = true
+            streamStartedAt = elapsedNow()
+            // The baseline is provisional until the started stream settles; a
+            // baseline read mid-transition used to cause a second rebuild.
+            let opened = OpenedStream(input: input, channels: actualChannels, format: StreamFingerprint(format), streams: openedStreams, quantum: quantum)
+            configurationGate = ConfigurationChangeGate(settling: fingerprint(publishedExclusions: true), opened: opened, at: elapsedNow())
+            nextSettleCheck = elapsedNow() + ConfigurationChangeGate.settleCheckIntervalNs
+            emitDiagnostic("epoch", ["epoch": epoch, "sample_rate": rate, "mic_channels": micChannels, "system_channels": systemChannels, "quantum": quantum,
+                                     "input_transport": inputTransport(try? scalar(input, kAudioDevicePropertyTransportType, UInt32(0)))])
             watch(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultInputDevice)
             watch(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice)
             watch(input, kAudioDevicePropertyDeviceIsAlive)
@@ -695,34 +942,50 @@ final class CaptureEngine {
         var info = VTFrameInfo()
         while vt_ring_peek(ring, &info) {
             if info.dropped_frames > 0 {
-                mic?.flush(); system?.flush()
-                emitGap(epoch: info.epoch, start: info.gap_start_ns, end: info.gap_end_ns, reason: "overflow", mic: mic != nil, system: system != nil)
+                publish(overflow.drop(epoch: info.epoch, start: info.gap_start_ns, end: info.gap_end_ns, frames: info.dropped_frames))
             }
+            var tracks: [[Float]] = []
             for (track, item) in [(UInt32(0), mic), (UInt32(1), system)] {
                 guard let item = item else { continue }
                 var values = [Float](repeating: 0, count: Int(info.frame_count * item.channels))
                 values.withUnsafeMutableBufferPointer { buffer in vt_ring_copy_track(ring, track, buffer.baseAddress!) }
-                item.append(values, info)
+                tracks.append(values)
             }
-            lastEnd = info.host_time_ns + UInt64(info.frame_count) * 1_000_000_000 / UInt64(info.sample_rate)
+            let end = info.host_time_ns + UInt64(info.frame_count) * 1_000_000_000 / UInt64(info.sample_rate)
+            publish(overflow.packet(CapturedPacket(info: info, tracks: tracks), end: end, frames: UInt64(info.frame_count)))
             vt_ring_pop(ring)
         }
     }
 
+    func publish(_ outputs: [OverflowCoalescer<CapturedPacket>.Output]) {
+        for output in outputs {
+            switch output {
+            case .gap(let gap):
+                mic?.flush(); system?.flush()
+                emitGap(epoch: gap.epoch, start: gap.start, end: gap.end, reason: "overflow", mic: mic != nil, system: system != nil, overflow: gap)
+                lastEnd = max(lastEnd, gap.end)
+            case .packet(let packet):
+                for (item, values) in zip([mic, system].compactMap({ $0 }), packet.tracks) { item.append(values, packet.info) }
+                lastEnd = packet.info.host_time_ns + UInt64(packet.info.frame_count) * 1_000_000_000 / UInt64(packet.info.sample_rate)
+            }
+        }
+    }
+
     func stop() {
-        if started { _ = AudioDeviceStop(aggregate, ioProc); started = false }
-        for (object, var property, block) in listeners { _ = AudioObjectRemovePropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) }
+        if started { _ = timedCall("AudioDeviceStop") { AudioDeviceStop(aggregate, ioProc) }; started = false }
+        configurationGate = nil
+        for (object, var property, block) in listeners { _ = timedCall("AudioObjectRemovePropertyListenerBlock:\(fourCC(property.mSelector))") { AudioObjectRemovePropertyListenerBlock(object, &property, DispatchQueue.global(qos: .userInitiated), block) } }
         listeners.removeAll()
         clearRouteListeners()
         outputObservation = nil
         if let callback = ioProc {
-            let removed = AudioDeviceDestroyIOProcID(aggregate, callback)
+            let removed = timedCall("AudioDeviceDestroyIOProcID") { AudioDeviceDestroyIOProcID(aggregate, callback) }
             if removed != noErr {
                 // Never free the C callback context while an IOProc could
                 // still be using it. Destroying its aggregate is a second
                 // synchronization barrier; if both fail, keep storage alive
                 // until process exit and stop instead of risking a use-after-free.
-                let destroyed = AudioHardwareDestroyAggregateDevice(aggregate)
+                let destroyed = timedCall("AudioHardwareDestroyAggregateDevice") { AudioHardwareDestroyAggregateDevice(aggregate) }
                 if destroyed != noErr {
                     emit(["type": "error", "fatal": true, "message": "The audio callback could not be detached safely. Capture is stopping."])
                     vt_request_stop()
@@ -733,27 +996,49 @@ final class CaptureEngine {
             ioProc = nil
         }
         drain()
-        mic?.flush(); system?.flush()
         if let ring = ring {
             var info = VTFrameInfo()
-            if vt_ring_final_gap(ring, &info) { emitGap(epoch: info.epoch, start: info.gap_start_ns, end: info.gap_end_ns, reason: "overflow", mic: mic != nil, system: system != nil) }
+            if vt_ring_final_gap(ring, &info) { publish(overflow.drop(epoch: info.epoch, start: info.gap_start_ns, end: info.gap_end_ns, frames: info.dropped_frames)) }
             vt_ring_destroy(ring); self.ring = nil
         }
-        if aggregate != kAudioObjectUnknown { _ = AudioHardwareDestroyAggregateDevice(aggregate); aggregate = kAudioObjectUnknown }
-        if tap != kAudioObjectUnknown { _ = AudioHardwareDestroyProcessTap(tap); tap = kAudioObjectUnknown }
+        publish(overflow.finish())
+        mic?.flush(); system?.flush()
+        if aggregate != kAudioObjectUnknown { _ = timedCall("AudioHardwareDestroyAggregateDevice") { AudioHardwareDestroyAggregateDevice(aggregate) }; aggregate = kAudioObjectUnknown }
+        if tap != kAudioObjectUnknown { _ = timedCall("AudioHardwareDestroyProcessTap") { AudioHardwareDestroyProcessTap(tap) }; tap = kAudioObjectUnknown }
     }
 
     func rebuild(reason: String) throws {
+        let begin = elapsedNow()
+        let cause = trigger ?? RebuildTrigger(source: "unknown", observedAt: begin)
+        let fingerprintNs = lastFingerprintNs
+        trigger = nil; lastFingerprintNs = 0
         let oldEpoch = epoch
         let hadSystem = system != nil
+        diagnosticPhase = "stop"
         stop()
-        guard !vt_stop_requested() else { throw CaptureFailure.message("Capture stopped during device rebuild.") }
+        let stopped = elapsedNow()
+        var startedAt = stopped
+        var result = "failed"
+        defer {
+            diagnosticPhase = "idle"
+            emitDiagnostic("rebuild", ["reason": reason, "trigger": cause.source, "previous_epoch": oldEpoch, "epoch": epoch,
+                                       "trigger_age_ns": begin >= cause.observedAt ? begin - cause.observedAt : 0,
+                                       "fingerprint_ns": fingerprintNs, "stop_ns": stopped - begin,
+                                       "start_ns": elapsedNow() - startedAt, "result": result])
+        }
+        guard !vt_stop_requested() else { result = "cancelled"; throw CaptureFailure.message("Capture stopped during device rebuild.") }
         let gapStart = lastEnd
         // Close the old epoch before announcing the replacement format. The
         // first new audio packet supplies its actual hardware start timestamp.
-        emitGap(epoch: oldEpoch, start: gapStart, end: elapsedNow(), reason: reason, mic: true, system: hadSystem)
+        emitGap(epoch: oldEpoch, start: gapStart, end: stopped, reason: reason, mic: true, system: hadSystem)
+        // A further rebuild before new audio arrives continues from this gap
+        // instead of re-reporting the old epoch's end.
+        lastEnd = max(lastEnd, stopped)
         epoch += 1
+        diagnosticPhase = "start"
+        startedAt = elapsedNow()
         try start()
+        result = "ok"
     }
 }
 
@@ -821,7 +1106,186 @@ func testFingerprints() {
     gate = ConfigurationChangeGate(baseline: baseline)
     precondition(gate.observe(changed, at: 0) == nil)
     precondition(gate.observe(changed, at: 75_000_000) == "device_change")
-    emit(["type": "status", "message": "Capture fingerprint tests passed: unchanged notifications, route/format/exclusion changes, transient reads, debounce bursts and immediate device death."])
+    testSettlingBaseline(baseline: baseline, format: format, changedFormat: changedFormat)
+    emit(["type": "status", "message": "Capture fingerprint tests passed: unchanged notifications, route/format/exclusion changes, transient reads, debounce bursts, immediate device death, and one rebuild per device change while a new stream settles."])
+}
+
+func testSettlingBaseline(baseline: CaptureFingerprint, format: StreamFingerprint, changedFormat: StreamFingerprint) {
+    let opened = OpenedStream(input: 10, channels: 3, format: format, streams: [format], quantum: 512)
+    let window = ConfigurationChangeGate.stabilityWindowNs
+    let minimum = ConfigurationChangeGate.settleMinimumNs
+    // Reproduce the field sequence: the baseline is read mid-transition, then
+    // our own start renegotiates the output (Bluetooth call profile) and a
+    // query briefly fails. Previously the settled values differed from the
+    // baseline and caused a second rebuild; now exactly one rebuild happens.
+    var settled = baseline; settled.output = 21; settled.outputRate = rateFingerprint(16_000); settled.outputChannels = 1
+    settled.inputRate = rateFingerprint(16_000); settled.quantum = 256
+    var transient = settled; transient.quantum = nil; transient.aggregateFormat = nil
+    var gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+    var legacy = ConfigurationChangeGate(baseline: baseline)
+    var rebuilds = 0, legacyRebuilt = false
+    for (n, value) in [baseline, transient, settled, settled, settled, settled, settled, settled].enumerated() {
+        let now = UInt64(n) * 250_000_000
+        if gate.observe(value, at: now) != nil { rebuilds += 1 }
+        if !legacyRebuilt && legacy.observe(value, at: now) != nil { legacyRebuilt = true }
+    }
+    precondition(legacyRebuilt, "the legacy fixed baseline reproduces the spurious second rebuild")
+    precondition(rebuilds == 0 && !gate.settling && gate.settledStable && gate.absorbed == 2)
+    // Failed reads did not erase settled values, so later reads do not rebuild.
+    precondition(gate.baseline.quantum == 256 && gate.baseline.aggregateFormat == format)
+    for n in 0..<20 { precondition(gate.observe(n % 2 == 0 ? settled : transient, at: 2_000_000_000 + UInt64(n) * window) == nil) }
+    // Once armed, a real later change still rebuilds through the normal window.
+    var later = settled; later.output = 22
+    precondition(gate.observe(later, at: 10_000_000_000) == nil)
+    precondition(gate.observe(later, at: 10_000_000_000 + window) == "device_change")
+
+    // Not settled before the minimum time, even when values are stable.
+    gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+    precondition(gate.observe(baseline, at: minimum - 1) == nil && gate.settling)
+    precondition(gate.observe(baseline, at: minimum) == nil && !gate.settling && gate.absorbed == 0)
+    // A value still changing at the minimum keeps the gate settling until stable.
+    gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+    var moving = baseline; moving.outputRate = rateFingerprint(44_100)
+    precondition(gate.observe(moving, at: minimum) == nil && gate.settling)
+    precondition(gate.observe(moving, at: minimum + window) == nil && !gate.settling && gate.settledStable)
+    // A stream that never settles is armed at the maximum, marked unstable.
+    gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+    var step: UInt64 = 0
+    while gate.settling {
+        step += 1
+        var flapping = baseline; flapping.outputChannels = UInt32(step % 2 + 1)
+        precondition(gate.observe(flapping, at: step * 50_000_000) == nil)
+        precondition(step * 50_000_000 <= ConfigurationChangeGate.settleMaximumNs)
+    }
+    precondition(!gate.settledStable)
+
+    // Changes to what the running ring was opened for are never absorbed.
+    var invalidating: [CaptureFingerprint] = []
+    var changed = baseline; changed.input = 11; invalidating.append(changed)
+    changed = baseline; changed.aggregateChannels = 4; invalidating.append(changed)
+    changed = baseline; changed.aggregateFormat = changedFormat; invalidating.append(changed)
+    changed = baseline; changed.streams = [changedFormat]; invalidating.append(changed)
+    changed = baseline; changed.quantum = 1_024; invalidating.append(changed)
+    for value in invalidating {
+        gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+        precondition(gate.observe(value, at: 100) == nil)
+        precondition(gate.observe(value, at: 100 + window) == "device_change")
+    }
+    // A smaller quantum fits the ring and is absorbed.
+    gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+    changed = baseline; changed.quantum = 128
+    precondition(gate.observe(changed, at: 100) == nil && gate.observe(changed, at: 100 + window) == nil)
+    // Confirmed device death is immediate even while settling.
+    gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+    changed = baseline; changed.inputAlive = false
+    precondition(gate.observe(changed, at: 0) == "device_change")
+    // An exclusion change seen while settling is not absorbed: once armed it
+    // rebuilds with its own reason because published exclusions stay in the baseline.
+    gate = ConfigurationChangeGate(settling: baseline, opened: opened, at: 0)
+    changed = baseline; changed.exclusions = [30, 31]
+    precondition(gate.observe(changed, at: minimum) == nil && !gate.settling && gate.baseline.exclusions == [30])
+    precondition(gate.observe(changed, at: minimum + 1) == nil)
+    precondition(gate.observe(changed, at: minimum + 1 + window) == "process_exclusion_change")
+}
+
+func testOverflowCoalescing() {
+    typealias Coalescer = OverflowCoalescer<Int>
+    let rate: UInt64 = 8_000
+    func ns(_ frames: UInt64) -> UInt64 { frames * 1_000_000_000 / rate }
+    // Synthetic contiguous timeline in frames: packets are 80 frames (10 ms).
+    struct Script { var coalescer = Coalescer(maxHeldFrames: 16_000); var out: [Coalescer.Output] = []; var next = 0 }
+    func packet(_ s: inout Script, at frame: UInt64) { s.out += s.coalescer.packet(s.next, end: ns(frame + 80), frames: 80); s.next += 1 }
+    func drop(_ s: inout Script, at frame: UInt64, frames: UInt64) { s.out += s.coalescer.drop(epoch: 2, start: ns(frame), end: ns(frame + frames), frames: frames) }
+    func gaps(_ s: Script) -> [OverflowGap] { s.out.compactMap { if case .gap(let g) = $0 { return g } else { return nil } } }
+    func packets(_ s: Script) -> [Int] { s.out.compactMap { if case .packet(let p) = $0 { return p } else { return nil } } }
+
+    // No overflow: packets pass through immediately.
+    var s = Script()
+    packet(&s, at: 0); packet(&s, at: 80)
+    precondition(packets(s) == [0, 1] && gaps(s).isEmpty)
+
+    // A ten-run burst (alternating one delivered quantum and a drop, as during
+    // ring saturation) becomes one gap: first drop start to last drop end.
+    s = Script()
+    packet(&s, at: 0)
+    var frame: UInt64 = 80
+    var dropped: UInt64 = 0
+    for _ in 0..<10 {
+        drop(&s, at: frame, frames: 160); frame += 160; dropped += 160
+        packet(&s, at: frame); frame += 80
+    }
+    precondition(gaps(s).isEmpty && packets(s) == [0], "the burst is held until it closes")
+    // One second of clean audio closes the burst and releases held packets in order.
+    let lastDropEnd = frame - 80
+    while ns(frame) - ns(lastDropEnd) < Coalescer.windowNs { packet(&s, at: frame); frame += 80 }
+    let burst = gaps(s)
+    precondition(burst.count == 1)
+    let gap = burst[0]
+    precondition(gap.start == ns(80) && gap.end == ns(lastDropEnd) && gap.runs == 10 && gap.epoch == 2)
+    // Exact accounting: 10 dropped runs plus the 9 delivered quanta between them.
+    precondition(gap.droppedFrames == dropped && gap.discardedFrames == 9 * 80)
+    precondition(gap.end - gap.start == ns(gap.droppedFrames + gap.discardedFrames))
+    let released = packets(s)
+    precondition(released.first == 0 && released[1] == 10 && released == released.sorted())
+    precondition(!released.contains(1) && !released.contains(9), "audio inside the gap is discarded, never published")
+    if case .gap = s.out[1] {} else { preconditionFailure("the gap precedes the released audio") }
+
+    // Runs separated by one second or more of clean audio stay separate gaps.
+    s = Script()
+    drop(&s, at: 0, frames: 80)
+    frame = 80
+    while ns(frame) - ns(80) < Coalescer.windowNs { packet(&s, at: frame); frame += 80 }
+    drop(&s, at: frame, frames: 80); frame += 80
+    packet(&s, at: frame)
+    s.out += s.coalescer.finish()
+    precondition(gaps(s).count == 2 && gaps(s).allSatisfy { $0.runs == 1 && $0.discardedFrames == 0 })
+    precondition(packets(s).count == s.next, "no audio between separate gaps is lost")
+
+    // finish() (stop/rebuild) publishes a pending gap, including a final unqueued drop.
+    s = Script()
+    drop(&s, at: 0, frames: 80); packet(&s, at: 80); drop(&s, at: 160, frames: 40)
+    s.out += s.coalescer.finish()
+    precondition(gaps(s) == [OverflowGap(epoch: 2, start: 0, end: ns(200), droppedFrames: 120, discardedFrames: 80, runs: 2)])
+    precondition(packets(s).isEmpty && s.coalescer.pending == nil && s.coalescer.finish().isEmpty)
+
+    // Held audio is bounded even when host timestamps do not advance.
+    var bounded = Coalescer(maxHeldFrames: 160)
+    _ = bounded.drop(epoch: 0, start: 0, end: 10, frames: 1)
+    precondition(bounded.packet(0, end: 10, frames: 80).isEmpty)
+    precondition(bounded.packet(1, end: 10, frames: 80).count == 3)
+    emit(["type": "status", "message": "Overflow coalescing tests passed: pass-through, one gap per burst with exact dropped/discarded accounting, separate distant runs, final drops and bounded holding."])
+}
+
+func testDiagnostics() {
+    precondition(fourCC(kAudioDevicePropertyNominalSampleRate) == "nsrt")
+    precondition(fourCC(kAudioHardwarePropertyProcessObjectList) == "prs#")
+    precondition(fourCC(0x0102_0304) == "01020304")
+    let expected: [UInt32: String] = [kAudioDeviceTransportTypeBuiltIn: "built_in", kAudioDeviceTransportTypeBluetooth: "bluetooth",
+        kAudioDeviceTransportTypeBluetoothLE: "bluetooth", kAudioDeviceTransportTypeUSB: "usb",
+        kAudioDeviceTransportTypeAggregate: "aggregate", kAudioDeviceTransportTypeVirtual: "virtual",
+        kAudioDeviceTransportTypeHDMI: "other", kAudioDeviceTransportTypeDisplayPort: "other",
+        kAudioDeviceTransportTypeThunderbolt: "other", kAudioDeviceTransportTypePCI: "other", 0: "unknown"]
+    for (value, name) in expected { precondition(inputTransport(value) == name) }
+    precondition(inputTransport(nil) == "unknown")
+    let event = diagnosticEvent("heartbeat", ["callbacks": 3])
+    precondition(event["type"] as? String == "status" && event["message"] is String)
+    precondition((event["diagnostic"] as? [String: Any])?["kind"] as? String == "heartbeat")
+    // Read-only probes never publish diagnostics (their stdout is one document).
+    precondition(!diagnosticsEnabled)
+    var trigger = RebuildTrigger.from(sources: UInt32(VT_REBUILD_POLL | VT_REBUILD_NOTIFICATION), firstTicks: 0, now: 5)
+    precondition(trigger.source == "notification" && trigger.observedAt == 5)
+    trigger = RebuildTrigger.from(sources: UInt32(VT_REBUILD_WAKE | VT_REBUILD_POLL), firstTicks: originTicks, now: 5)
+    precondition(trigger.source == "wake" && trigger.observedAt == 0)
+    precondition(RebuildTrigger.from(sources: 0, firstTicks: 0, now: 1).source == "unknown")
+    // Rebuild requests keep their first observation time and every source until taken.
+    _ = vt_take_rebuild()
+    vt_request_rebuild_from(UInt32(VT_REBUILD_POLL)); vt_request_rebuild()
+    var sources: UInt32 = 0, first: UInt64 = 0
+    precondition(vt_take_rebuild_info(&sources, &first) && sources == UInt32(VT_REBUILD_POLL | VT_REBUILD_NOTIFICATION) && first > 0)
+    precondition(!vt_take_rebuild_info(&sources, &first))
+    let callbacks = vt_callback_count(); vt_count_callback()
+    precondition(vt_callback_count() == callbacks + 1)
+    emit(["type": "status", "message": "Diagnostic tests passed: selector codes, approved input transport classes, status-wrapped events, probe silence, rebuild trigger sources and the callback counter."])
 }
 
 func testOutputRoutes() {
@@ -893,6 +1357,7 @@ func runCapture() throws {
     guard mode == "remote" || mode == "in_person" else { throw CaptureFailure.message("Mode must be remote or in_person.") }
     let parentPID = Int32(argument("--parent-pid") ?? "") ?? getppid()
     signal(SIGPIPE, SIG_IGN)
+    diagnosticsEnabled = true
     signal(SIGTERM) { _ in vt_request_stop() }
     signal(SIGINT) { _ in vt_request_stop() }
     DispatchQueue.global(qos: .utility).async {
@@ -910,22 +1375,36 @@ func runCapture() throws {
     try engine.start()
     let center = NSWorkspace.shared.notificationCenter
     let sleepObserver = center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { _ in engine.suspended = true; engine.stop(); emit(["type": "status", "message": "Capture paused while the computer sleeps."]) }
-    let wakeObserver = center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in engine.suspended = false; vt_request_rebuild() }
+    let wakeObserver = center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in engine.suspended = false; vt_request_rebuild_from(UInt32(VT_REBUILD_WAKE)) }
     defer { center.removeObserver(sleepObserver); center.removeObserver(wakeObserver) }
     var nextConfigurationCheck = elapsedNow() + 2_000_000_000
     var nextRouteCheck: UInt64 = 0
+    var nextHeartbeat = elapsedNow() + 1_000_000_000
+    var controlTicks: UInt64 = 0
     while !vt_stop_requested() {
+        controlTicks &+= 1
         if !engine.suspended && elapsedNow() >= nextRouteCheck {
             nextRouteCheck = elapsedNow() + 250_000_000
+            diagnosticPhase = "route"
             engine.refreshOutputRoute()
+            diagnosticPhase = "idle"
         }
         if !engine.suspended {
-            let requested = vt_take_rebuild()
-            if requested { engine.refreshOutputRoute() }
+            var sources: UInt32 = 0
+            var firstTicks: UInt64 = 0
+            let requested = vt_take_rebuild_info(&sources, &firstTicks)
+            if requested {
+                engine.noteTrigger(RebuildTrigger.from(sources: sources, firstTicks: firstTicks, now: elapsedNow()))
+                diagnosticPhase = "route"
+                engine.refreshOutputRoute()
+                diagnosticPhase = "idle"
+            }
             if requested && !engine.started {
                 try engine.rebuild(reason: "device_change")
-            } else if requested || engine.hasPendingConfigurationChange {
+            } else if requested || engine.hasPendingConfigurationChange || engine.settleCheckDue(elapsedNow()) {
+                engine.noteTrigger(RebuildTrigger(source: "settle_check", observedAt: elapsedNow()))
                 if let reason = engine.configurationChangeReason() { try engine.rebuild(reason: reason) }
+                else { engine.forgetIdleTrigger() }
             }
         }
         engine.drain()
@@ -933,7 +1412,16 @@ func runCapture() throws {
             nextConfigurationCheck = elapsedNow() + 2_000_000_000
             // A periodic value check also catches missed native notifications.
             // It is safe in both modes because unchanged values do not rebuild.
-            vt_request_rebuild()
+            vt_request_rebuild_from(UInt32(VT_REBUILD_POLL))
+        }
+        let now = elapsedNow()
+        if now >= nextHeartbeat {
+            // Emit-only liveness evidence: callbacks advance on the IOProc,
+            // control_ticks on this loop, max_emit_ns grows when stdout blocks.
+            nextHeartbeat = now + 1_000_000_000
+            emitDiagnostic("heartbeat", ["epoch": engine.epoch, "callbacks": vt_callback_count(), "control_ticks": controlTicks,
+                                         "queued_packets": engine.ring.map { vt_ring_queued($0) } ?? 0, "max_emit_ns": maxEmitNs, "at_ns": now])
+            maxEmitNs = 0
         }
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
     }
@@ -941,9 +1429,11 @@ func runCapture() throws {
     emit(["type": "status", "message": "Capture stopped."])
 }
 
-let supportedCommands = ["capture", "list_devices", "meeting_apps", "output_route", "test_fingerprints", "test_output_routes", "test_arguments", "test_source_clock", "test_meeting_apps", "version", "help"]
+let supportedCommands = ["capture", "list_devices", "meeting_apps", "output_route", "test_fingerprints", "test_output_routes", "test_arguments", "test_source_clock", "test_meeting_apps", "test_overflow_coalescing", "test_diagnostics", "version", "help"]
+// `capture_diagnostics`: capture publishes status events with a typed `diagnostic`.
+let captureCapabilities = ["source_clock_uptime_raw", "capture_diagnostics"]
 enum HelperCommand: Equatable {
-    case capture, listDevices, meetingApps, outputRoute, testFingerprints, testOutputRoutes, testArguments, testSourceClock, testMeetingApps, version, help
+    case capture, listDevices, meetingApps, outputRoute, testFingerprints, testOutputRoutes, testArguments, testSourceClock, testMeetingApps, testOverflowCoalescing, testDiagnostics, version, help
 }
 
 // Parse every argument before querying permissions or creating any audio object.
@@ -952,7 +1442,8 @@ func validatedCommand(_ args: [String]) throws -> HelperCommand {
     let probes: [String: HelperCommand] = [
         "--list-devices": .listDevices, "--meeting-apps": .meetingApps, "--output-route": .outputRoute,
         "--test-fingerprints": .testFingerprints, "--test-output-routes": .testOutputRoutes,
-        "--test-meeting-apps": .testMeetingApps, "--test-arguments": .testArguments, "--test-source-clock": .testSourceClock, "--version": .version, "--help": .help
+        "--test-meeting-apps": .testMeetingApps, "--test-arguments": .testArguments, "--test-source-clock": .testSourceClock,
+        "--test-overflow-coalescing": .testOverflowCoalescing, "--test-diagnostics": .testDiagnostics, "--version": .version, "--help": .help
     ]
     if args.count == 1, let probe = probes[args[0]] { return probe }
     var seen = Set<String>()
@@ -998,6 +1489,11 @@ func testArguments() {
     precondition(try! validatedCommand(["--meeting-apps"]) == .meetingApps)
     precondition(try! validatedCommand(["--test-meeting-apps"]) == .testMeetingApps)
     precondition(try! validatedCommand(["--version"]) == .version)
+    precondition(try! validatedCommand(["--test-overflow-coalescing"]) == .testOverflowCoalescing)
+    precondition(try! validatedCommand(["--test-diagnostics"]) == .testDiagnostics)
+    for args in [["--test-diagnostics", "--mode", "remote"], ["--test-overflow-coalescing", "--mode", "remote"]] {
+        do { _ = try validatedCommand(args); preconditionFailure("Mixed self-test and capture arguments were accepted") } catch { }
+    }
     emit(["type": "status", "message": "CLI validation tests passed: explicit capture mode, unknown/repeated/mixed options, missing values and invalid parent IDs are rejected before capture."])
 }
 
@@ -1020,9 +1516,11 @@ do {
     case .testFingerprints: testFingerprints()
     case .testArguments: testArguments()
     case .testSourceClock: testSourceClock()
+    case .testOverflowCoalescing: testOverflowCoalescing()
+    case .testDiagnostics: testDiagnostics()
     case .listDevices: try listDevices()
-    case .version: emit(["helper_protocol": 4, "supported_commands": supportedCommands, "capture_capabilities": ["source_clock_uptime_raw"]])
-    case .help: emit(["helper_protocol": 4, "supported_commands": supportedCommands, "capture_capabilities": ["source_clock_uptime_raw"], "usage": "Capture: --mode remote|in_person [--parent-pid positive-pid] [--mic-device uid]. Read-only commands must be used alone."])
+    case .version: emit(["helper_protocol": 4, "supported_commands": supportedCommands, "capture_capabilities": captureCapabilities])
+    case .help: emit(["helper_protocol": 4, "supported_commands": supportedCommands, "capture_capabilities": captureCapabilities, "usage": "Capture: --mode remote|in_person [--parent-pid positive-pid] [--mic-device uid]. Read-only commands must be used alone."])
     case .capture: try runCapture()
     }
 } catch {

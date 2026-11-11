@@ -3,9 +3,18 @@
 mod audio_preferences;
 mod audio_service;
 mod backlog;
+mod capture_health;
 mod health;
 mod live_models;
-pub use backlog::{BacklogReport, BacklogSnapshot, BacklogStage, InferenceGap, SheddingEvent};
+mod live_transcript;
+pub use backlog::{
+    BacklogReport, BacklogSnapshot, BacklogStage, InferenceGap, LiveState, LiveStopReason,
+    LiveTranscriptionView, SheddingEvent, WorkerFailure,
+};
+pub use capture_health::{
+    CaptureHealth, CaptureState, CaptureView, EpochRecord, RebuildRecord, SlowCallRecord,
+    StallKind, StallRecord,
+};
 pub use live_models::{LiveModelCatalog, LiveModelChoice};
 pub use vt_stt::LiveModel;
 mod maintenance_service;
@@ -86,6 +95,10 @@ pub struct RecordingView {
     pub gaps: u64,
     pub transcription_configured: bool,
     pub transcription_active: bool,
+    /// `None` when live transcription was not configured for this recording.
+    pub live_transcription: Option<LiveTranscriptionView>,
+    /// Capture-stall state derived from helper heartbeats.
+    pub capture: CaptureView,
     pub error: Option<String>,
 }
 
@@ -162,6 +175,9 @@ struct Runtime {
     health: HealthSnapshot,
     current: Option<Current>,
     partials: BTreeMap<TrackKind, Segment>,
+    /// Final live lines handed to the transcript writer but not yet saved (or
+    /// dropped). Shown with saved segments so the UI sees finals at once.
+    live_finals: Vec<Segment>,
     model: ModelStatus,
     refinement_model: ModelStatus,
     vad_model: ModelStatus,
@@ -340,7 +356,21 @@ impl AppService {
             )
         };
         if persist {
-            health::persist(&self.root, meeting.as_deref(), source_ms, &snapshot, true)?;
+            // Periodic (unforced) checks run on the capture consumer loop, which
+            // must not wait seconds for a lock; it treats lock errors as skips.
+            let busy_timeout = if force {
+                std::time::Duration::from_secs(5)
+            } else {
+                store::LOOP_BUSY_TIMEOUT
+            };
+            health::persist(
+                &self.root,
+                meeting.as_deref(),
+                source_ms,
+                &snapshot,
+                true,
+                busy_timeout,
+            )?;
         }
         Ok(snapshot)
     }
@@ -610,6 +640,8 @@ impl AppService {
                 gaps: 0,
                 transcription_configured,
                 transcription_active: false,
+                live_transcription: None,
+                capture: CaptureView::default(),
                 error: None,
             },
             control: tx,
@@ -722,15 +754,38 @@ impl AppService {
         self.detail_for_run(id, None)
     }
     pub fn detail_for_run(&self, id: &str, run: Option<&str>) -> Result<MeetingDetail> {
+        // Snapshot unsaved live lines before reading the database: a line the
+        // writer commits in between is then in both, and deduplicated by ID,
+        // rather than in neither.
+        let live = self.runtime.lock().ok().and_then(|runtime| {
+            runtime
+                .current
+                .as_ref()
+                .is_some_and(|c| c.view.id == id)
+                .then(|| {
+                    runtime
+                        .live_finals
+                        .iter()
+                        .chain(runtime.partials.values())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+        });
         let mut detail = match run {
             Some(run) => store::detail_run(&self.root, id, run)?,
             None => store::detail(&self.root, id)?,
         };
-        if let Ok(runtime) = self.runtime.lock()
-            && runtime.current.as_ref().is_some_and(|c| c.view.id == id)
+        if let Some(live) = live
             && detail.run_id == detail.active_run_id
         {
-            detail.segments.extend(runtime.partials.values().cloned());
+            let saved = detail
+                .segments
+                .iter()
+                .map(|s| s.id.clone())
+                .collect::<std::collections::BTreeSet<_>>();
+            detail
+                .segments
+                .extend(live.into_iter().filter(|s| !saved.contains(&s.id)));
             detail.segments.sort_by_key(|s| s.start_ms);
         }
         Ok(detail)

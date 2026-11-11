@@ -22,8 +22,17 @@
 
 - Global inference lag is the maximum same-track difference between accepted raw source time and actual DSP/STT/speaker input completion; silent/VAD-suppressed input acknowledges completion and absent workers are excluded.
 - Strictly greater than ten seconds of lag with fresh input must persist two monotonic seconds before shedding; subsequent ordered stages are at least five seconds apart. Order is partial publication, configured speakers, live STT. Finals survive stage one; all raw capture survives inference shedding.
-- Source gaps, format/epoch changes and pause reset the lag basis and reject old generation tokens. Paused/stale source cannot escalate; no stage automatically reactivates during a recording.
+- Source gaps, format/epoch changes and pause reset the lag basis and reject old generation tokens. Paused/stale source cannot escalate; a stage disabled by backlog shedding or disk suspension does not reactivate during a recording.
 - Queue drops/resource shedding create bounded per-run inference evidence, never fabricated raw gaps. Audit persistence runs off the capture thread and finishes before run sealing. Historical evidence stays with its source run; later refinement is separate. `complete` seals only the audit ledger: periodic snapshots are false, mandatory final snapshots true. Missing expected or unsealed historical ledgers remain explicitly incomplete after restart, with no invented gap ranges. Final write failure appends a warning; if even warning persistence fails, a ready in-memory warning is retained and automatic jobs are skipped.
+- The speech worker recovers in place from a per-message recognizer error: it records a `recognizer_error` gap and a non-terminal failure, resets the track, and rebuilds the engine only for an engine error or a failed reset. The same cause twice in a row is terminal; at most 20 recoveries per recording (`recovery_budget_exhausted` beyond that). The speaker worker is never restarted. Backlog shedding is sticky for the recording.
+- Live transcription state (`RecordingView.live_transcription`) is `active` until it stops for a named `LiveStopReason`, then `stopped` with `since_source_ms` for the rest of the recording. A recording where it was not configured reports none.
+- Each worker's first and latest failure are kept in the health report `failures[]` (cause at most 300 characters, SQLite extended code when present), outside the bounded gap list and warnings.
+- Gaps of the same worker, track and reason merge when adjacent within 1 ms regardless of generation; one worker holds at most 42 of the 128 gap entries.
+- Every recording has a health report, including recordings without live models. Its `capture` section keeps at most 32 entries per list (rebuilds, slow calls, epochs, stalls) with exact totals.
+- The helper is never stopped or restarted because of a stall. `capture.state` is derived only while recording and not paused, only after a first heartbeat: 5 s without a heartbeat is `helper_silent`, 5 s of heartbeats without callback progress is `no_audio_callbacks`, and a session-loop iteration of 500 ms or more is the consumer's delay (`consumer_slow` stall record at 5 s), never blamed on the helper.
+- Housekeeping writes on the recording loop (duration, unforced health, source timing, pause/resume status) wait at most 250 ms and skip on a lock error with one warning per recording; non-lock errors remain fatal. The recorder's chunk writer is unchanged: a lock held longer than 5 s across a chunk flush still ends the recording, and `save_clock` on flush is still fatal.
+- The final echo-info save retries briefly (3 x 1 s) and a lock is a warning, not a failure.
+- Live transcript lines that could not be saved are `segment_rejected` (deterministic error) or `persistence_failed` (queue overflow, or unsaved at the 5 s close deadline) inference gaps; the raw recording is unaffected.
 - Live speaker turns that could not be saved because of database lock contention are recorded as inference gaps with reason `persistence_failed` (see [speaker turns](../../diarization/speaker-turns/speaker-turns.md)); the raw recording is unaffected.
 
 ## Flag rules
@@ -37,6 +46,11 @@
 | Buffered chunk upper bound plus margin does not fit | Recording error before pending reservation | That publication; existing recovery policy applies |
 | Legacy/unknown/unavailable clock | Approximate provenance | Notes before any source observation; later fallback is explicit |
 | Fresh source and sustained `>10s` inference lag | Ordered sticky live degradation | Partials, then speakers, then live STT; raw capture continues |
+| Speech recognizer error (new cause) | Warning; `recognizer_error` gap and failure entry | Short stretch of live text; worker continues |
+| Same recognizer cause twice in a row, or 20 recoveries used | Terminal; live transcription `stopped` (`worker_failed` / `recovery_budget_exhausted`) | Live STT for the rest of the recording; raw capture continues |
+| Live speaker worker error | Terminal; not restarted | Live speaker labels for the rest of the recording |
+| Database lock on a recording-loop housekeeping write | One warning; write skipped | No |
+| No helper heartbeat or callback progress for 5 s | `capture.state` stalled; record in report | Observation only; capture is not touched |
 | Note metadata/FTS failure | Atomic rollback | Entire new note publication |
 
 ## Ordered side effects
@@ -56,7 +70,10 @@
 | Background recording poll | Thirty monotonic seconds; per-chunk checks additionally apply |
 | Chunk publication margin | 2,000,000 bytes plus bounded PCM24/headers |
 | Backlog confirmation / stage interval / input freshness | 2 / 5 / 2 monotonic seconds |
-| Per-run inference evidence bounds | 128 coalesced source ranges, 12 distinct warnings; explicit truncation |
+| Per-run inference evidence bounds | 128 coalesced source ranges (42 per worker), 12 distinct warnings; explicit truncation; 2 failures per worker; 32 entries per capture list |
+| Speech recovery budget | 20 per recording; same cause twice in a row is terminal |
+| Stall / slow-iteration thresholds | 5 s / 500 ms |
+| Recording-loop housekeeping lock wait | 250 ms |
 | Shared native clock | Protocol 3 `source_clock_uptime_raw`; no callback-arrival origin |
 | Legacy timing | Explicit latest-audio fallback, no wall-clock estimate |
 | Capture/DSP/STT/speaker queue bounds | 2.56 / 12 / 6 / 6 seconds aggregate audio |

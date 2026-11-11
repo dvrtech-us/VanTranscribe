@@ -139,6 +139,188 @@ impl OutputRoute {
     }
 }
 
+/// Input transport class for one capture epoch. Only the class is reported;
+/// device names and UIDs never leave the helper.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InputTransport {
+    BuiltIn,
+    Bluetooth,
+    Usb,
+    Aggregate,
+    Virtual,
+    Other,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RebuildReason {
+    DeviceChange,
+    ProcessExclusionChange,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// What first made the helper look for the change that caused a rebuild.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RebuildTrigger {
+    /// A Core Audio property listener fired.
+    Notification,
+    /// The two-second configuration poll.
+    Poll,
+    /// System wake after sleep.
+    Wake,
+    /// The helper's own observation while a new stream settles.
+    SettleCheck,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RebuildResult {
+    Ok,
+    Failed,
+    Cancelled,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The helper activity during which a slow Core Audio call happened.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticPhase {
+    Idle,
+    Stop,
+    Start,
+    Fingerprint,
+    Route,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Capture timing evidence (helper capability `capture_diagnostics`). Every
+/// field is a duration, count, enumerated reason or public API name; no device
+/// name or UID is carried. These are observations only: nothing here should
+/// stop or restart capture.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CaptureDiagnostic {
+    /// About once per second from the helper control loop. `callbacks` is the
+    /// process-lifetime IOProc callback count (atomic, monotonic); `control_ticks`
+    /// counts control-loop iterations; `max_emit_ns` is the longest single stdout
+    /// write since the previous heartbeat (pipe backpressure); `queued_packets`
+    /// is the ring backlog awaiting the control thread. Missing heartbeats mean
+    /// the control thread is blocked.
+    Heartbeat {
+        #[serde(default)]
+        epoch: u32,
+        callbacks: u64,
+        control_ticks: u64,
+        #[serde(default)]
+        queued_packets: u64,
+        #[serde(default)]
+        max_emit_ns: u64,
+        #[serde(default)]
+        at_ns: u64,
+    },
+    /// One completed (or failed) rebuild. `trigger_age_ns` runs from the first
+    /// observation of the trigger to the start of the rebuild (debounce plus any
+    /// blocked fingerprint read); `stop_ns`/`start_ns` time the two halves.
+    Rebuild {
+        #[serde(default)]
+        reason: RebuildReason,
+        #[serde(default)]
+        trigger: RebuildTrigger,
+        previous_epoch: u32,
+        epoch: u32,
+        #[serde(default)]
+        trigger_age_ns: u64,
+        #[serde(default)]
+        fingerprint_ns: u64,
+        #[serde(default)]
+        stop_ns: u64,
+        #[serde(default)]
+        start_ns: u64,
+        #[serde(default)]
+        result: RebuildResult,
+    },
+    /// A single Core Audio call that blocked the control thread for more than
+    /// 100 ms. `call` is an API name, optionally with a property selector code.
+    SlowCall {
+        #[serde(deserialize_with = "api_call_name")]
+        call: String,
+        duration_ns: u64,
+        #[serde(default)]
+        phase: DiagnosticPhase,
+    },
+    /// Stream facts for one epoch, emitted once its device has started.
+    Epoch {
+        epoch: u32,
+        sample_rate: u32,
+        mic_channels: u16,
+        #[serde(default)]
+        system_channels: u16,
+        #[serde(default)]
+        quantum: u32,
+        #[serde(default)]
+        input_transport: InputTransport,
+    },
+    /// The configuration baseline was fixed after the new stream settled.
+    /// `absorbed` counts post-start changes folded into it rather than rebuilt;
+    /// `stable=false` means it was fixed at the ten-second limit.
+    Settled {
+        epoch: u32,
+        settle_ns: u64,
+        #[serde(default)]
+        absorbed: u32,
+        #[serde(default)]
+        stable: bool,
+    },
+    /// A diagnostic from a newer helper, or one that failed validation.
+    #[serde(other)]
+    Unknown,
+}
+
+fn api_call_name<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<String, D::Error> {
+    let value = String::deserialize(deserializer)?;
+    let valid = !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':' || b == b'#');
+    Ok(if valid { value } else { "other".into() })
+}
+
+/// A diagnostic can never end capture: malformed ones decode as `Unknown`.
+fn lenient_diagnostic<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<CaptureDiagnostic>, D::Error> {
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(value.map(|value| serde_json::from_value(value).unwrap_or(CaptureDiagnostic::Unknown)))
+}
+
+const KNOWN_EVENT_TYPES: [&str; 8] = [
+    "source_clock",
+    "output_route",
+    "format",
+    "audio",
+    "gap",
+    "level",
+    "status",
+    "error",
+];
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CaptureEvent {
@@ -166,19 +348,42 @@ pub enum CaptureEvent {
         host_time_ns: u64,
         samples: Vec<f32>,
     },
+    /// `[start_ns, end_ns)` is lost on this track. For `reason == "overflow"`
+    /// the helper coalesces drop runs separated by under one second of delivered
+    /// audio: the range runs from the first dropped frame to the last, and
+    /// `dropped_frames + discarded_frames` (both exact, at the epoch rate) is its
+    /// length, where discarded frames were captured between runs but not
+    /// published. `overflow_runs` counts the coalesced drop runs. All three are
+    /// zero for other reasons and for helpers that predate coalescing.
     Gap {
         track: String,
         epoch: u32,
         start_ns: u64,
         end_ns: u64,
         reason: String,
+        #[serde(default)]
+        dropped_frames: u64,
+        #[serde(default)]
+        discarded_frames: u64,
+        #[serde(default)]
+        overflow_runs: u32,
     },
     Level {
         track: String,
         value: f32,
     },
+    /// Human-readable progress, or (helper capability `capture_diagnostics`)
+    /// a typed diagnostic. Diagnostics travel as status events so a parent that
+    /// predates them ignores them instead of failing on an unknown type.
     Status {
+        #[serde(default)]
         message: String,
+        #[serde(
+            default,
+            deserialize_with = "lenient_diagnostic",
+            skip_serializing_if = "Option::is_none"
+        )]
+        diagnostic: Option<CaptureDiagnostic>,
     },
     Error {
         message: String,
@@ -327,7 +532,24 @@ fn read_event(reader: &mut impl BufRead) -> Result<Option<CaptureEvent>> {
     if bytes.len() > MAX_EVENT_BYTES {
         return Err(CaptureError::EventTooLarge);
     }
-    Ok(Some(serde_json::from_slice(&bytes)?))
+    match serde_json::from_slice(&bytes) {
+        Ok(event) => Ok(Some(event)),
+        Err(error) => {
+            // An event type from a newer helper is ignorable status, not a
+            // transport failure. Malformed known events still fail.
+            if let Ok(serde_json::Value::Object(object)) =
+                serde_json::from_slice::<serde_json::Value>(&bytes)
+                && let Some(serde_json::Value::String(kind)) = object.get("type")
+                && !KNOWN_EVENT_TYPES.contains(&kind.as_str())
+            {
+                return Ok(Some(CaptureEvent::Status {
+                    message: String::new(),
+                    diagnostic: Some(CaptureDiagnostic::Unknown),
+                }));
+            }
+            Err(error.into())
+        }
+    }
 }
 
 /// Known applications are exact bundle identifiers shared with the native helper.
@@ -895,6 +1117,261 @@ mod tests {
             }
         ));
     }
+    fn decode(line: &str) -> CaptureEvent {
+        read_event(&mut std::io::Cursor::new(format!("{line}\n")))
+            .unwrap()
+            .unwrap()
+    }
+
+    fn diagnostic(line: &str) -> CaptureDiagnostic {
+        match decode(line) {
+            CaptureEvent::Status {
+                diagnostic: Some(diagnostic),
+                ..
+            } => diagnostic,
+            other => panic!("not a diagnostic: {other:?}"),
+        }
+    }
+
+    // Literal lines in the helper's sorted-key JSON shape.
+    #[test]
+    fn capture_diagnostics_decode_from_status_events() {
+        assert_eq!(
+            diagnostic(
+                r#"{"diagnostic":{"at_ns":5000000000,"callbacks":4700,"control_ticks":98,"epoch":1,"kind":"heartbeat","max_emit_ns":1200,"queued_packets":3},"message":"Capture diagnostic.","type":"status"}"#
+            ),
+            CaptureDiagnostic::Heartbeat {
+                epoch: 1,
+                callbacks: 4700,
+                control_ticks: 98,
+                queued_packets: 3,
+                max_emit_ns: 1200,
+                at_ns: 5_000_000_000,
+            }
+        );
+        assert_eq!(
+            diagnostic(
+                r#"{"diagnostic":{"epoch":4,"fingerprint_ns":2100000,"kind":"rebuild","previous_epoch":3,"reason":"device_change","result":"ok","start_ns":180000000,"stop_ns":36000000000,"trigger":"notification","trigger_age_ns":76000000},"message":"Capture diagnostic.","type":"status"}"#
+            ),
+            CaptureDiagnostic::Rebuild {
+                reason: RebuildReason::DeviceChange,
+                trigger: RebuildTrigger::Notification,
+                previous_epoch: 3,
+                epoch: 4,
+                trigger_age_ns: 76_000_000,
+                fingerprint_ns: 2_100_000,
+                stop_ns: 36_000_000_000,
+                start_ns: 180_000_000,
+                result: RebuildResult::Ok,
+            }
+        );
+        assert_eq!(
+            diagnostic(
+                r#"{"diagnostic":{"call":"AudioDeviceStop","duration_ns":35000000000,"kind":"slow_call","phase":"stop"},"message":"Capture diagnostic.","type":"status"}"#
+            ),
+            CaptureDiagnostic::SlowCall {
+                call: "AudioDeviceStop".into(),
+                duration_ns: 35_000_000_000,
+                phase: DiagnosticPhase::Stop,
+            }
+        );
+        assert!(matches!(
+            diagnostic(
+                r#"{"diagnostic":{"call":"AudioObjectGetPropertyData:prs#","duration_ns":150000000,"kind":"slow_call","phase":"fingerprint"},"message":"Capture diagnostic.","type":"status"}"#
+            ),
+            CaptureDiagnostic::SlowCall { call, phase: DiagnosticPhase::Fingerprint, .. } if call == "AudioObjectGetPropertyData:prs#"
+        ));
+        assert_eq!(
+            diagnostic(
+                r#"{"diagnostic":{"epoch":2,"input_transport":"bluetooth","kind":"epoch","mic_channels":1,"quantum":512,"sample_rate":16000,"system_channels":2},"message":"Capture diagnostic.","type":"status"}"#
+            ),
+            CaptureDiagnostic::Epoch {
+                epoch: 2,
+                sample_rate: 16_000,
+                mic_channels: 1,
+                system_channels: 2,
+                quantum: 512,
+                input_transport: InputTransport::Bluetooth,
+            }
+        );
+        assert_eq!(
+            diagnostic(
+                r#"{"diagnostic":{"absorbed":2,"epoch":2,"kind":"settled","settle_ns":1250000000,"stable":true},"message":"Capture diagnostic.","type":"status"}"#
+            ),
+            CaptureDiagnostic::Settled {
+                epoch: 2,
+                settle_ns: 1_250_000_000,
+                absorbed: 2,
+                stable: true,
+            }
+        );
+        for name in [
+            "built_in",
+            "bluetooth",
+            "usb",
+            "aggregate",
+            "virtual",
+            "other",
+            "unknown",
+            "thunderbolt",
+        ] {
+            let transport: InputTransport = serde_json::from_str(&format!("\"{name}\"")).unwrap();
+            assert_eq!(
+                transport == InputTransport::Unknown,
+                matches!(name, "unknown" | "thunderbolt")
+            );
+        }
+    }
+
+    #[test]
+    fn diagnostics_tolerate_unknown_fields_values_and_kinds_without_ending_capture() {
+        // Unknown fields and enumeration values from a newer helper.
+        assert!(matches!(
+            diagnostic(
+                r#"{"diagnostic":{"call":"AudioDeviceStart","duration_ns":1,"future":[1],"kind":"slow_call","phase":"future_phase"},"message":"","type":"status"}"#
+            ),
+            CaptureDiagnostic::SlowCall {
+                phase: DiagnosticPhase::Unknown,
+                ..
+            }
+        ));
+        assert!(matches!(
+            diagnostic(
+                r#"{"diagnostic":{"epoch":1,"kind":"rebuild","previous_epoch":0,"reason":"future","result":"future","trigger":"future"},"type":"status"}"#
+            ),
+            CaptureDiagnostic::Rebuild {
+                reason: RebuildReason::Unknown,
+                trigger: RebuildTrigger::Unknown,
+                result: RebuildResult::Unknown,
+                ..
+            }
+        ));
+        // Unknown kind, malformed required fields and non-object payloads.
+        for payload in [
+            r#"{"kind":"future_kind","x":1}"#,
+            r#"{"kind":"heartbeat","callbacks":"many"}"#,
+            r#"{"kind":"heartbeat"}"#,
+            r#""text""#,
+        ] {
+            assert_eq!(
+                diagnostic(&format!(
+                    r#"{{"type":"status","message":"m","diagnostic":{payload}}}"#
+                )),
+                CaptureDiagnostic::Unknown
+            );
+        }
+        // A call name is only ever an API name/selector code.
+        assert!(matches!(
+            diagnostic(
+                r#"{"diagnostic":{"call":"AudioDeviceStart for My Headphones","duration_ns":1,"kind":"slow_call"},"type":"status"}"#
+            ),
+            CaptureDiagnostic::SlowCall { call, .. } if call == "other"
+        ));
+        // Plain status from older helpers still decodes, without a diagnostic.
+        assert!(matches!(
+            decode(r#"{"type":"status","message":"Microphone is recording."}"#),
+            CaptureEvent::Status { message, diagnostic: None } if message == "Microphone is recording."
+        ));
+        // An unknown event type is ignorable status; malformed known types still fail.
+        assert!(matches!(
+            decode(r#"{"type":"future_event","value":1}"#),
+            CaptureEvent::Status {
+                diagnostic: Some(CaptureDiagnostic::Unknown),
+                ..
+            }
+        ));
+        for line in [
+            r#"{"type":"gap","track":"mic"}"#,
+            r#"{"no_type":true}"#,
+            r#"{"type":7}"#,
+            "[]",
+        ] {
+            assert!(
+                read_event(&mut std::io::Cursor::new(format!("{line}\n"))).is_err(),
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_parent_that_predates_diagnostics_reads_them_as_plain_status() {
+        // The previous protocol's status shape: unknown fields are ignored.
+        #[derive(Deserialize)]
+        #[serde(tag = "type", rename_all = "snake_case")]
+        enum Previous {
+            Status { message: String },
+        }
+        let line = r#"{"diagnostic":{"callbacks":1,"control_ticks":1,"kind":"heartbeat"},"message":"Capture diagnostic.","type":"status"}"#;
+        let Previous::Status { message } = serde_json::from_str(line).unwrap();
+        assert_eq!(message, "Capture diagnostic.");
+        let event = CaptureEvent::Status {
+            message: "Capture diagnostic.".into(),
+            diagnostic: Some(CaptureDiagnostic::Settled {
+                epoch: 1,
+                settle_ns: 2,
+                absorbed: 0,
+                stable: true,
+            }),
+        };
+        let encoded = serde_json::to_string(&event).unwrap();
+        let Previous::Status { .. } = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(
+            diagnostic(&encoded),
+            CaptureDiagnostic::Settled {
+                epoch: 1,
+                settle_ns: 2,
+                absorbed: 0,
+                stable: true,
+            }
+        );
+        let plain = serde_json::to_string(&CaptureEvent::Status {
+            message: "x".into(),
+            diagnostic: None,
+        })
+        .unwrap();
+        assert!(!plain.contains("diagnostic"));
+    }
+
+    #[test]
+    fn coalesced_overflow_gaps_carry_exact_frame_accounting() {
+        let CaptureEvent::Gap {
+            start_ns,
+            end_ns,
+            reason,
+            dropped_frames,
+            discarded_frames,
+            overflow_runs,
+            ..
+        } = decode(
+            r#"{"discarded_frames":720,"dropped_frames":1600,"end_ns":1290000000,"epoch":2,"overflow_runs":10,"reason":"overflow","start_ns":1000000000,"track":"mic","type":"gap"}"#,
+        )
+        else {
+            panic!("wrong event")
+        };
+        assert_eq!(reason, "overflow");
+        assert_eq!(
+            (dropped_frames, discarded_frames, overflow_runs),
+            (1600, 720, 10)
+        );
+        // At 8 kHz the range is exactly the dropped plus discarded frames.
+        assert_eq!(
+            end_ns - start_ns,
+            (dropped_frames + discarded_frames) * 1_000_000_000 / 8_000
+        );
+        let CaptureEvent::Gap {
+            dropped_frames,
+            discarded_frames,
+            overflow_runs,
+            ..
+        } = decode(
+            r#"{"end_ns":2,"epoch":0,"reason":"device_change","start_ns":1,"track":"system","type":"gap"}"#,
+        )
+        else {
+            panic!("wrong event")
+        };
+        assert_eq!((dropped_frames, discarded_frames, overflow_runs), (0, 0, 0));
+    }
+
     #[test]
     fn invalid_mode_is_rejected_before_process_creation() {
         assert!(CaptureProcess::spawn("missing", "invalid", 0).is_err());
@@ -935,7 +1412,9 @@ mod tests {
         process.request_stop().unwrap();
         let events = events.collect::<Result<Vec<_>>>().unwrap();
         assert_eq!(events.len(), 2);
-        assert!(matches!(&events[1], CaptureEvent::Status { message } if message == "final flush"));
+        assert!(
+            matches!(&events[1], CaptureEvent::Status { message, .. } if message == "final flush")
+        );
         process.stop().unwrap();
         std::fs::remove_dir_all(dir).unwrap();
     }

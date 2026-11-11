@@ -14,6 +14,12 @@ const CONFIRM_NS: u64 = 2_000_000_000;
 const STAGE_NS: u64 = 5_000_000_000;
 const FRESH_SOURCE_NS: u64 = 2_000_000_000;
 const MAX_GAPS: usize = 128;
+/// One worker's share of [`MAX_GAPS`]: three workers can never exhaust the
+/// shared bound, so a single failing worker cannot hide another's gaps.
+pub(crate) const MAX_GAPS_PER_WORKER: usize = 42;
+/// Failure entries kept per worker: the first and the most recent.
+const FAILURES_PER_WORKER: usize = 2;
+const MAX_CAUSE_CHARS: usize = 300;
 const AUDIT_WARNING: &str =
     "Live inference history could not be saved; processing gaps may be incomplete";
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -50,10 +56,62 @@ impl Worker {
         }
     }
 }
+/// Why live transcription is no longer running for this recording.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveStopReason {
+    /// The speech worker hit the same error twice in a row, or could not start
+    /// its engine.
+    WorkerFailed,
+    /// The speech worker recovered from too many errors in this recording.
+    RecoveryBudgetExhausted,
+    /// Sustained inference lag shed live transcription (never recovers).
+    SustainedBacklog,
+    /// Low disk space suspended live inference.
+    DiskProtection,
+    /// The live audio processing stage that feeds the speech worker stopped.
+    AudioPipelineStopped,
+    /// The speech worker or its transcript writer could not start or was lost.
+    WorkerUnavailable,
+}
+impl LiveStopReason {
+    fn specific(self) -> bool {
+        !matches!(self, Self::WorkerUnavailable | Self::AudioPipelineStopped)
+    }
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveState {
+    #[default]
+    Active,
+    Stopped,
+}
+/// Live transcription state for the runtime view. `since_source_ms` and
+/// `reason` are set once it stops; it never restarts within a recording.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveTranscriptionView {
+    pub state: LiveState,
+    pub since_source_ms: Option<u64>,
+    pub reason: Option<LiveStopReason>,
+}
+/// One live inference worker failure. Kept outside the bounded gap list and the
+/// deduplicated warnings so its cause survives later processing.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkerFailure {
+    pub worker: String,
+    pub source_ms: u64,
+    pub cause: String,
+    /// True when the worker stopped; false when it recovered and continued.
+    pub terminal: bool,
+    /// Ordinal of this failure for its worker in the recording (1 = first).
+    #[serde(default)]
+    pub count: u64,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InferenceGap {
     pub worker: String,
     pub track: String,
+    /// Generation of the first merged interval.
     pub generation: u64,
     pub start_ms: u64,
     pub end_ms: u64,
@@ -74,6 +132,12 @@ pub struct BacklogReport {
     pub warnings: Vec<String>,
     pub truncated: bool,
     pub max_lag_ms: u64,
+    /// Per worker, the first and the most recent failure.
+    #[serde(default)]
+    pub failures: Vec<WorkerFailure>,
+    /// Capture helper diagnostics and session-loop timing for this recording.
+    #[serde(default)]
+    pub capture: crate::capture_health::CaptureHealth,
 }
 #[derive(Clone, Default)]
 struct Track {
@@ -98,6 +162,17 @@ pub(crate) struct Controller {
     lag_ms: u64,
     report: BacklogReport,
     revision: u64,
+    /// Why each worker stopped, when it stopped for a known reason.
+    stop_reasons: [Option<LiveStopReason>; 3],
+    /// A worker's exit was already recorded (failure, gaps, warnings).
+    exit_recorded: [bool; 3],
+    failure_counts: [u64; 3],
+    /// Latest source end seen, never reset by a generation change.
+    source_ms: u64,
+    /// Latched once live transcription stops: (since_source_ms, reason).
+    live_stop: Option<(u64, LiveStopReason)>,
+    /// Set when the recording loop ends; later worker exits are shutdown.
+    closing: bool,
 }
 fn index(track: TrackKind) -> usize {
     usize::from(track == TrackKind::System)
@@ -135,6 +210,165 @@ impl Controller {
     pub(crate) fn stopped(&mut self, worker: Worker) {
         self.enabled[worker.index()] = false;
         self.overload_since = None;
+        self.latch_live();
+    }
+    /// Stops `worker` and records why, unless a reason is already known.
+    pub(crate) fn stopped_because(&mut self, worker: Worker, reason: LiveStopReason) {
+        let slot = &mut self.stop_reasons[worker.index()];
+        if slot.is_none_or(|old| !old.specific() && reason.specific()) {
+            *slot = Some(reason);
+        }
+        self.stopped(worker);
+    }
+    /// Marks the end of the recording loop; worker exits after this are shutdown.
+    pub(crate) fn closing(&mut self) {
+        self.latch_live();
+        self.closing = true;
+    }
+    /// Why `worker` cannot run now, or `None` while it is allowed.
+    pub(crate) fn stop_reason(&self, worker: Worker) -> Option<LiveStopReason> {
+        if !self.configured[worker.index()] || self.allowed(worker) {
+            return None;
+        }
+        if self.disk_suspended {
+            return Some(LiveStopReason::DiskProtection);
+        }
+        let shed = match worker {
+            Worker::Stt => self.stage >= BacklogStage::SttDisabled,
+            Worker::Speakers => self.stage >= BacklogStage::SpeakersDisabled,
+            Worker::Dsp => false,
+        };
+        if shed {
+            return Some(LiveStopReason::SustainedBacklog);
+        }
+        if !self.enabled[worker.index()] {
+            if let Some(reason) = self.stop_reasons[worker.index()] {
+                return Some(reason);
+            }
+            if worker != Worker::Dsp {
+                return Some(LiveStopReason::WorkerUnavailable);
+            }
+        }
+        match worker {
+            // The audio stage stops when nothing downstream can run: report the
+            // speech worker's reason first, since that is what the user sees.
+            Worker::Dsp => self
+                .stop_reason(Worker::Stt)
+                .or_else(|| self.stop_reason(Worker::Speakers))
+                .or(Some(LiveStopReason::WorkerUnavailable)),
+            _ => Some(LiveStopReason::WorkerUnavailable),
+        }
+    }
+    /// Why live transcription is not running, including a stopped audio stage.
+    fn live_reason(&self) -> Option<LiveStopReason> {
+        if !self.configured[Worker::Stt.index()] {
+            return None;
+        }
+        self.stop_reason(Worker::Stt).or_else(|| {
+            (!self.enabled[Worker::Dsp.index()]).then_some(LiveStopReason::AudioPipelineStopped)
+        })
+    }
+    fn latch_live(&mut self) {
+        if self.closing {
+            return;
+        }
+        let Some(reason) = self.live_reason() else {
+            return;
+        };
+        match &mut self.live_stop {
+            None => {
+                self.live_stop = Some((self.source_ms, reason));
+                self.revision += 1;
+            }
+            // A generic reason seen first (e.g. a closed queue) is replaced by
+            // the specific one recorded moments later by the stopping worker.
+            Some((_, old)) if !old.specific() && reason.specific() => *old = reason,
+            Some(_) => (),
+        }
+    }
+    /// Live transcription state, or `None` when it was never configured.
+    pub(crate) fn live_transcription(&self) -> Option<LiveTranscriptionView> {
+        if !self.configured[Worker::Stt.index()] {
+            return None;
+        }
+        Some(match self.live_stop {
+            Some((since, reason)) => LiveTranscriptionView {
+                state: LiveState::Stopped,
+                since_source_ms: Some(since),
+                reason: Some(reason),
+            },
+            None => LiveTranscriptionView::default(),
+        })
+    }
+    /// Records one failure of `worker`; keeps the first and the latest.
+    pub(crate) fn failure(
+        &mut self,
+        worker: Worker,
+        source_ms: Option<u64>,
+        cause: &str,
+        terminal: bool,
+    ) {
+        let i = worker.index();
+        self.failure_counts[i] += 1;
+        let entry = WorkerFailure {
+            worker: worker_name(worker).into(),
+            source_ms: source_ms.unwrap_or(self.source_ms),
+            cause: bounded_cause(cause),
+            terminal,
+            count: self.failure_counts[i],
+        };
+        let name = worker_name(worker);
+        let kept = self
+            .report
+            .failures
+            .iter()
+            .filter(|failure| failure.worker == name)
+            .count();
+        if kept < FAILURES_PER_WORKER {
+            self.report.failures.push(entry);
+        } else if let Some(latest) = self
+            .report
+            .failures
+            .iter_mut()
+            .rev()
+            .find(|failure| failure.worker == name)
+        {
+            *latest = entry;
+        }
+        self.revision += 1;
+    }
+    /// Records how a worker thread ended, once. Errors become a terminal
+    /// failure, `worker_failed` gaps and warnings.
+    pub(crate) fn worker_exit(&mut self, worker: Worker, name: &str, result: &Result<()>) {
+        if std::mem::replace(&mut self.exit_recorded[worker.index()], true) {
+            return;
+        }
+        if let Err(error) = result {
+            let reason = if error.downcast_ref::<RecoveryExhausted>().is_some() {
+                LiveStopReason::RecoveryBudgetExhausted
+            } else {
+                LiveStopReason::WorkerFailed
+            };
+            let gap = match reason {
+                LiveStopReason::RecoveryBudgetExhausted => "recovery_budget_exhausted",
+                _ => "worker_failed",
+            };
+            self.defer_pending(worker, gap);
+            self.warn("A live inference worker failed. Raw audio is preserved; refine saved audio after stopping.");
+            self.warn(&crate::session::worker_failure_warning(name, error));
+            self.failure(worker, None, &store::describe_error(error), true);
+            self.stopped_because(worker, reason);
+        } else {
+            self.stopped(worker);
+        }
+    }
+    pub(crate) fn capture_health(
+        &mut self,
+        update: impl FnOnce(&mut crate::capture_health::CaptureHealth) -> bool,
+    ) {
+        if update(&mut self.report.capture) {
+            self.revision += 1;
+        }
     }
     pub(crate) fn suspend_disk(&mut self) {
         if !self.disk_suspended {
@@ -145,6 +379,7 @@ impl Controller {
             }
             self.disk_suspended = true;
             self.overload_since = None;
+            self.latch_live();
         }
     }
     pub(crate) fn raw(
@@ -168,6 +403,7 @@ impl Controller {
         item.epoch = Some(epoch);
         item.start.get_or_insert(start);
         item.end = Some(item.end.unwrap_or(start).max(end));
+        self.source_ms = self.source_ms.max(end);
         self.source_tick = Some(now);
         for worker in [Worker::Dsp, Worker::Stt, Worker::Speakers] {
             if self.configured[worker.index()] && !self.allowed(worker) {
@@ -180,7 +416,16 @@ impl Controller {
                 } {
                     "sustained_backlog"
                 } else {
-                    "worker_unavailable"
+                    // A model worker that stopped on its own error keeps that
+                    // reason, so later audio merges into its failure gap.
+                    match (worker, self.stop_reasons[worker.index()]) {
+                        (Worker::Dsp, _) => "worker_unavailable",
+                        (_, Some(LiveStopReason::WorkerFailed)) => "worker_failed",
+                        (_, Some(LiveStopReason::RecoveryBudgetExhausted)) => {
+                            "recovery_budget_exhausted"
+                        }
+                        _ => "worker_unavailable",
+                    }
                 };
                 self.gap(worker, track, self.generation, start, end, reason);
             }
@@ -259,6 +504,7 @@ impl Controller {
                 self.defer_pending(worker, "sustained_backlog");
             }
         }
+        self.latch_live();
         Some(next)
     }
     pub(crate) fn reset(&mut self, reason: &str, paused: bool) {
@@ -316,17 +562,28 @@ impl Controller {
             return;
         }
         let name = worker_name(worker);
+        // Adjacent (within 1 ms) or overlapping intervals of the same worker,
+        // track and reason merge across generations: one dead worker produces
+        // one gap per chunk, which must not exhaust the bound. The first
+        // generation is kept.
         if let Some(old) = self.report.gaps.iter_mut().rev().find(|gap| {
             gap.worker == name
                 && gap.track == track.as_str()
-                && gap.generation == generation
                 && gap.reason == reason
-                && gap.end_ms >= start
-                && end >= gap.start_ms
+                && start <= gap.end_ms.saturating_add(1)
+                && end.saturating_add(1) >= gap.start_ms
         }) {
             old.start_ms = old.start_ms.min(start);
             old.end_ms = old.end_ms.max(end);
-        } else if self.report.gaps.len() < MAX_GAPS {
+        } else if self.report.gaps.len() < MAX_GAPS
+            && self
+                .report
+                .gaps
+                .iter()
+                .filter(|gap| gap.worker == name)
+                .count()
+                < MAX_GAPS_PER_WORKER
+        {
             self.report.gaps.push(InferenceGap {
                 worker: name.into(),
                 track: track.as_str().into(),
@@ -377,7 +634,22 @@ impl Controller {
     }
 }
 
-fn append_warning(target: &mut Option<String>, message: &str) {
+/// Marks a worker exit caused by spending the per-recording recovery budget.
+#[derive(Debug)]
+pub(crate) struct RecoveryExhausted;
+impl std::fmt::Display for RecoveryExhausted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("live speech recovery budget exhausted")
+    }
+}
+fn bounded_cause(cause: &str) -> String {
+    if cause.chars().count() > MAX_CAUSE_CHARS {
+        cause.chars().take(MAX_CAUSE_CHARS).collect::<String>() + "…"
+    } else {
+        cause.into()
+    }
+}
+pub(crate) fn append_warning(target: &mut Option<String>, message: &str) {
     for line in message.lines() {
         match target {
             Some(existing) if existing.lines().any(|old| old == line) => (),
@@ -436,6 +708,20 @@ impl AppService {
                 .unwrap_or_else(|e| e.into_inner())
                 .allowed(worker)
     }
+    /// Why the live audio stage cannot run now.
+    pub(crate) fn audio_stage_stop_reason(&self) -> LiveStopReason {
+        if self
+            .inference_suspended
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return LiveStopReason::DiskProtection;
+        }
+        self.backlog
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .stop_reason(Worker::Dsp)
+            .unwrap_or(LiveStopReason::WorkerUnavailable)
+    }
     pub(crate) fn inference_current(&self, generation: u64) -> bool {
         self.backlog
             .lock()
@@ -472,10 +758,11 @@ impl AppService {
         let disk = self
             .inference_suspended
             .load(std::sync::atomic::Ordering::Relaxed);
-        let snapshot = {
+        let (snapshot, live) = {
             let mut controller = self.backlog.lock().unwrap_or_else(|e| e.into_inner());
             controller.evaluate(self.resources.tick_ns(), disk);
-            controller.snapshot(disk)
+            controller.latch_live();
+            (controller.snapshot(disk), controller.live_transcription())
         };
         if let Ok(mut runtime) = self.runtime.lock() {
             if !snapshot.partials_enabled {
@@ -484,17 +771,72 @@ impl AppService {
             if !snapshot.speakers_enabled {
                 runtime.live_processing.diarization_active = false;
             }
-            if !snapshot.stt_enabled
-                && let Some(current) = runtime.current.as_mut()
-            {
-                current.view.transcription_active = false;
-                if snapshot.stage == BacklogStage::SttDisabled
+            if let Some(current) = runtime.current.as_mut() {
+                let stopped = live
+                    .as_ref()
+                    .and_then(|live| live.reason.filter(|_| live.state == LiveState::Stopped));
+                if !snapshot.stt_enabled || stopped.is_some() {
+                    current.view.transcription_active = false;
+                }
+                if !snapshot.stt_enabled
+                    && snapshot.stage == BacklogStage::SttDisabled
                     && let Some(warning) = &snapshot.warning
                 {
                     append_warning(&mut current.view.error, warning);
                 }
+                if let Some(
+                    reason @ (LiveStopReason::WorkerFailed
+                    | LiveStopReason::RecoveryBudgetExhausted
+                    | LiveStopReason::AudioPipelineStopped
+                    | LiveStopReason::WorkerUnavailable),
+                ) = stopped
+                {
+                    append_warning(&mut current.view.error, live_stopped_warning(reason));
+                }
+                current.view.live_transcription = live;
             }
             runtime.live_processing.backlog = snapshot;
+        }
+    }
+}
+/// Shown on the recording screen once live transcription stops for a reason
+/// other than load shedding or disk protection (those have their own text).
+pub(crate) fn live_stopped_warning(reason: LiveStopReason) -> &'static str {
+    match reason {
+        LiveStopReason::WorkerFailed => {
+            "Live transcription stopped after a speech engine error. Recording continues; refine saved audio after stopping."
+        }
+        LiveStopReason::RecoveryBudgetExhausted => {
+            "Live transcription stopped after repeated speech engine errors. Recording continues; refine saved audio after stopping."
+        }
+        LiveStopReason::AudioPipelineStopped => {
+            "Live transcription stopped because live audio processing stopped. Recording continues; refine saved audio after stopping."
+        }
+        LiveStopReason::WorkerUnavailable => {
+            "Live transcription is unavailable for this recording. Recording continues; refine saved audio after stopping."
+        }
+        LiveStopReason::SustainedBacklog => {
+            "Live speech transcription is deferred after sustained inference lag. Raw audio is preserved; refine saved audio for complete transcription."
+        }
+        LiveStopReason::DiskProtection => {
+            "Live inference is suspended to protect disk space. Raw audio recording continues."
+        }
+    }
+}
+/// Warning recorded when the live audio processing stage ends while recording.
+pub(crate) fn audio_stage_stopped_warning(reason: LiveStopReason) -> &'static str {
+    match reason {
+        LiveStopReason::WorkerFailed | LiveStopReason::RecoveryBudgetExhausted => {
+            "Live audio processing ended because the live inference workers stopped after errors. Raw audio is preserved; refine saved audio after stopping."
+        }
+        LiveStopReason::SustainedBacklog => {
+            "Live audio processing ended because live inference was shed after sustained lag. Raw audio is preserved; refine saved audio after stopping."
+        }
+        LiveStopReason::DiskProtection => {
+            "Live audio processing ended because live inference was suspended to protect disk space. Raw audio is preserved; refine saved audio after stopping."
+        }
+        LiveStopReason::AudioPipelineStopped | LiveStopReason::WorkerUnavailable => {
+            "Live audio processing ended because no live inference worker remained available. Raw audio is preserved; refine saved audio after stopping."
         }
     }
 }
@@ -629,7 +971,8 @@ pub(crate) struct TestWorkers {
     pub speakers: bool,
     pub accept: Arc<FakeAccept>,
     /// When set, the fake speaker worker publishes these turns through the real
-    /// live publisher using `live_save` as its lock-contention budget.
+    /// live publisher. `live_save` is the lock-contention budget of both the
+    /// live speaker publisher and the session's live transcript writer.
     pub speaker_turns: Option<Arc<FakeTurns>>,
     pub live_save: store::LiveSaveBudget,
 }

@@ -39,4 +39,25 @@ static void planar_input_and_final_gap(void) {
     vt_ring_write(q,list,origin+1000);VTFrameInfo info;assert(!vt_ring_peek(q,&info));assert(vt_ring_final_gap(q,&info));assert(info.dropped_frames==9);assert(!vt_ring_final_gap(q,&info));
     free(list);vt_ring_destroy(q);
 }
-int main(void) {interleaved_tracks_and_overflow();planar_input_and_final_gap();puts("AudioRing: interleaved/planar separation and overflow accounting passed");}
+static void diagnostics_counters_and_rebuild_requests(void) {
+    uint64_t origin=mach_absolute_time();
+    VTAudioRing *q=vt_ring_create(8000,1,0,8,0,origin);assert(q);
+    assert(vt_ring_queued(q)==0 && vt_ring_queued(NULL)==0);
+    float mic[8]={0};
+    AudioBufferList list={.mNumberBuffers=1,.mBuffers={{.mNumberChannels=1,.mDataByteSize=sizeof(mic),.mData=mic}}};
+    vt_ring_write(q,&list,origin);vt_ring_write(q,&list,origin+1000);
+    assert(vt_ring_queued(q)==2);vt_ring_pop(q);assert(vt_ring_queued(q)==1);
+    uint64_t before=vt_callback_count();
+    for(unsigned i=0;i<5;i++)vt_count_callback();
+    assert(vt_callback_count()==before+5);
+    uint32_t sources=0;uint64_t first=0;
+    assert(!vt_take_rebuild_info(&sources,&first));
+    uint64_t requested=mach_absolute_time();
+    vt_request_rebuild_from(VT_REBUILD_POLL);vt_request_rebuild();
+    assert(vt_take_rebuild_info(&sources,&first));
+    assert(sources==(VT_REBUILD_POLL|VT_REBUILD_NOTIFICATION) && first>=requested && first<=mach_absolute_time());
+    assert(!vt_take_rebuild_info(&sources,&first));
+    vt_request_rebuild_from(VT_REBUILD_WAKE);assert(vt_take_rebuild());assert(vt_take_rebuild_info(NULL,NULL)==false);
+    vt_ring_destroy(q);
+}
+int main(void) {interleaved_tracks_and_overflow();planar_input_and_final_gap();diagnostics_counters_and_rebuild_requests();puts("AudioRing: interleaved/planar separation, overflow accounting, callback/backlog counters and rebuild request timing passed");}

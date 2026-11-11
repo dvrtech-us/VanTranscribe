@@ -57,9 +57,27 @@ Protocol 3 announces `source_clock` with `clock=uptime_raw`, `origin_ns` and
 `observed_ns` before microphone permission waits. Mach hardware timestamps and
 Rust's raw-uptime clock share that epoch; the parent never estimates the origin
 from callback/pipe arrival. `--list-devices` and `--version` advertise
-`capture_capabilities: ["source_clock_uptime_raw"]`; unsupported helpers retain
+`capture_capabilities: ["source_clock_uptime_raw", "capture_diagnostics"]`; unsupported helpers retain
 explicit observed-audio fallback timing. Clock event names are capabilities,
 not CLI probe commands.
+
+`capture_diagnostics` adds `status` events whose `diagnostic` object has a `kind`
+(`heartbeat` about once per second, `rebuild`, `slow_call` for a Core Audio call
+over 100 ms, `epoch`, `settled`). Capture sessions publish them; read-only probes
+never do, so their stdout stays one JSON document. Fields are durations, counts,
+enumerated reasons and API names; the one owner-approved identity-adjacent field is
+`input_transport` (`built_in`, `bluetooth`, `usb`, `aggregate`, `virtual`, `other`,
+`unknown`), never a device name or UID. `helper_protocol` stays 4. A parent ignores
+unknown event types and diagnostics instead of ending the recording. There is no
+watchdog: a call that never returns shows only as missing heartbeats.
+
+Overflow drop runs separated by less than one second of delivered audio are
+published as one `overflow` gap whose length is `dropped_frames + discarded_frames`
+(audio between runs is discarded and counted; `overflow_runs` counts the runs).
+After a device change the baseline fingerprint is fixed once the new stream has
+settled (stable 75 ms and at least 1 s, forced after 10 s), so one change causes
+one rebuild. Nothing in these paths has yet been exercised by a real device change.
+See [macOS Capture](../../documentation/features/capture/macos-capture/macos-capture.md#capture-diagnostics).
 
 Rust device discovery invokes only `--list-devices`, caps stdout at 256 KiB and
 kills/reaps a helper that exceeds its three-second deadline. Reads are nonblocking,

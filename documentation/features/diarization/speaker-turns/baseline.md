@@ -23,7 +23,7 @@
 - No download, capture permission, cloud processing or cross-meeting memory access occurs during inference construction. The bounded enrollment extractor opens no gallery or secret store.
 - Model setup is explicit, checks pinned sizes/hashes, preserves license notices, and never accepts a publisher account agreement.
 - A refinement stopped by a turns, embeddings or clusters capacity limit never saves partial separation output; it carries the previous run's speaker annotations onto the new run and records the limit in the run's speaker warnings.
-- A live speaker save that hits lock contention never stops the speaker worker; unsaved turns are retained and dropped turns become `persistence_failed` inference gaps. Engine errors and non-lock database errors still stop it, and it is not restarted.
+- A live speaker save that hits lock contention never stops the speaker worker; unsaved turns are retained and dropped turns become `persistence_failed` inference gaps. Engine errors and non-lock database errors still stop it, and the speaker worker is not restarted (only the speech worker recovers in place; see live-english).
 - `Diarizer::diagnostics()` holds counters only and does not change clustering. It reports `margin_failures`, `margin_failure_best_at_least_merge`, `margin_failure_centroid_hist` and `ambiguous_unattributed`.
 - The 64-cluster limit still returns `DiarizeError::Capacity(CapacityLimit::Clusters)`; the margin rule reduces but does not remove it (still reached on a 95-minute single-microphone in-person call).
 
@@ -43,7 +43,7 @@
 | Minimum eligible clean turn / visible cluster | 1000 ms / 3000 ms |
 | Experimental assign / merge / margin | 0.55 / 0.70 / 0.10 |
 | Speaker state | 64 clusters/track, 20 exemplars/cluster |
-| Live speaker save | IMMEDIATE transaction; 3 attempts, 1.5 s busy timeout, 100/200 ms backoff (4.8 s worst case); at most 2048 unsaved turns carried |
+| Live speaker save | IMMEDIATE transaction; 3 attempts, 300 ms busy timeout, 50/100 ms backoff (1.05 s worst case; shared `LiveSaveBudget::PRODUCTION` with the live transcript writer); at most 2048 unsaved turns carried |
 | Replay embeddings / turn metadata | 8192 / 32768 per meeting |
 | Constraint count | 4096 pairs and 4096 temporal constraints |
 | Temporal matching | unique maximum overlap, at least 50% anchor coverage |

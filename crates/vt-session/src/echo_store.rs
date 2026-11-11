@@ -117,6 +117,16 @@ pub(super) fn save_info(root: &Path, id: &str, run: &str, info: &EchoInfo) -> Re
     let db = store::open(root)?;
     write_info(&db, id, run, info)
 }
+pub(super) fn save_info_with(
+    root: &Path,
+    id: &str,
+    run: &str,
+    info: &EchoInfo,
+    busy_timeout: std::time::Duration,
+) -> Result<()> {
+    let db = store::open_with_timeout(root, busy_timeout)?;
+    write_info(&db, id, run, info)
+}
 
 pub(super) fn write_info(db: &Connection, id: &str, run: &str, info: &EchoInfo) -> Result<()> {
     let belongs: bool = db.query_row(

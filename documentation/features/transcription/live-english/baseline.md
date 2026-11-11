@@ -53,6 +53,9 @@
 | Invalid audio geometry, rate, nonfinite values or time overflow | Error | Submitted input packet |
 | Sample-rate change or timing discontinuity over five milliseconds | Context reset | No; preceding text is finalized before fresh input |
 | Native model creation fails after verification | Engine error | Live STT; recording fallback belongs to the session layer |
+| Engine error for one message in a recording | Gap `recognizer_error` plus failure entry | One packet; the worker recovers (20 per recording; the same cause twice in a row is terminal) |
+| Database lock when saving live lines | Warning; batch retried | No; lines stay visible from the runtime view |
+| Deterministic error saving one line | `segment_rejected` gap | That line only |
 | Input after `finish()` | Error | Further recognition calls |
 | Nonfinite/out-of-range VAD threshold | Invalid options | Constructor before file/native work |
 | Requested VAD missing or hash-invalid | Integrity/setup error | VAD-enabled construction; caller explicitly owns ungated fallback |
@@ -66,7 +69,7 @@
 4. The candidate is renamed into the model directory. An invalid existing directory is moved aside first, and an immediate publish failure attempts rollback. Root synchronization follows on Unix.
 5. Temporary work is cleaned on normal exit or returned error. Process termination may leave unpublished temporary directories, which are not accepted as installed.
 6. Recognition verifies published files, constructs the CPU engine and creates two independent streams.
-7. Input produces partial/final events; session-owned consumers persist final text and display partials.
+7. Input produces partial/final events; the session shows finals at once and its writer thread persists them (never the recognizer thread); partials are displayed only.
 8. Stop or explicit context reset flushes resampler and model right context before final text is emitted.
 
 ## Configuration defaults
@@ -100,6 +103,16 @@
 - Model provenance and license texts contain public artifact metadata. Feature docs and tests do not include private meeting transcripts or personal data.
 - Diarization, biometric memory, batch refinement and cloud inference are outside this baseline.
 - 20–100 ms packets do not establish an end-to-end partial-text latency guarantee; hardware/corpus quality targets require separate measurement.
+
+## Session persistence and recovery invariants
+
+- The recognizer thread never waits for or fails because of the database. Final lines are published to the runtime view and queued (512 lines) to a session-owned writer that saves batches of at most 64 in one IMMEDIATE transaction with point operations and incremental search rows (equal to `rebuild_fts` for new segments).
+- Live save budget is 3 attempts x 300 ms busy timeout with 50/100 ms backoff (1.05 s worst case), shared with the live speaker publisher. Lock contention keeps the batch and retries after the next arrival or 1 s.
+- A deterministic save error drops exactly one line as a `segment_rejected` gap; queue overflow or lines unsaved at the 5 s close deadline become `persistence_failed` gaps. Raw audio is never affected.
+- Stop drains the writer before the live run is sealed. Unsaved finals are shown from the runtime view, de-duplicated by segment ID against saved rows.
+- A speech recognizer error is recovered in place (gap `recognizer_error`, failure entry, track reset; engine rebuilt only for an engine error or failed reset). The same cause twice in a row is terminal; at most 20 recoveries per recording. The speaker worker is never restarted; backlog shedding of live STT is sticky.
+- A hypothesis returned by a source-gap reset or by finish is saved at most once and never past the audio already fed.
+- The recorder's chunk writer is unchanged: a lock held over 5 s across a chunk flush still ends the recording, and `save_clock` on flush is still fatal.
 
 ## Desktop policy
 

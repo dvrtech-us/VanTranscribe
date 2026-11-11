@@ -162,12 +162,229 @@ fn optional_stages_skip_and_disk_suspension_is_stronger_and_sticky() {
 #[test]
 fn inference_gap_metadata_is_bounded_and_explicitly_marks_truncation() {
     let mut c = Controller::default();
-    for n in 0..MAX_GAPS + 5 {
-        c.gap(Worker::Stt, TrackKind::Mic, n as u64, 0, 20, "queue_full");
+    for worker in [Worker::Stt, Worker::Speakers, Worker::Dsp] {
+        for n in 0..MAX_GAPS + 5 {
+            // Separated intervals never merge.
+            let start = n as u64 * 100;
+            c.gap(
+                worker,
+                TrackKind::Mic,
+                n as u64,
+                start,
+                start + 20,
+                "queue_full",
+            );
+        }
     }
-    assert_eq!(c.report.gaps.len(), MAX_GAPS);
+    assert_eq!(c.report.gaps.len(), 3 * MAX_GAPS_PER_WORKER);
+    assert!(c.report.gaps.len() <= MAX_GAPS);
     assert!(c.report.truncated);
     assert_eq!(c.report.warnings.len(), 1);
+}
+#[test]
+fn adjacent_gaps_from_one_worker_collapse_and_leave_room_for_other_workers() {
+    let mut c = Controller::default();
+    // One dead worker reports every 20 ms chunk, 1 ms apart, across several
+    // generations: one entry, keeping the first generation.
+    for n in 0..500_u64 {
+        c.gap(
+            Worker::Speakers,
+            TrackKind::System,
+            n / 50,
+            n * 20,
+            n * 20 + 19,
+            "worker_unavailable",
+        );
+    }
+    assert_eq!(c.report.gaps.len(), 1);
+    let gap = &c.report.gaps[0];
+    assert_eq!((gap.start_ms, gap.end_ms, gap.generation), (0, 9_999, 0));
+    assert!(!c.report.truncated);
+    // A different reason or track is a separate entry, even when adjacent.
+    c.gap(
+        Worker::Speakers,
+        TrackKind::System,
+        9,
+        10_000,
+        10_020,
+        "queue_full",
+    );
+    c.gap(
+        Worker::Speakers,
+        TrackKind::Mic,
+        9,
+        0,
+        20,
+        "worker_unavailable",
+    );
+    assert_eq!(c.report.gaps.len(), 3);
+    // A worker that floods non-adjacent gaps is capped at its share...
+    for n in 0..200_u64 {
+        c.gap(
+            Worker::Speakers,
+            TrackKind::Mic,
+            0,
+            50_000 + n * 100,
+            50_020 + n * 100,
+            "queue_full",
+        );
+    }
+    assert_eq!(
+        c.report
+            .gaps
+            .iter()
+            .filter(|g| g.worker == "speakers")
+            .count(),
+        MAX_GAPS_PER_WORKER
+    );
+    assert!(c.report.truncated);
+    // ...so the speech worker's gaps are still recorded.
+    c.gap(
+        Worker::Stt,
+        TrackKind::Mic,
+        3,
+        70_000,
+        71_000,
+        "recognizer_error",
+    );
+    assert!(
+        c.report
+            .gaps
+            .iter()
+            .any(|g| g.worker == "stt" && g.reason == "recognizer_error" && g.end_ms == 71_000)
+    );
+}
+#[test]
+fn old_health_json_without_failures_or_capture_still_deserializes() {
+    let report: BacklogReport = serde_json::from_str(
+        r#"{"complete":true,"stages":[],"gaps":[{"worker":"stt","track":"mic","generation":4,"start_ms":0,"end_ms":20,"reason":"queue_full"}],"warnings":["w"],"truncated":false,"max_lag_ms":7}"#,
+    )
+    .unwrap();
+    assert!(report.failures.is_empty());
+    assert_eq!(
+        report.capture,
+        crate::capture_health::CaptureHealth::default()
+    );
+    assert_eq!(report.gaps[0].generation, 4);
+    let failure: WorkerFailure =
+        serde_json::from_str(r#"{"worker":"stt","source_ms":5,"cause":"c","terminal":true}"#)
+            .unwrap();
+    assert_eq!(failure.count, 0);
+}
+#[test]
+fn failures_keep_the_first_and_latest_per_worker_with_bounded_causes() {
+    let mut c = Controller::default();
+    c.configure(true, true);
+    for n in 0..10_u64 {
+        c.failure(Worker::Stt, Some(n * 1_000), &format!("fault {n}"), false);
+    }
+    c.failure(Worker::Speakers, Some(3), &"x".repeat(1_000), true);
+    let stt = c
+        .report
+        .failures
+        .iter()
+        .filter(|f| f.worker == "stt")
+        .collect::<Vec<_>>();
+    assert_eq!(stt.len(), 2);
+    assert_eq!((stt[0].cause.as_str(), stt[0].count), ("fault 0", 1));
+    assert_eq!(
+        (stt[1].cause.as_str(), stt[1].count, stt[1].source_ms),
+        ("fault 9", 10, 9_000)
+    );
+    let speakers = c
+        .report
+        .failures
+        .iter()
+        .find(|f| f.worker == "speakers")
+        .unwrap();
+    assert!(speakers.terminal && speakers.cause.chars().count() <= 301);
+    // Failures are outside the deduplicated, capped warning list.
+    assert!(c.report.warnings.is_empty());
+}
+#[test]
+fn a_dead_speaker_worker_never_becomes_the_reason_the_audio_stage_or_speech_stopped() {
+    let mut c = Controller::default();
+    c.configure(true, true);
+    feed(&mut c, 0, 1_000);
+    c.worker_exit(
+        Worker::Speakers,
+        "speaker-inference",
+        &Err(anyhow::anyhow!("speaker fault")),
+    );
+    assert!(c.allowed(Worker::Dsp) && c.allowed(Worker::Stt));
+    assert_eq!(c.stop_reason(Worker::Dsp), None);
+    assert_eq!(c.live_transcription().unwrap().state, LiveState::Active);
+    // Much later the speech worker fails: that, not resource protection, is
+    // why the audio stage stops.
+    feed(&mut c, SECOND, 600_000);
+    c.worker_exit(
+        Worker::Stt,
+        "speech-inference",
+        &Err(anyhow::anyhow!("speech fault")),
+    );
+    assert!(!c.allowed(Worker::Dsp));
+    assert_eq!(
+        c.stop_reason(Worker::Dsp),
+        Some(LiveStopReason::WorkerFailed)
+    );
+    let live = c.live_transcription().unwrap();
+    assert_eq!(
+        (live.state, live.reason, live.since_source_ms),
+        (
+            LiveState::Stopped,
+            Some(LiveStopReason::WorkerFailed),
+            Some(600_000)
+        )
+    );
+    assert!(
+        c.report
+            .failures
+            .iter()
+            .any(|f| f.worker == "stt" && f.terminal)
+    );
+    // A later generic stop (the audio stage seeing a closed queue) keeps it.
+    c.stopped(Worker::Stt);
+    assert_eq!(
+        c.live_transcription().unwrap().reason,
+        Some(LiveStopReason::WorkerFailed)
+    );
+    // Shedding and disk protection are named as such.
+    let mut shed = stalled();
+    shed.worker_exit(
+        Worker::Speakers,
+        "speaker-inference",
+        &Err(anyhow::anyhow!("speaker fault")),
+    );
+    for second in 1..=12 {
+        feed(&mut shed, second * SECOND, 12_000 + second * 20);
+        shed.evaluate(second * SECOND, false);
+    }
+    assert_eq!(
+        shed.stop_reason(Worker::Dsp),
+        Some(LiveStopReason::SustainedBacklog)
+    );
+    assert_eq!(
+        shed.live_transcription().unwrap().reason,
+        Some(LiveStopReason::SustainedBacklog)
+    );
+    let mut disk = stalled();
+    disk.suspend_disk();
+    assert_eq!(
+        disk.stop_reason(Worker::Dsp),
+        Some(LiveStopReason::DiskProtection)
+    );
+    assert_eq!(
+        disk.live_transcription().unwrap().reason,
+        Some(LiveStopReason::DiskProtection)
+    );
+    // Exits after the recording loop ends are shutdown, not a live stop.
+    let mut closing = stalled();
+    closing.closing();
+    closing.worker_exit(Worker::Stt, "speech-inference", &Ok(()));
+    assert_eq!(
+        closing.live_transcription().unwrap().state,
+        LiveState::Active
+    );
 }
 
 struct Resources(AtomicU64);
@@ -396,7 +613,7 @@ fn completed_input_without_speech_events_advances_real_consumer_and_old_generati
     .unwrap();
     drop(tx);
     let mut accepted = 0;
-    session::consume_inference(&app, Worker::Stt, rx, |message| {
+    session::consume_inference(&app, Worker::Stt, &rx, |message| {
         if matches!(message, session::Inference::Audio { .. }) {
             accepted += 1;
         }
@@ -422,10 +639,26 @@ fn stage_one_suppresses_only_partial_publication_and_final_segments_still_commit
         feed(&mut c, 2 * SECOND, 12_020);
         c.evaluate(2 * SECOND, false);
     }
+    let run = store::detail(&app.root, "fixture")
+        .unwrap()
+        .active_run_id
+        .unwrap();
+    let writer = crate::live_transcript::TranscriptWriter::start(
+        app.clone(),
+        "fixture".into(),
+        run,
+        store::LiveSaveBudget::PRODUCTION,
+    )
+    .unwrap();
+    let live = session::LiveTranscript {
+        in_person: false,
+        sink: writer.sink(),
+    };
     for is_final in [false, true] {
         session::save_transcript(
             &app,
-            "fixture",
+            &live,
+            0,
             vt_stt::TranscriptEvent {
                 track: TrackKind::Mic,
                 start_ms: 0,
@@ -434,10 +667,11 @@ fn stage_one_suppresses_only_partial_publication_and_final_segments_still_commit
                 is_final,
                 words: vec![],
             },
-        )
-        .unwrap();
+        );
     }
+    writer.finish();
     assert!(app.runtime.lock().unwrap().partials.is_empty());
+    assert!(app.runtime.lock().unwrap().live_finals.is_empty());
     assert_eq!(
         store::detail(&app.root, "fixture").unwrap().segments.len(),
         1
@@ -460,7 +694,7 @@ fn in_flight_completion_cannot_cross_a_source_generation_and_next_input_resets_b
     let worker = thread::spawn(move || {
         let mut reset_count = 0;
         let mut first = true;
-        session::consume_inference(&worker_app, Worker::Stt, rx, |message| {
+        session::consume_inference(&worker_app, Worker::Stt, &rx, |message| {
             match message {
                 session::Inference::Reset(_, _) => reset_count += 1,
                 session::Inference::Audio { .. } if first => {

@@ -5,14 +5,16 @@
   const health = $derived(snapshot?.health);
   const backlog = $derived(snapshot?.live_processing?.backlog);
   const overloaded = $derived(Boolean(backlog?.warning));
+  const slowConsumer = $derived(snapshot?.recording?.capture?.state === 'consumer_slow');
   const clock = $derived(snapshot?.recording ? snapshot.source_timing : null);
 </script>
-{#if health || clock || overloaded}
+{#if health || clock || overloaded || slowConsumer}
   <section class="resource-status" aria-label="Recording health">
     {#if health}<span><strong>Recording disk</strong> · {health.free_bytes == null ? 'Space not verified' : `${bytesLabel(health.free_bytes)} available`}</span>{/if}
     {#if clock}<span><strong>Source clock</strong> · {clock.synchronized ? `Synchronized · ${time(clock.elapsed_ms)}` : 'Approximate or unavailable'}</span>{/if}
     {#if health?.warning}<p class:caution={health.disk_state !== 'healthy'} role="status">{health.warning}</p>{/if}
     {#if overloaded}<p class="caution" role="status"><strong>{backlog?.stage === 'normal' ? 'Live processing notice' : 'Live processing reduced'}</strong> · {backlog?.warning ?? 'Inference is behind the source audio.'} {snapshot?.recording?.status === 'recording' ? 'Original audio continues to be recorded.' : 'Original audio is retained.'}</p>{/if}
+    {#if slowConsumer}<p role="status">Audio processing is running slowly. Recording is not affected.</p>{/if}
     {#if clock?.warning}<p role="status">{clock.warning}</p>{/if}
   </section>
 {/if}

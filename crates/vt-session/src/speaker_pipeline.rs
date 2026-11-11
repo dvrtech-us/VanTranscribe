@@ -55,9 +55,12 @@ pub(crate) fn persistence_warning(cause: &str) -> String {
     )
 }
 
-/// Saves live speaker updates. Lock contention never stops the worker: unsaved
-/// turns are retained (bounded) and written by the next successful save; any
-/// that must be dropped are recorded as `persistence_failed` inference gaps.
+/// Saves live speaker updates. Each save waits at most about one second for the
+/// write lock (`LiveSaveBudget::PRODUCTION`, 1.05 s worst case) and then holds
+/// it only for point lookups and upserts of the pending turns. Lock contention
+/// never stops the worker: unsaved turns are retained (bounded) and written by
+/// the next successful save; any that must be dropped are recorded as
+/// `persistence_failed` inference gaps.
 pub(crate) struct LivePublisher {
     service: Arc<AppService>,
     id: String,
