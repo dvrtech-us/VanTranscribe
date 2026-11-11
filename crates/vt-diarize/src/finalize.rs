@@ -502,7 +502,11 @@ fn finish_using_replay(
             "Canonical segmentation input is 10 s; refined windows use 10 s of real source context with 2.5 s ownership stride. Short final tails are zero-padded and clipped to real source. Offline agglomeration starts from bounded online seed clusters and cannot automatically split a mistaken seed without supplied constraints."
         }
     };
+    let cap_reached = clusters.iter().any(|c| c.diagnostics().cap_reached());
     let mut warnings=vec!["Experimental uncalibrated speaker clustering; labels are not verified identities. English/channel-specific DER, thresholds, overlap attribution and long-call acceptance remain unvalidated.".into(),context_warning.into()];
+    if cap_reached {
+        warnings.push(CAP_WARNING.into());
+    }
     if !plan.reviews.is_empty() {
         warnings.push(format!("{} saved speaker correction(s) need review. Affected voices remain unknown; transcript processing can continue.",plan.reviews.len()));
     }
@@ -517,6 +521,8 @@ fn finish_using_replay(
         segmentation_context: None,
     })
 }
+/// Reaching the per-track cluster cap is never silent.
+pub const CAP_WARNING: &str = "Speaker separation reached its cluster limit; some similar voices were merged and some speech is shown as Unknown.";
 fn mask(turn: &mut SpeakerTurn) {
     turn.speaker_ids.clear();
     turn.label = "Unknown".into();

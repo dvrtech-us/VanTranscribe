@@ -1,5 +1,6 @@
 use super::*;
 use crate::cluster::{Clusters, normalize};
+use crate::finalize::CAP_WARNING;
 use std::collections::BTreeSet;
 fn constraint(kind: ConstraintKind) -> PairConstraint {
     PairConstraint {
@@ -31,27 +32,6 @@ fn same_voice_accumulates_three_seconds_before_visibility() {
     let (b, _, visible) = c.assign("b", vec![1., 0.], 1500).unwrap().unwrap();
     assert_eq!(a, b);
     assert!(visible);
-}
-#[test]
-fn track_namespaces_and_capacity_are_bounded() {
-    let mut mic = Clusters::new("mic", &[]);
-    let mut system = Clusters::new("system", &[]);
-    assert_ne!(
-        mic.assign("a", vec![1., 0.], 1500).unwrap().unwrap().0,
-        system.assign("b", vec![1., 0.], 1500).unwrap().unwrap().0
-    );
-    let mut c = Clusters::new("mic", &[]);
-    for n in 0..64 {
-        let mut basis = vec![0.; 65];
-        basis[n] = 1.;
-        c.assign(&format!("t{n}"), basis, 1000).unwrap().unwrap();
-    }
-    let mut last = vec![0.; 65];
-    last[64] = 1.;
-    assert!(matches!(
-        c.assign("overflow", last, 1000),
-        Err(DiarizeError::Capacity(CapacityLimit::Clusters))
-    ));
 }
 #[test]
 fn second_best_margin_does_not_silently_assign_ambiguous_voice() {
@@ -915,37 +895,6 @@ fn segmentation_context_is_explicit_serializable_and_legacy_results_remain_unkno
 }
 
 #[test]
-fn diagnostics_count_open_reasons_and_survive_capacity() {
-    let mut c = Clusters::new("mic", &[]);
-    c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap(); // no candidate
-    c.assign("b", vec![0.95, 0.31, 0.], 3000).unwrap().unwrap(); // cos ~0.95, joins
-    c.assign("c", vec![0., 1., 0.], 3000).unwrap().unwrap(); // best below ASSIGN
-    let d = c.diagnostics();
-    assert_eq!(d.opened_no_candidate, 1);
-    assert_eq!(d.opened_below_assign, 1);
-    assert_eq!(d.assigned_existing, 1);
-    assert_eq!((d.opened_total, d.clusters, d.peak_clusters), (2, 2, 2));
-    assert_eq!(d.embeddings_assigned, 3);
-    assert_eq!(d.singleton_clusters, 1);
-    assert_eq!(d.best_below_assign_hist.iter().sum::<u32>(), 1);
-    let mut c = Clusters::new("mic", &[]);
-    for n in 0..64 {
-        let mut basis = vec![0.; 65];
-        basis[n] = 1.;
-        c.assign(&format!("t{n}"), basis, 1000).unwrap().unwrap();
-    }
-    let mut last = vec![0.; 65];
-    last[64] = 1.;
-    let err = c.assign("overflow", last, 1000).unwrap_err();
-    assert_eq!(err.capacity_limit(), Some(CapacityLimit::Clusters));
-    assert!(err.to_string().starts_with(
-        "Diarization capacity reached; previous results must not be published as complete."
-    ));
-    let d = c.diagnostics();
-    assert!(d.capacity_refused);
-    assert_eq!((d.peak_clusters, d.singleton_clusters), (64, 64));
-}
-#[test]
 fn diagnostics_record_margin_failures() {
     let mut c = Clusters::new("mic", &[]);
     c.assign("a", vec![1., 0., 0.], 3000).unwrap();
@@ -1217,4 +1166,392 @@ fn constraint_anchors_keep_old_behaviour_when_ambiguous() {
     assert_ne!(m1.0, a.0);
     c.check_constraints(&["mic:a", "mic:m1"].map(String::from).into_iter().collect())
         .unwrap();
+}
+
+// ---- cluster cap: merge duplicates, evict stray singletons, else Unknown ----
+fn basis(dim: usize, n: usize) -> Vec<f32> {
+    let mut v = vec![0.; dim];
+    v[n] = 1.;
+    v
+}
+/// Unit vector at `deg` degrees from e_{2k} towards e_{2k+1}.
+fn planar(k: usize, deg: f32) -> Vec<f32> {
+    let mut v = vec![0.; DIM];
+    v[2 * k] = deg.to_radians().cos();
+    v[2 * k + 1] = deg.to_radians().sin();
+    v
+}
+/// Pair k: an established voice A_k = e_{2k} (3 s) and a duplicate D_k that
+/// opened far from it (60°, below ASSIGN) and drifted towards it through two
+/// clear windows (40°, 33°): centroid cosine ~0.715 (>= MERGE). `dup_ms` is
+/// the speech of each D_k window.
+fn drifted_pair(k: usize, dup_ms: u64) -> Vec<crate::finalize::Record> {
+    [
+        (0., "a", 3000),
+        (60., "d1", dup_ms),
+        (40., "d2", dup_ms),
+        (33., "d3", dup_ms),
+    ]
+    .into_iter()
+    .map(|(deg, name, duration)| crate::finalize::Record {
+        turn: format!("mic:p{k}-{name}"),
+        embedding: planar(k, deg),
+        duration,
+    })
+    .collect()
+}
+fn established_fill(from: usize, to: usize) -> Vec<crate::finalize::Record> {
+    (from..to)
+        .map(|n| crate::finalize::Record {
+            turn: format!("mic:e{n}"),
+            embedding: basis(DIM, n),
+            duration: 3000,
+        })
+        .collect()
+}
+fn feed(c: &mut Clusters, records: &[crate::finalize::Record]) {
+    for r in records {
+        c.assign(&r.turn, r.embedding.clone(), r.duration).unwrap();
+    }
+}
+#[test]
+fn track_namespaces_and_capacity_are_bounded() {
+    let mut mic = Clusters::new("mic", &[]);
+    let mut system = Clusters::new("system", &[]);
+    assert_ne!(
+        mic.assign("a", vec![1., 0.], 1500).unwrap().unwrap().0,
+        system.assign("b", vec![1., 0.], 1500).unwrap().unwrap().0
+    );
+    // 64 mutually orthogonal established voices fill the cap; nothing can be
+    // merged or evicted, so 16 further new voices are Unknown, not an error.
+    let records = (0..80)
+        .map(|n| crate::finalize::Record {
+            turn: format!("mic:t{n}"),
+            embedding: basis(DIM, n),
+            duration: 3000,
+        })
+        .collect::<Vec<_>>();
+    let mut c = Clusters::new("mic", &[]);
+    for (n, r) in records.iter().enumerate() {
+        let out = c.assign(&r.turn, r.embedding.clone(), r.duration).unwrap();
+        assert_eq!(out.is_some(), n < 64, "{n}");
+    }
+    let d = c.diagnostics();
+    assert_eq!((d.clusters, d.peak_clusters), (64, 64));
+    assert_eq!(
+        (d.cap_unattributed, d.cap_merges, d.cap_evictions),
+        (16, 0, 0)
+    );
+    assert!(!d.capacity_refused && d.cap_reached());
+    for phase in [Phase::Refined, Phase::Live] {
+        let result =
+            crate::finalize::finish(turns_for(&records), &records, &in_person(phase), true, &[])
+                .unwrap();
+        assert_eq!(result.speakers.len(), 64);
+        for t in &result.turns {
+            let late = t.id["mic:t".len()..].parse::<usize>().unwrap() >= 64;
+            assert_eq!(t.speaker_ids.is_empty(), late, "{}", t.id);
+            if late {
+                assert!(t.uncertain && t.label == "Unknown");
+            }
+        }
+        assert!(result.warnings.iter().any(|w| w == CAP_WARNING));
+    }
+}
+#[test]
+fn diagnostics_count_open_reasons_and_survive_capacity() {
+    let mut c = Clusters::new("mic", &[]);
+    c.assign("a", vec![1., 0., 0.], 3000).unwrap().unwrap(); // no candidate
+    c.assign("b", vec![0.95, 0.31, 0.], 3000).unwrap().unwrap(); // cos ~0.95, joins
+    c.assign("c", vec![0., 1., 0.], 3000).unwrap().unwrap(); // best below ASSIGN
+    let d = c.diagnostics();
+    assert_eq!(d.opened_no_candidate, 1);
+    assert_eq!(d.opened_below_assign, 1);
+    assert_eq!(d.assigned_existing, 1);
+    assert_eq!((d.opened_total, d.clusters, d.peak_clusters), (2, 2, 2));
+    assert_eq!(d.embeddings_assigned, 3);
+    assert_eq!(d.singleton_clusters, 1);
+    assert_eq!(d.best_below_assign_hist.iter().sum::<u32>(), 1);
+    assert!(!d.cap_reached());
+    // A constraint endpoint that cannot get a cluster is still a capacity error.
+    let must = PairConstraint {
+        left_turn_id: "anchor".into(),
+        right_turn_id: "later".into(),
+        kind: ConstraintKind::MustLink,
+        provenance: "user".into(),
+    };
+    let mut c = Clusters::new("mic", &[must]);
+    for n in 0..64 {
+        c.assign(&format!("t{n}"), basis(DIM, n), 3000)
+            .unwrap()
+            .unwrap();
+    }
+    let err = c.assign("anchor", basis(DIM, 64), 1000).unwrap_err();
+    assert_eq!(err.capacity_limit(), Some(CapacityLimit::Clusters));
+    assert!(err.to_string().starts_with(
+        "Diarization capacity reached; previous results must not be published as complete."
+    ));
+    let d = c.diagnostics();
+    assert!(d.capacity_refused);
+    assert_eq!(
+        (d.peak_clusters, d.clusters, d.cap_unattributed),
+        (64, 64, 0)
+    );
+}
+#[test]
+fn provisional_singletons_are_evicted_oldest_first_except_constraint_anchors() {
+    let must = PairConstraint {
+        left_turn_id: "mic:t0".into(),
+        right_turn_id: "mic:unseen".into(),
+        kind: ConstraintKind::MustLink,
+        provenance: "user".into(),
+    };
+    let records = (0..66)
+        .map(|n| crate::finalize::Record {
+            turn: format!("mic:t{n}"),
+            embedding: basis(DIM, n),
+            duration: 1000,
+        })
+        .collect::<Vec<_>>();
+    let mut c = Clusters::new("mic", std::slice::from_ref(&must));
+    feed(&mut c, &records);
+    let d = c.diagnostics();
+    assert_eq!(
+        (d.clusters, d.cap_evictions, d.cap_evicted_ms),
+        (64, 2, 2000)
+    );
+    assert_eq!((d.cap_merges, d.cap_unattributed), (0, 0));
+    // t0 is anchored and kept; t1 and t2 (oldest unanchored) are evicted.
+    assert!(c.speaker_for("mic:t0").is_some());
+    assert!(c.speaker_for("mic:t1").is_none() && c.speaker_for("mic:t2").is_none());
+    assert!(c.resolve("mic:speaker-2").is_none());
+    assert!(c.speaker_for("mic:t65").is_some());
+    // Refined and live finish (no constraints there, so t0 and t1 are the
+    // oldest strays): evicted turns are Unknown, the rest labelled.
+    for phase in [Phase::Refined, Phase::Live] {
+        let result =
+            crate::finalize::finish(turns_for(&records), &records, &in_person(phase), true, &[])
+                .unwrap();
+        assert_eq!(result.speakers.len(), 64);
+        for t in &result.turns {
+            let evicted = t.id == "mic:t0" || t.id == "mic:t1";
+            assert_eq!(t.speaker_ids.is_empty(), evicted, "{phase:?} {}", t.id);
+            if evicted {
+                assert!(t.uncertain && t.label == "Unknown" && t.score.is_none());
+            }
+        }
+        assert!(result.warnings.iter().any(|w| w == CAP_WARNING));
+        assert!(
+            !result
+                .speakers
+                .iter()
+                .any(|s| s.id == "mic:speaker-1" || s.id == "mic:speaker-2")
+        );
+    }
+}
+#[test]
+fn near_duplicates_merge_at_the_cap_and_a_new_voice_gets_a_cluster() {
+    // 21 drifted duplicate pairs (42 clusters) + 22 established fillers = 64.
+    let mut records = (0..21)
+        .flat_map(|k| drifted_pair(k, 500))
+        .collect::<Vec<_>>();
+    records.extend(established_fill(42, 64));
+    let mut c = Clusters::new("mic", &[]);
+    feed(&mut c, &records);
+    assert_eq!(c.diagnostics().clusters, 64);
+    assert_eq!(c.diagnostics().cap_merges, 0);
+    let new = c.assign("mic:new", basis(DIM, 100), 3000).unwrap().unwrap();
+    let d = c.diagnostics();
+    // Only enough merges to restore the headroom (64 -> 56), then the open.
+    assert_eq!(
+        (d.cap_merges, d.cap_evictions, d.cap_unattributed),
+        (8, 0, 0)
+    );
+    assert_eq!(d.clusters, 57);
+    assert_eq!(c.speaker_for("mic:new"), Some(new.0.as_str()));
+    // Each merge absorbed a provisional duplicate into its established voice.
+    let mut merged = 0;
+    for k in 0..21 {
+        let a = c.speaker_for(&format!("mic:p{k}-a")).unwrap();
+        let d = c.speaker_for(&format!("mic:p{k}-d1")).unwrap();
+        if a == d {
+            merged += 1;
+            assert_eq!(a, format!("mic:speaker-{}", 2 * k + 1));
+            assert_eq!(
+                c.resolve(&format!("mic:speaker-{}", 2 * k + 2)),
+                Some((a, true))
+            );
+        }
+    }
+    assert_eq!(merged, 8);
+    let merges = c.refine(None);
+    assert!(merges.len() >= 8);
+}
+#[test]
+fn cannot_linked_duplicates_never_merge_at_the_cap() {
+    let mut records = (0..21)
+        .flat_map(|k| drifted_pair(k, 500))
+        .collect::<Vec<_>>();
+    records.extend(established_fill(42, 64));
+    let constraints = (0..21)
+        .map(|k| PairConstraint {
+            left_turn_id: format!("mic:p{k}-a"),
+            right_turn_id: format!("mic:p{k}-d2"),
+            kind: ConstraintKind::CannotLink,
+            provenance: "user".into(),
+        })
+        .collect::<Vec<_>>();
+    let mut c = Clusters::new("mic", &constraints);
+    feed(&mut c, &records);
+    assert!(
+        c.assign("mic:new", basis(DIM, 100), 3000)
+            .unwrap()
+            .is_none()
+    );
+    let d = c.diagnostics();
+    assert_eq!(
+        (d.cap_merges, d.cap_evictions, d.cap_unattributed),
+        (0, 0, 1)
+    );
+    let seen = records.iter().map(|r| r.turn.clone()).collect();
+    c.check_constraints(&seen).unwrap();
+}
+#[test]
+fn established_similar_voices_are_not_merged_while_smaller_duplicates_exist() {
+    // Pairs 0..20 are provisional duplicates; pair 20 is two established
+    // voices (each window 3 s) with the same ~0.715 centroid cosine.
+    let mut records = (0..20)
+        .flat_map(|k| drifted_pair(k, 500))
+        .collect::<Vec<_>>();
+    records.extend(drifted_pair(20, 3000));
+    records.extend(established_fill(42, 64));
+    let mut c = Clusters::new("mic", &[]);
+    feed(&mut c, &records);
+    let x = c.speaker_for("mic:p20-a").unwrap().to_owned();
+    let y = c.speaker_for("mic:p20-d1").unwrap().to_owned();
+    assert_ne!(x, y);
+    c.assign("mic:new", basis(DIM, 100), 3000).unwrap().unwrap();
+    assert_eq!(c.diagnostics().cap_merges, 8);
+    assert_eq!(c.speaker_for("mic:p20-a"), Some(x.as_str()));
+    assert_eq!(c.speaker_for("mic:p20-d1"), Some(y.as_str()));
+}
+#[test]
+fn finalize_with_cap_merges_and_evictions_is_deterministic_and_keeps_constraints() {
+    let mut records = (0..21)
+        .flat_map(|k| drifted_pair(k, 500))
+        .collect::<Vec<_>>();
+    records.extend(established_fill(42, 64));
+    // 20 orthogonal provisional strays: after 8 merges they fill the room,
+    // then strays are evicted oldest-first as more arrive.
+    records.extend((64..90).map(|n| crate::finalize::Record {
+        turn: format!("mic:s{n}"),
+        embedding: basis(DIM, n),
+        duration: 1000,
+    }));
+    let mut config = in_person(Phase::Refined);
+    config.constraints = vec![
+        PairConstraint {
+            left_turn_id: "mic:p0-a".into(),
+            right_turn_id: "mic:p0-d2".into(),
+            kind: ConstraintKind::CannotLink,
+            provenance: "user:c1".into(),
+        },
+        PairConstraint {
+            left_turn_id: "mic:s64".into(),
+            right_turn_id: "mic:e42".into(),
+            kind: ConstraintKind::CannotLink,
+            provenance: "user:c2".into(),
+        },
+    ];
+    let turns = turns_for(&records);
+    let run = || {
+        let result = crate::finalize::finish(turns.clone(), &records, &config, true, &[]).unwrap();
+        serde_json::to_string(&(&result.turns, &result.merges, &result.speakers)).unwrap()
+    };
+    let first = run();
+    assert_eq!(first, run());
+    let result = crate::finalize::finish(turns.clone(), &records, &config, true, &[]).unwrap();
+    assert!(result.constraint_reviews.is_empty());
+    assert!(result.warnings.iter().any(|w| w == CAP_WARNING));
+    let speaker = |id: &str| {
+        result
+            .turns
+            .iter()
+            .find(|t| t.id == id)
+            .unwrap()
+            .speaker_ids
+            .clone()
+    };
+    // The cannot-linked duplicate stayed apart; the anchored stray survived.
+    assert_ne!(speaker("mic:p0-a"), speaker("mic:p0-d2"));
+    assert!(!speaker("mic:s64").is_empty());
+    assert!(
+        result
+            .turns
+            .iter()
+            .any(|t| t.id.starts_with("mic:s") && t.speaker_ids.is_empty())
+    );
+    // Every published merge refers to ids that existed; every turn id resolves.
+    let ids = result
+        .speakers
+        .iter()
+        .map(|s| s.id.clone())
+        .collect::<BTreeSet<_>>();
+    assert!(
+        result
+            .turns
+            .iter()
+            .all(|t| t.speaker_ids.iter().all(|s| ids.contains(s)))
+    );
+    assert!(result.merges.len() >= 8);
+}
+#[test]
+fn long_four_voice_call_with_midpoints_finishes_with_few_speakers() {
+    let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+    let centers = (0..4)
+        .map(|_| normalize((0..DIM).map(|_| rng.uniform()).collect()).unwrap())
+        .collect::<Vec<_>>();
+    let mut records = Vec::new();
+    for round in 0..520 {
+        for (k, center) in centers.iter().enumerate() {
+            records.push(crate::finalize::Record {
+                turn: format!("mic:v{k}-{round}"),
+                embedding: rng.noisy(center, 0.6),
+                duration: 1500,
+            });
+        }
+        let (a, b) = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)][round % 6];
+        let mid = normalize(
+            centers[a]
+                .iter()
+                .zip(&centers[b])
+                .map(|(x, y)| x + y)
+                .collect(),
+        )
+        .unwrap();
+        records.push(crate::finalize::Record {
+            turn: format!("mic:m-{round}"),
+            embedding: rng.noisy(&mid, 0.8),
+            duration: 1500,
+        });
+    }
+    assert!(records.len() >= 2000);
+    let mut c = Clusters::new("mic", &[]);
+    feed(&mut c, &records);
+    // Noisy midpoints open stray clusters until the cap is reached; the cap
+    // is relieved by merges and evictions, never by an error.
+    let d = c.diagnostics();
+    assert!(d.cap_reached() && d.cap_evictions > 0 && d.cap_merges > 0);
+    assert!(!d.capacity_refused);
+    for phase in [Phase::Refined, Phase::Live] {
+        let result =
+            crate::finalize::finish(turns_for(&records), &records, &in_person(phase), true, &[])
+                .unwrap();
+        // Provisional strays stay bounded by the cap and are labelled Unknown;
+        // established (>= 3 s) speakers stay few.
+        let confident = result.speakers.iter().filter(|s| !s.provisional).count();
+        assert!((4..=8).contains(&confident), "{phase:?} {confident}");
+        assert!(result.speakers.len() <= 64);
+        assert!(result.warnings.iter().any(|w| w == CAP_WARNING));
+    }
 }

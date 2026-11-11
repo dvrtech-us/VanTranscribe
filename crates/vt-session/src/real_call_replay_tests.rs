@@ -69,8 +69,10 @@ fn replay(service: &AppService, id: &str, phase: Phase, echo: bool) {
     println!("REPLAY {}", serde_json::to_string(&report).unwrap());
 }
 
-/// Counters only: speaker counts, merges, turn counts and attributed vs
-/// Unknown/uncertain milliseconds per track. No labels, text or audio.
+/// Counters only: speaker counts, merges, turn counts, attributed vs
+/// Unknown/uncertain milliseconds per track and whether the cluster-cap
+/// warning was raised. No labels, text or audio. Cap merges, evictions and
+/// unattributed windows are in the diagnostics (`cap_*`).
 fn summarize(result: &vt_diarize::DiarizationResult) -> serde_json::Value {
     let mut tracks = serde_json::Map::new();
     for track in ["mic", "system"] {
@@ -115,7 +117,11 @@ fn summarize(result: &vt_diarize::DiarizationResult) -> serde_json::Value {
             }),
         );
     }
-    serde_json::json!({"merges": result.merges.len(), "tracks": tracks})
+    serde_json::json!({
+        "merges": result.merges.len(),
+        "cap_warning": result.warnings.iter().any(|w| w == vt_diarize::CAP_WARNING),
+        "tracks": tracks,
+    })
 }
 
 #[test]

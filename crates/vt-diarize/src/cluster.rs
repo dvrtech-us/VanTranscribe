@@ -1,6 +1,11 @@
 use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
 const MAX_CLUSTERS: usize = 64;
+/// Clusters freed by the duplicate-merge pass when the cap is reached, so the
+/// pass does not rerun on every following open.
+const CAP_HEADROOM: usize = 8;
+/// Speech after which a cluster is an established (visible) speaker.
+const ESTABLISHED_MS: u64 = 3000;
 const MAX_EXEMPLARS: usize = 20;
 use crate::diagnostics::TrackDiagnostics;
 use crate::models::{ASSIGN, MARGIN, MERGE};
@@ -84,8 +89,13 @@ pub(crate) struct Clusters {
     groups: Vec<Cluster>,
     next: u32,
     constraints: Vec<PairConstraint>,
+    /// Merges made while streaming (must-link joins and cap merges), in order.
+    /// `refine` starts its published history from these.
     forced_merges: Vec<SpeakerMerge>,
     graph: ConstraintGraph,
+    /// Ids that no longer exist: merged (`Some(into)`) or evicted (`None`).
+    /// Bounded by the number of clusters ever opened (<= embeddings).
+    retired: BTreeMap<String, Option<String>>,
 }
 pub(crate) fn normalize(mut value: Vec<f32>) -> Result<Vec<f32>> {
     if value.is_empty() || value.len() > 4096 || value.iter().any(|x| !x.is_finite()) {
@@ -119,6 +129,17 @@ fn mean(examples: &[Vec<f32>]) -> Vec<f32> {
     }
     normalize(m).unwrap_or_else(|_| examples[0].clone())
 }
+enum Room {
+    Open,
+    Join(usize, f32),
+    Full,
+}
+/// The best candidate when it passes ASSIGN and beats the runner-up by MARGIN.
+fn clear_winner(scores: &[(usize, f32)]) -> Option<(usize, f32)> {
+    scores.first().copied().filter(|(_, score)| {
+        *score >= ASSIGN && score - scores.get(1).map(|s| s.1).unwrap_or(-1.) >= MARGIN
+    })
+}
 fn prune(group: &mut Cluster) {
     if group.examples.len() > MAX_EXEMPLARS {
         let center = mean(&group.examples);
@@ -142,6 +163,7 @@ impl Clusters {
             constraints: constraints.to_vec(),
             forced_merges: Vec::new(),
             graph: ConstraintGraph::new(constraints),
+            retired: BTreeMap::new(),
         }
     }
     fn forbidden(&self, a: &BTreeSet<String>, b: &BTreeSet<String>) -> bool {
@@ -165,8 +187,10 @@ impl Clusters {
         })
     }
     /// Returns `None` when the embedding is deliberately left unattributed
-    /// (an ambiguous margin failure with best >= MERGE); the caller must
-    /// surface that turn as Unknown/uncertain with no speaker id.
+    /// (an ambiguous margin failure with best >= MERGE, or the cluster cap
+    /// could not be relieved); the caller must surface that turn as
+    /// Unknown/uncertain with no speaker id. Reaching the cap is an error only
+    /// for a constraint endpoint that cannot get a cluster.
     pub(crate) fn assign(
         &mut self,
         turn: &str,
@@ -197,18 +221,11 @@ impl Clusters {
             let base = required[0];
             for &other in required[1..].iter().rev() {
                 let merge = self.merge_pair(base, other);
-                self.forced_merges.push(merge);
+                self.record_merge(merge);
             }
             required.truncate(1);
         }
-        let mut scores = self
-            .groups
-            .iter()
-            .enumerate()
-            .filter(|(_, g)| !self.forbidden(&singleton, &g.members))
-            .map(|(i, g)| (i, cosine(&embedding, &mean(&g.examples))))
-            .collect::<Vec<_>>();
-        scores.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let scores = self.scores(&embedding, &singleton);
         let selected = if let Some(&required) = required.first() {
             if self.forbidden(&singleton, &self.groups[required].members) {
                 return Err(DiarizeError::Constraint);
@@ -218,9 +235,7 @@ impl Clusters {
                 cosine(&embedding, &mean(&self.groups[required].examples)),
             ))
         } else {
-            scores.first().copied().filter(|(_, score)| {
-                *score >= ASSIGN && score - scores.get(1).map(|s| s.1).unwrap_or(-1.) >= MARGIN
-            })
+            clear_winner(&scores)
         };
         // Margin failure: best >= ASSIGN but too close to the runner-up.
         let margin_failure = match (required.is_empty(), selected, scores.first(), scores.get(1)) {
@@ -249,9 +264,14 @@ impl Clusters {
             self.stats.assigned_existing += 1;
             selected
         } else {
-            if self.groups.len() >= MAX_CLUSTERS {
-                self.stats.capacity_refused = true;
-                return Err(DiarizeError::Capacity(CapacityLimit::Clusters));
+            match self.make_room(turn, &embedding, &singleton)? {
+                Room::Join(index, score) => {
+                    self.stats.assigned_existing += 1;
+                    self.stats.cap_reassigned += 1;
+                    return Ok(Some(self.add(index, score, turn, embedding, duration)));
+                }
+                Room::Full => return Ok(None),
+                Room::Open => {}
             }
             self.stats.record_open(
                 self.groups.is_empty(),
@@ -269,12 +289,161 @@ impl Clusters {
             (self.groups.len() - 1, 1.)
         };
         self.stats.peak_clusters = self.stats.peak_clusters.max(self.groups.len() as u32);
+        Ok(Some(self.add(index, score, turn, embedding, duration)))
+    }
+    fn add(
+        &mut self,
+        index: usize,
+        score: f32,
+        turn: &str,
+        embedding: Vec<f32>,
+        duration: u64,
+    ) -> (String, f32, bool) {
         let group = &mut self.groups[index];
         group.examples.push(embedding);
         group.members.insert(turn.into());
         group.speech_ms += duration;
         prune(group);
-        Ok(Some((group.id.clone(), score, group.speech_ms >= 3000)))
+        (group.id.clone(), score, group.speech_ms >= ESTABLISHED_MS)
+    }
+    fn record_merge(&mut self, merge: SpeakerMerge) {
+        self.retired
+            .insert(merge.from.clone(), Some(merge.into.clone()));
+        self.forced_merges.push(merge);
+    }
+    /// Merge the most similar non-forbidden pairs with centroid cosine >=
+    /// MERGE, highest first, until at most `target` clusters remain. Without
+    /// `established`, only pairs with at least one provisional cluster are
+    /// eligible; with it, only pairs of two established clusters. The cluster
+    /// with more speech absorbs the other (older on a tie). Ties between pairs
+    /// keep the lowest indices, so replay is deterministic.
+    fn cap_merge(&mut self, established: bool, target: usize) {
+        let mut centroids = self
+            .groups
+            .iter()
+            .map(|g| mean(&g.examples))
+            .collect::<Vec<_>>();
+        while self.groups.len() > target {
+            let mut best: Option<(usize, usize, f32)> = None;
+            for a in 0..self.groups.len() {
+                for b in a + 1..self.groups.len() {
+                    let both = self.groups[a].speech_ms >= ESTABLISHED_MS
+                        && self.groups[b].speech_ms >= ESTABLISHED_MS;
+                    if both != established {
+                        continue;
+                    }
+                    let score = cosine(&centroids[a], &centroids[b]);
+                    if score < MERGE
+                        || best.is_some_and(|(_, _, s)| score <= s)
+                        || self.forbidden(&self.groups[a].members, &self.groups[b].members)
+                    {
+                        continue;
+                    }
+                    best = Some((a, b, score));
+                }
+            }
+            let Some((a, b, _)) = best else {
+                break;
+            };
+            let (into, from) = if self.groups[b].speech_ms > self.groups[a].speech_ms {
+                (b, a)
+            } else {
+                (a, b)
+            };
+            let merge = self.merge_pair(into, from);
+            self.record_merge(merge);
+            self.stats.cap_merges += 1;
+            centroids.remove(from);
+            let into = if from < into { into - 1 } else { into };
+            centroids[into] = mean(&self.groups[into].examples);
+        }
+    }
+    /// Remove the oldest single-member cluster with < 3 s speech and no
+    /// constraint-anchored member. Oldest first: a singleton that never gained
+    /// a second window is the likeliest stray, while the newest one may be a
+    /// new voice that has not had time to speak again.
+    fn cap_evict(&mut self) {
+        let Some(index) = self.groups.iter().position(|g| {
+            g.members.len() == 1
+                && g.speech_ms < ESTABLISHED_MS
+                && !g.members.iter().any(|m| self.graph.roots.contains_key(m))
+        }) else {
+            return;
+        };
+        let group = self.groups.remove(index);
+        self.retired.insert(group.id, None);
+        self.stats.cap_evictions += 1;
+        self.stats.cap_evicted_ms += group.speech_ms;
+    }
+    /// Current id for a speaker id handed out earlier: follows merges, and is
+    /// `None` for an evicted cluster. The bool is "established" (>= 3 s).
+    pub(crate) fn resolve<'a>(&'a self, id: &'a str) -> Option<(&'a str, bool)> {
+        let mut id = id;
+        while let Some(next) = self.retired.get(id) {
+            id = next.as_deref()?;
+        }
+        self.groups
+            .iter()
+            .find(|g| g.id == id)
+            .map(|g| (g.id.as_str(), g.speech_ms >= ESTABLISHED_MS))
+    }
+    pub(crate) fn retired_count(&self) -> usize {
+        self.retired.len()
+    }
+    /// Candidate clusters (cannot-link partners removed) by cosine, best first.
+    fn scores(&self, embedding: &[f32], singleton: &BTreeSet<String>) -> Vec<(usize, f32)> {
+        let mut scores = self
+            .groups
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| !self.forbidden(singleton, &g.members))
+            .map(|(i, g)| (i, cosine(embedding, &mean(&g.examples))))
+            .collect::<Vec<_>>();
+        scores.sort_by(|a, b| b.1.total_cmp(&a.1));
+        scores
+    }
+    /// Called only when a new cluster is needed (so `required` was empty and
+    /// no earlier index is reused afterwards: merges and evictions reorder
+    /// `groups`). Below the cap it does nothing. At the cap, in order:
+    /// 1. merge the most similar duplicate pairs (centroid cosine >= MERGE)
+    ///    that involve a provisional cluster, until CAP_HEADROOM slots are free;
+    /// 2. evict the oldest provisional, unanchored singleton (one slot);
+    /// 3. merge the single most similar pair of established clusters.
+    ///
+    /// After any merge the window is re-scored and may now clearly join an
+    /// existing cluster. With no free slot the window is unattributed (`Err`
+    /// for a constraint endpoint, which must not silently lose its cluster).
+    fn make_room(
+        &mut self,
+        turn: &str,
+        embedding: &[f32],
+        singleton: &BTreeSet<String>,
+    ) -> Result<Room> {
+        if self.groups.len() < MAX_CLUSTERS {
+            return Ok(Room::Open);
+        }
+        let merges = self.stats.cap_merges;
+        self.cap_merge(false, MAX_CLUSTERS - CAP_HEADROOM);
+        if self.groups.len() >= MAX_CLUSTERS {
+            self.cap_evict();
+        }
+        if self.groups.len() >= MAX_CLUSTERS {
+            self.cap_merge(true, MAX_CLUSTERS - 1);
+        }
+        if self.stats.cap_merges > merges
+            && let Some((index, score)) = clear_winner(&self.scores(embedding, singleton))
+        {
+            return Ok(Room::Join(index, score));
+        }
+        if self.groups.len() >= MAX_CLUSTERS {
+            if self.graph.roots.contains_key(turn) {
+                self.stats.capacity_refused = true;
+                return Err(DiarizeError::Capacity(CapacityLimit::Clusters));
+            }
+            self.stats.cap_unattributed += 1;
+            return Ok(Room::Full);
+        }
+        Ok(Room::Open)
     }
     /// Counters only; singleton count is derived from current membership.
     pub(crate) fn diagnostics(&self) -> TrackDiagnostics {
@@ -284,8 +453,10 @@ impl Clusters {
         d.embeddings_assigned = d.assigned_existing + d.opened_total;
         d
     }
+    /// Merges cluster `b` into cluster `a` (either order of indices).
     fn merge_pair(&mut self, a: usize, b: usize) -> SpeakerMerge {
         let removed = self.groups.remove(b);
+        let a = if b < a { a - 1 } else { a };
         let into = &mut self.groups[a];
         let change = SpeakerMerge {
             from: removed.id,
@@ -391,7 +562,7 @@ impl Clusters {
                 track: track.into(),
                 label: format!("Speaker {}", g.id.rsplit('-').next().unwrap_or("?")),
                 speech_ms: g.speech_ms,
-                provisional: g.speech_ms < 3000,
+                provisional: g.speech_ms < ESTABLISHED_MS,
             })
             .collect()
     }

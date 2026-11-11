@@ -63,11 +63,32 @@ pub struct TrackDiagnostics {
     /// opened, no exemplar added); the turn surfaces as Unknown.
     #[serde(default)]
     pub ambiguous_unattributed: u32,
+    /// Cluster-cap handling (never an error for ordinary turns): duplicate
+    /// clusters merged to make room.
+    #[serde(default)]
+    pub cap_merges: u32,
+    /// Provisional singleton clusters removed to make room; their turn is Unknown.
+    #[serde(default)]
+    pub cap_evictions: u32,
+    /// Speech (ms) of the evicted singletons.
+    #[serde(default)]
+    pub cap_evicted_ms: u64,
+    /// Windows left unattributed because the cap could not be relieved.
+    #[serde(default)]
+    pub cap_unattributed: u32,
+    /// Windows that, after a cap merge, cleanly joined an existing cluster
+    /// instead of opening a new one.
+    #[serde(default)]
+    pub cap_reassigned: u32,
 }
 fn score_bucket(v: f32) -> usize {
     (((v + 1.) * 10.).floor().max(0.) as usize).min(SCORE_BUCKETS - 1)
 }
 impl TrackDiagnostics {
+    /// True when the per-track cluster cap changed any assignment.
+    pub fn cap_reached(&self) -> bool {
+        self.cap_merges + self.cap_evictions + self.cap_unattributed > 0
+    }
     /// Record a margin failure: the best score and the cosine between the two
     /// top candidates' centroids.
     pub(crate) fn record_margin_failure(&mut self, best: f32, centroids: f32) {

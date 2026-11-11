@@ -298,6 +298,7 @@ impl Diarizer {
         let mut output = Vec::new();
         let mut local_clean = BTreeMap::<i32, (String, String)>::new();
         let mut pending_overlap = Vec::<(usize, Vec<i32>)>::new();
+        let retired = state.clusters.retired_count();
         for endpoints in bounds.windows(2) {
             let (a, b) = (endpoints[0], endpoints[1]);
             if a >= emit {
@@ -402,6 +403,48 @@ impl Diarizer {
                 overlap,
                 uncertain,
                 provisional,
+            });
+        }
+        if state.clusters.retired_count() != retired {
+            // A cap merge or eviction inside this window: turns already built
+            // here follow it. Turns published by earlier windows keep their id
+            // until the final reconciled result (see `Clusters::resolve`).
+            for turn in output.iter_mut().filter(|t| !t.overlap) {
+                let Some(old) = turn.speaker_ids.first().cloned() else {
+                    continue;
+                };
+                if old == "mic:me" {
+                    continue;
+                }
+                match state.clusters.resolve(&old) {
+                    Some((id, _)) if id == old => {}
+                    Some((id, visible)) => {
+                        turn.speaker_ids = vec![id.to_owned()];
+                        turn.provisional = !visible;
+                        turn.uncertain = !visible;
+                        turn.label = if visible {
+                            format!("Speaker {}", id.rsplit('-').next().unwrap_or("?"))
+                        } else {
+                            "Unknown".into()
+                        };
+                    }
+                    None => {
+                        turn.speaker_ids.clear();
+                        turn.score = None;
+                        turn.provisional = false;
+                        turn.uncertain = true;
+                        turn.label = "Unknown".into();
+                    }
+                }
+            }
+            local_clean.retain(|_, (turn_id, speaker)| {
+                match output.iter().find(|t| t.id == *turn_id) {
+                    Some(t) if !t.speaker_ids.is_empty() => {
+                        *speaker = t.speaker_ids[0].clone();
+                        true
+                    }
+                    _ => false,
+                }
             });
         }
         for (position, locals) in pending_overlap {

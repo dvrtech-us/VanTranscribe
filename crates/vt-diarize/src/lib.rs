@@ -16,6 +16,7 @@ pub use voice_profile::VoiceEmbeddingProfile;
 mod tests;
 pub use diagnostics::{CapacityLimit, Diagnostics, TrackDiagnostics};
 pub use engine::Diarizer;
+pub use finalize::CAP_WARNING;
 pub use models::{
     EMBEDDING, EMBEDDING_SOURCE, EMBEDDING_VERSION, MODEL_ID, MODEL_NOTICE, ModelManager,
     SEGMENTATION, SEGMENTATION_SOURCE,
