@@ -30,7 +30,7 @@
 - Gaps of the same worker, track and reason merge when adjacent within 1 ms regardless of generation; one worker holds at most 42 of the 128 gap entries.
 - Every recording has a health report, including recordings without live models. Its `capture` section keeps at most 32 entries per list (rebuilds, slow calls, epochs, stalls) with exact totals.
 - The helper is never stopped or restarted because of a stall. `capture.state` is derived only while recording and not paused, only after a first heartbeat: 5 s without a heartbeat is `helper_silent`, 5 s of heartbeats without callback progress is `no_audio_callbacks`, and a session-loop iteration of 500 ms or more is the consumer's delay (`consumer_slow` stall record at 5 s), never blamed on the helper.
-- Housekeeping writes on the recording loop (duration, unforced health, source timing, pause/resume status) wait at most 250 ms and skip on a lock error with one warning per recording; non-lock errors remain fatal. The recorder's chunk writer is unchanged: a lock held longer than 5 s across a chunk flush still ends the recording, and `save_clock` on flush is still fatal.
+- Housekeeping writes on the recording loop (duration, unforced health, source timing, pause/resume status) wait at most 250 ms and skip on a lock error with one warning per recording; non-lock errors remain fatal. On the chunk flush path `save_clock` and the forced health persist also use the 250 ms timeout and are skipped on a lock error (same single warning, `HOUSEKEEPING_BUSY_WARNING`). A lock no longer ends a recording within `MANIFEST_LOCK_BUDGET` (60 s): the recorder retries its manifest writes (pending insert, ready update, gap, finish) and only a lock outlasting that budget, or a non-lock error, poisons the writer. While a write waits the capture consumer loop is blocked; the 128-slot channel (2.56 s), the pipe and the helper's ring (at least 10 s) absorb it, after roughly 12.5 s the helper reports an explicit `overflow` gap and the recording continues. A stop request waits for the pending write. A single wait over 1 s raises `RECORDER_LOCK_WAIT_WARNING` once. See [durable recording](../../recording/durable-recording/durable-recording.md#manifest-write-lock-tolerance).
 - The final echo-info save retries briefly (3 x 1 s) and a lock is a warning, not a failure.
 - Live transcript lines that could not be saved are `segment_rejected` (deterministic error) or `persistence_failed` (queue overflow, or unsaved at the 5 s close deadline) inference gaps; the raw recording is unaffected.
 - Live speaker turns that could not be saved because of database lock contention are recorded as inference gaps with reason `persistence_failed` (see [speaker turns](../../diarization/speaker-turns/speaker-turns.md)); the raw recording is unaffected.
@@ -49,7 +49,9 @@
 | Speech recognizer error (new cause) | Warning; `recognizer_error` gap and failure entry | Short stretch of live text; worker continues |
 | Same recognizer cause twice in a row, or 20 recoveries used | Terminal; live transcription `stopped` (`worker_failed` / `recovery_budget_exhausted`) | Live STT for the rest of the recording; raw capture continues |
 | Live speaker worker error | Terminal; not restarted | Live speaker labels for the rest of the recording |
-| Database lock on a recording-loop housekeeping write | One warning; write skipped | No |
+| Database lock on a recording-loop housekeeping write, `save_clock`, flush-path health persist or output route save | One warning (`HOUSEKEEPING_BUSY_WARNING`); write skipped (route changes are kept and retried) | No |
+| Database lock on a recorder manifest write | Retried up to 60 s; a wait over 1 s warns once (`RECORDER_LOCK_WAIT_WARNING`) | Capture loop blocked while waiting; the helper may report an `overflow` gap after about 12.5 s |
+| Database lock on a recorder manifest write outlasting 60 s | Writer poisoned; recording ends | Further writes; recovery adopts what was published |
 | No helper heartbeat or callback progress for 5 s | `capture.state` stalled; record in report | Observation only; capture is not touched |
 | Note metadata/FTS failure | Atomic rollback | Entire new note publication |
 
@@ -74,6 +76,8 @@
 | Speech recovery budget | 20 per recording; same cause twice in a row is terminal |
 | Stall / slow-iteration thresholds | 5 s / 500 ms |
 | Recording-loop housekeeping lock wait | 250 ms |
+| Recorder manifest write lock budget | `MANIFEST_LOCK_BUDGET` 60 s total; 250 ms per attempt; 5 ms doubling to 100 ms backoff |
+| Lock-wait warning threshold | 1 s |
 | Shared native clock | Protocol 3 `source_clock_uptime_raw`; no callback-arrival origin |
 | Legacy timing | Explicit latest-audio fallback, no wall-clock estimate |
 | Capture/DSP/STT/speaker queue bounds | 2.56 / 12 / 6 / 6 seconds aggregate audio |

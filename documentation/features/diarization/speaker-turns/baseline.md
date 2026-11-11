@@ -22,10 +22,14 @@
 - Unnamed diarization embeddings exist only in meeting-local memory. Result serialization contains no biometric vectors. Explicit named enrollment recomputes source vectors under the separate consent/encryption feature and never changes ordinary diarization persistence.
 - No download, capture permission, cloud processing or cross-meeting memory access occurs during inference construction. The bounded enrollment extractor opens no gallery or secret store.
 - Model setup is explicit, checks pinned sizes/hashes, preserves license notices, and never accepts a publisher account agreement.
-- A refinement stopped by a turns, embeddings or clusters capacity limit never saves partial separation output; it carries the previous run's speaker annotations onto the new run and records the limit in the run's speaker warnings.
+- A refinement stopped by a turns, embeddings or (constraint-endpoint) clusters capacity limit never saves partial separation output; it carries the previous run's speaker annotations onto the new run and records the limit in the run's speaker warnings.
 - A live speaker save that hits lock contention never stops the speaker worker; unsaved turns are retained and dropped turns become `persistence_failed` inference gaps. Engine errors and non-lock database errors still stop it, and the speaker worker is not restarted (only the speech worker recovers in place; see live-english).
-- `Diarizer::diagnostics()` holds counters only and does not change clustering. It reports `margin_failures`, `margin_failure_best_at_least_merge`, `margin_failure_centroid_hist` and `ambiguous_unattributed`.
-- The 64-cluster limit still returns `DiarizeError::Capacity(CapacityLimit::Clusters)`; the margin rule reduces but does not remove it (still reached on a 95-minute single-microphone in-person call).
+- `Diarizer::diagnostics()` holds counters only and does not change clustering. It reports `margin_failures`, `margin_failure_best_at_least_merge`, `margin_failure_centroid_hist`, `ambiguous_unattributed` and the cap counters `cap_merges`, `cap_evictions`, `cap_evicted_ms`, `cap_unattributed`, `cap_reassigned`.
+- At 64 clusters on a track a window that needs a new cluster is handled in this order: merge duplicate pairs (centroid cosine at least 0.70, at least one provisional, not cannot-linked) until at most 56 clusters remain; evict the oldest unanchored single-member cluster under 3,000 ms of speech; merge the most similar pair of established clusters (cosine at least 0.70); re-score the window if any merge happened and join a clear winner (0.55 / 0.10); otherwise leave the window unattributed (Unknown, uncertain, no speaker id). Merge ties keep the lowest indices, so replay is deterministic.
+- `DiarizeError::Capacity(CapacityLimit::Clusters)` is returned at the cluster cap only for a must-link or cannot-link endpoint that cannot get a cluster (`capacity_refused`). No other turn fails at the cap.
+- Merges and evictions are recorded (`record_merge`, `retired`); turns built in the same window follow them (merged id, or Unknown for an evicted id); `mic:me` is never rewritten. Merges made while streaming seed `refine`'s published merge history.
+- `finish` adds `CAP_WARNING` ("Speaker separation reached its cluster limit; some similar voices were merged and some speech is shown as Unknown.") to `DiarizationResult.warnings` when any track has `cap_merges`, `cap_evictions` or `cap_unattributed` above zero.
+- No replay measurement of cluster-cap handling on real recordings is recorded in the repository; label quality on single-microphone in-person audio is unvalidated.
 
 ## Defaults and bounds
 
@@ -43,6 +47,7 @@
 | Minimum eligible clean turn / visible cluster | 1000 ms / 3000 ms |
 | Experimental assign / merge / margin | 0.55 / 0.70 / 0.10 |
 | Speaker state | 64 clusters/track, 20 exemplars/cluster |
+| Cluster-cap handling | `CAP_HEADROOM` 8 (merge pass targets 56), `ESTABLISHED_MS` 3000, merge threshold `MERGE` 0.70, re-score with `ASSIGN` 0.55 / `MARGIN` 0.10 |
 | Live speaker save | IMMEDIATE transaction; 3 attempts, 300 ms busy timeout, 50/100 ms backoff (1.05 s worst case; shared `LiveSaveBudget::PRODUCTION` with the live transcript writer); at most 2048 unsaved turns carried |
 | Replay embeddings / turn metadata | 8192 / 32768 per meeting |
 | Constraint count | 4096 pairs and 4096 temporal constraints |
@@ -57,7 +62,8 @@
 | --- | --- | --- |
 | Missing/corrupt model hash/manifest | Error | Yes |
 | Missing model-setup acknowledgement | Error | Setup only |
-| Capacity reached in `Diarizer` (turns, embeddings, clusters, constraints) | Error from `Diarizer`; never silent truncation | Constraints: yes. Turns/embeddings/clusters during refinement: no; the refined transcript is published, previous speaker labels are retained (or channel/Unknown labels) and a run warning names the limit |
+| Cluster cap reached for an ordinary window | Merge, evict or Unknown; `CAP_WARNING` on the result | No; raw audio and transcript unaffected, some speech Unknown |
+| Capacity reached in `Diarizer` (turns, embeddings, constraints, or clusters for a constraint endpoint) | Error from `Diarizer`; never silent truncation | Constraints: yes. Turns/embeddings/clusters during refinement: no; the refined transcript is published, previous speaker labels are retained (or channel/Unknown labels) and a run warning names the limit |
 | Constraint conflict/missing/ambiguous anchor | Needs review | No; publish timed transcript with affected voices Unknown and review metadata |
 | Ambiguous window (margin failure, best at least 0.70) | Uncertain | No; emitted Unknown with no speaker id, decided again by the `finish` replay |
 | Short/overlap/provisional speaker turn | Uncertain | No; explicit unknown/overlap metadata |

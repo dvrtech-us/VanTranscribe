@@ -50,11 +50,17 @@ impl TrackBuffer {
         }
     }
 
-    fn flush(&mut self, recorder: &mut Recording, service: &AppService, id: &str) -> Result<()> {
+    fn flush(
+        &mut self,
+        recorder: &mut Recording,
+        service: &AppService,
+        id: &str,
+        busy_warned: &mut bool,
+    ) -> Result<()> {
         if self.samples.is_empty() {
             return Ok(());
         }
-        service.recording_budget(self.samples.len() as u64 * 3 + 4096)?;
+        service.recording_budget(self.samples.len() as u64 * 3 + 4096, busy_warned)?;
         let format = self.format.context("capture format is missing")?;
         let source = self
             .first_source
@@ -73,16 +79,24 @@ impl TrackBuffer {
         )?;
         // Persist the original hardware observation before publication. The
         // worker's exact adjacency must not erase measured source-clock drift.
-        store::save_clock(
-            &service.root,
-            id,
-            self.track.as_str(),
-            self.next_seq,
-            source.epoch,
-            source.frame,
-            source.host_ns,
+        // `app_audio_clock` has no live reader, so a lock skips this row.
+        tolerate_busy(
+            service,
+            busy_warned,
+            store::save_clock(
+                &service.root,
+                id,
+                self.track.as_str(),
+                self.next_seq,
+                source.epoch,
+                source.frame,
+                source.host_ns,
+                store::LOOP_BUSY_TIMEOUT,
+            ),
         )?;
-        let chunk = recorder.write_chunk(self.track, &block)?;
+        let chunk = recorder.write_chunk(self.track, &block);
+        note_recorder_waits(service, recorder);
+        let chunk = chunk?;
         self.writer_frame += block.frames();
         self.writer_end = Some(chunk.end_ns);
         self.next_seq = chunk.seq + 1;
@@ -97,8 +111,9 @@ impl TrackBuffer {
         recorder: &mut Recording,
         service: &AppService,
         id: &str,
+        busy_warned: &mut bool,
     ) -> Result<()> {
-        self.flush(recorder, service, id)?;
+        self.flush(recorder, service, id, busy_warned)?;
         if let (Some(end), Some(format)) = (self.writer_end, self.format)
             && target > end
         {
@@ -113,7 +128,9 @@ impl TrackBuffer {
                     end_ns: target,
                     reason,
                 },
-            )?;
+            );
+            note_recorder_waits(service, recorder);
+            let gap = gap?;
             self.writer_end = Some(target);
             self.next_seq = gap.seq + 1;
             self.persisted_epoch = Some(gap.epoch);
@@ -127,6 +144,7 @@ impl TrackBuffer {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn set_format(
         &mut self,
         format: StreamFormat,
@@ -135,9 +153,17 @@ impl TrackBuffer {
         recorder: &mut Recording,
         service: &AppService,
         id: &str,
+        busy_warned: &mut bool,
     ) -> Result<()> {
         if self.format.is_some() && (self.format != Some(format) || self.source_epoch != epoch) {
-            self.gap_until(start, GapReason::DeviceChange, recorder, service, id)?;
+            self.gap_until(
+                start,
+                GapReason::DeviceChange,
+                recorder,
+                service,
+                id,
+                busy_warned,
+            )?;
             if let Some(last) = self.persisted_epoch {
                 self.writer_epoch = last.checked_add(1).context("capture epoch overflow")?;
                 self.writer_frame = 0;
@@ -156,6 +182,7 @@ impl TrackBuffer {
         recorder: &mut Recording,
         service: &AppService,
         id: &str,
+        busy_warned: &mut bool,
     ) -> Result<(Vec<f32>, u32, u64)> {
         let SourcePosition {
             epoch,
@@ -171,7 +198,7 @@ impl TrackBuffer {
             bail!("Capture emitted invalid or oversized audio.");
         }
         if self.source_epoch != epoch {
-            self.set_format(format, epoch, host, recorder, service, id)?;
+            self.set_format(format, epoch, host, recorder, service, id, busy_warned)?;
         }
         if self.resume_pending || self.source_next.is_some_and(|next| next != first) {
             self.gap_until(
@@ -184,6 +211,7 @@ impl TrackBuffer {
                 recorder,
                 service,
                 id,
+                busy_warned,
             )?;
             self.resume_pending = false;
         }
@@ -214,7 +242,7 @@ impl TrackBuffer {
                 .extend_from_slice(&samples[offset..offset + take]);
             offset += take;
             if self.samples.len() == capacity {
-                self.flush(recorder, service, id)?;
+                self.flush(recorder, service, id, busy_warned)?;
             }
         }
         self.source_next = Some(first + frames as u64);
@@ -957,13 +985,144 @@ fn speaker_worker(service: Arc<AppService>, id: String, rx: Receiver<Inference>)
     outcome
 }
 
-pub(crate) const HOUSEKEEPING_BUSY_WARNING: &str = "Recording details (duration, status or health) could not be saved while the database was busy; recording continues and they are saved again on the next update.";
+pub(crate) const HOUSEKEEPING_BUSY_WARNING: &str = "Recording details (duration, status, health, chunk clock or output route) could not be saved while the database was busy; recording continues and periodic details are saved again on the next update.";
+/// Reported once (the backlog deduplicates identical warnings) when a chunk or
+/// gap write waited more than 1 s for the database lock.
+pub(crate) const RECORDER_LOCK_WAIT_WARNING: &str = "Saving recorded audio waited more than 1 s for a busy database; recording continued. A long wait can show up as a gap in the saved audio.";
+/// Writes after capture has stopped (route seal, live-run completion, final
+/// status and duration) retry lock errors instead of failing the meeting:
+/// 4 x 5 s + 200 + 400 + 800 ms = 21.4 s worst case each. No audio is at risk.
+const AFTER_STOP_BUDGET: store::LiveSaveBudget = store::LiveSaveBudget {
+    busy_timeout: Duration::from_secs(5),
+    attempts: 4,
+    backoff: Duration::from_millis(200),
+};
+
+/// Route changes are rare; this many unsaved ones means the database has been
+/// busy for a long time. Past it the history is treated as incomplete.
+const MAX_PENDING_ROUTES: usize = 64;
+/// While a route is waiting, the loop retries at most this often so a long lock
+/// costs the capture loop one 250 ms attempt per interval, not per packet.
+const ROUTE_RETRY_INTERVAL: Duration = Duration::from_millis(500);
+pub(crate) const ROUTE_OVERFLOW_WARNING: &str = "Output route history could not be saved: too many route changes waited for a busy database. Raw recording continues; saved audio is transcribed without echo cancellation.";
+
+/// Capture-time route changes not yet saved, oldest first. They are saved
+/// strictly in order (a later one never ahead of an earlier one) with their
+/// original timestamps; a lock only delays them. The history is incomplete
+/// (never sealed) only after a non-lock error, overflow, or a lock that outlasts
+/// the stop-time retry.
+struct PendingRoutes {
+    queue: std::collections::VecDeque<RouteObservation>,
+    retry_at: Option<Instant>,
+    complete: bool,
+}
+
+impl PendingRoutes {
+    fn new() -> Self {
+        Self {
+            queue: Default::default(),
+            retry_at: None,
+            complete: true,
+        }
+    }
+
+    fn push(&mut self, service: &AppService, observation: RouteObservation) {
+        if !self.complete {
+            return;
+        }
+        if self.queue.len() >= MAX_PENDING_ROUTES {
+            self.abandon(service, ROUTE_OVERFLOW_WARNING.into());
+            return;
+        }
+        self.queue.push_back(observation);
+    }
+
+    fn abandon(&mut self, service: &AppService, message: String) {
+        self.complete = false;
+        self.queue.clear();
+        warning(service, message);
+    }
+
+    /// Recording-loop save: short timeout, a lock waits for the next retry.
+    fn drain(&mut self, service: &AppService, id: &str, warned: &mut bool) -> Result<()> {
+        if self.queue.is_empty() || self.retry_at.is_some_and(|at| Instant::now() < at) {
+            return Ok(());
+        }
+        while let Some(front) = self.queue.front() {
+            match crate::echo_store::record_route_with(
+                &service.root,
+                id,
+                front,
+                store::LOOP_BUSY_TIMEOUT,
+            ) {
+                Ok(()) => {
+                    self.queue.pop_front();
+                }
+                Err(error) if store::sqlite_busy(&error) => {
+                    self.retry_at = Some(Instant::now() + ROUTE_RETRY_INTERVAL);
+                    return tolerate_busy(service, warned, Err(error));
+                }
+                Err(error) => {
+                    self.abandon(
+                        service,
+                        format!(
+                            "Output route history could not be saved; raw recording continues without echo cancellation: {error}"
+                        ),
+                    );
+                    return Ok(());
+                }
+            }
+        }
+        self.retry_at = None;
+        Ok(())
+    }
+
+    /// At stop: saves what is still pending, in order, then seals the history,
+    /// retrying lock errors under `budget`. A failure leaves it unsealed.
+    fn seal(&mut self, service: &AppService, id: &str, budget: store::LiveSaveBudget) {
+        if !self.complete {
+            return;
+        }
+        let queue = &mut self.queue;
+        if let Err(error) = store::retry_busy(budget, |busy_timeout| {
+            while let Some(front) = queue.front() {
+                crate::echo_store::record_route_with(&service.root, id, front, busy_timeout)?;
+                queue.pop_front();
+            }
+            crate::echo_store::seal_routes_with(&service.root, id, busy_timeout)
+        }) {
+            self.complete = false;
+            self.queue.clear();
+            warning(
+                service,
+                format!(
+                    "Output route history could not be verified for saved echo processing: {error}"
+                ),
+            );
+        }
+    }
+}
+
+/// Publishes the chunk writer's lock waits and warns once past 1 s.
+fn note_recorder_waits(service: &AppService, recorder: &Recording) {
+    let waits = recorder.lock_waits();
+    if waits.max > Duration::from_secs(1) {
+        service.backlog_warn(RECORDER_LOCK_WAIT_WARNING);
+    }
+    if let Ok(mut runtime) = service.runtime.lock() {
+        runtime.recorder_lock_waits = waits;
+    }
+}
 
 /// Housekeeping writes on the capture consumer loop must not end a recording
 /// because the database is momentarily locked: a lock error is skipped (the
 /// next periodic write or the final write at stop supersedes it) and reported
 /// once per recording. Any other error keeps today's fatal behaviour.
-fn tolerate_busy(service: &AppService, warned: &mut bool, result: Result<()>) -> Result<()> {
+pub(super) fn tolerate_busy(
+    service: &AppService,
+    warned: &mut bool,
+    result: Result<()>,
+) -> Result<()> {
     match result {
         Err(error) if store::sqlite_busy(&error) => {
             if !*warned {
@@ -1026,17 +1185,20 @@ pub(super) fn run(
     } else {
         0
     };
+    // The recorder retries its final status update on lock errors itself.
     let finish = recorder.finish();
     let mut error = result
         .err()
         .map(|e| e.to_string())
         .or_else(|| finish.err().map(|e| e.to_string()));
     if error.is_none()
-        && let Err(problem) = store::complete_live_run(&service.root, &id)
+        && let Err(problem) = finish_live_run(&service.root, &id)
     {
         error = Some(problem.to_string());
     }
-    let _ = store::set_duration(&service.root, &id, elapsed);
+    let _ = store::retry_busy(AFTER_STOP_BUDGET, |busy_timeout| {
+        store::set_duration_with(&service.root, &id, elapsed, busy_timeout)
+    });
     if let Some(error) = error {
         if let Ok(detail) = store::detail(&service.root, &id)
             && let Some(run) = detail.active_run_id
@@ -1046,7 +1208,9 @@ pub(super) fn run(
         if service.ensure_saved_audio(&id).is_ok() {
             let _ = Recording::recover(&service.root, &id);
         }
-        let _ = store::set_status(&service.root, &id, "failed", Some(&error));
+        let _ = store::retry_busy(AFTER_STOP_BUDGET, |busy_timeout| {
+            store::set_status_with(&service.root, &id, "failed", Some(&error), busy_timeout)
+        });
         if let Ok(mut runtime) = service.runtime.lock() {
             if let Some(current) = &mut runtime.current {
                 current.view.status = "failed".into();
@@ -1064,7 +1228,15 @@ pub(super) fn run(
                 .as_ref()
                 .and_then(|current| current.view.error.clone())
         });
-        let _ = store::set_status(&service.root, &id, "ready", warning.as_deref());
+        let _ = store::retry_busy(AFTER_STOP_BUDGET, |busy_timeout| {
+            store::set_status_with(
+                &service.root,
+                &id,
+                "ready",
+                warning.as_deref(),
+                busy_timeout,
+            )
+        });
         if service.audit_warning_unpersisted() {
             // Keep the warning available even when its metadata write failed.
             // A ready Current neither holds capture open nor blocks a new run.
@@ -1086,6 +1258,14 @@ pub(super) fn run(
             runtime.partials.clear();
         }
     }
+}
+
+/// Seals the live run after stop. A lock error is retried under
+/// `AFTER_STOP_BUDGET` before it can mark the meeting failed.
+pub(super) fn finish_live_run(root: &Path, id: &str) -> Result<()> {
+    store::retry_busy(AFTER_STOP_BUDGET, |busy_timeout| {
+        store::complete_live_run_with(root, id, busy_timeout)
+    })
 }
 
 fn record_session(
@@ -1266,7 +1446,7 @@ fn record_session(
         (None, None)
     };
     let mut output_route: Option<RouteObservation> = None;
-    let mut routes_persisted = true;
+    let mut routes = PendingRoutes::new();
     let mut tracks = BTreeMap::from([
         (TrackKind::Mic, TrackBuffer::new(TrackKind::Mic)),
         (TrackKind::System, TrackBuffer::new(TrackKind::System)),
@@ -1306,6 +1486,7 @@ fn record_session(
                 &mut housekeeping_warned,
                 service.refresh_health(false).map(drop),
             )?;
+            routes.drain(service, id, &mut housekeeping_warned)?;
             service.refresh_backlog();
             if service.inference_suspended.load(Ordering::Relaxed) {
                 dsp_input = None;
@@ -1333,7 +1514,7 @@ fn record_session(
                     }
                     Control::Pause => {
                         for track in tracks.values_mut() {
-                            track.flush(recorder, service, id)?;
+                            track.flush(recorder, service, id, &mut housekeeping_warned)?;
                             track.resume_pending = true;
                         }
                         paused = true;
@@ -1464,18 +1645,9 @@ fn record_session(
                         start_ns,
                         route,
                     };
-                    if let Err(error) =
-                        crate::echo_store::record_route(&service.root, id, &observation)
-                    {
-                        routes_persisted = false;
-                        warning(
-                            service,
-                            format!(
-                                "Output route history could not be saved; raw recording continues without echo cancellation: {error}"
-                            ),
-                        );
-                    }
-                    if !routes_persisted {
+                    routes.push(service, observation.clone());
+                    routes.drain(service, id, &mut housekeeping_warned)?;
+                    if !routes.complete {
                         observation.route = Default::default();
                     }
                     if let Ok(mut runtime) = service.runtime.lock() {
@@ -1506,10 +1678,15 @@ fn record_session(
                             .unwrap_or_else(|e| e.into_inner())
                             .reset("source_format", false);
                     }
-                    tracks
-                        .get_mut(&kind)
-                        .context("unknown track")?
-                        .set_format(format, epoch, start_ns, recorder, service, id)?;
+                    tracks.get_mut(&kind).context("unknown track")?.set_format(
+                        format,
+                        epoch,
+                        start_ns,
+                        recorder,
+                        service,
+                        id,
+                        &mut housekeeping_warned,
+                    )?;
                 }
                 CaptureEvent::Audio {
                     track,
@@ -1547,6 +1724,7 @@ fn record_session(
                             recorder,
                             service,
                             id,
+                            &mut housekeeping_warned,
                         )?;
                     let end_ms =
                         start_ms.saturating_add(mono.len() as u64 * 1000 / u64::from(rate));
@@ -1614,6 +1792,7 @@ fn record_session(
                         recorder,
                         service,
                         id,
+                        &mut housekeeping_warned,
                     )?;
                     service
                         .backlog
@@ -1701,24 +1880,23 @@ fn record_session(
     for track in tracks.values_mut() {
         if track.resume_pending
             && let Some(end) = track.last_source_end
-            && let Err(error) = track.gap_until(end, GapReason::Pause, recorder, service, id)
+            && let Err(error) = track.gap_until(
+                end,
+                GapReason::Pause,
+                recorder,
+                service,
+                id,
+                &mut housekeeping_warned,
+            )
         {
             flush_error = Some(error);
         }
-        if let Err(error) = track.flush(recorder, service, id) {
+        if let Err(error) = track.flush(recorder, service, id, &mut housekeeping_warned) {
             flush_error = Some(error);
         }
     }
-    if outcome.is_ok()
-        && routes_persisted
-        && let Err(error) = crate::echo_store::seal_routes(&service.root, id)
-    {
-        warning(
-            service,
-            format!(
-                "Output route history could not be verified for saved echo processing: {error}"
-            ),
-        );
+    if outcome.is_ok() {
+        routes.seal(service, id, AFTER_STOP_BUDGET);
     }
     drop(dsp_input);
     if let Some(worker) = dsp_worker {
@@ -2152,6 +2330,7 @@ mod regression_tests {
                 &mut recording,
                 &service,
                 id,
+                &mut false,
             )
             .unwrap();
         for packet in 0..105 {
@@ -2167,6 +2346,7 @@ mod regression_tests {
                     &mut recording,
                     &service,
                     id,
+                    &mut false,
                 )
                 .unwrap();
             assert_eq!(mono, samples);
@@ -2177,7 +2357,9 @@ mod regression_tests {
                 "inference timestamp for packet {packet}"
             );
         }
-        track.flush(&mut recording, &service, id).unwrap();
+        track
+            .flush(&mut recording, &service, id, &mut false)
+            .unwrap();
         recording.finish().unwrap();
         let chunks = Recording::recover(temp.path(), id).unwrap();
         assert_eq!(chunks.verified_chunks, 2);
@@ -2219,6 +2401,66 @@ mod regression_tests {
         }
     }
 
+    /// A lock outlasting the stop-time retry leaves the route history
+    /// unsealed (incomplete) with a warning instead of failing the stop.
+    #[test]
+    fn pending_routes_locked_past_the_stop_budget_stay_unsealed() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let service =
+            AppService::new(temp.path().to_path_buf(), temp.path().join("unused-helper")).unwrap();
+        let id = "route-budget";
+        Recording::create(temp.path(), id)
+            .unwrap()
+            .finish()
+            .unwrap();
+        store::create_meeting(temp.path(), id, "Route budget fixture", "remote").unwrap();
+        let mut routes = PendingRoutes::new();
+        for start_ns in [1_000, 2_000] {
+            routes.push(
+                &service,
+                RouteObservation {
+                    epoch: 0,
+                    start_ns,
+                    route: Default::default(),
+                },
+            );
+        }
+        let blocker = store::open(temp.path()).unwrap();
+        blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+        routes.seal(
+            &service,
+            id,
+            store::LiveSaveBudget {
+                busy_timeout: Duration::from_millis(20),
+                attempts: 2,
+                backoff: Duration::from_millis(5),
+            },
+        );
+        blocker.execute_batch("ROLLBACK").unwrap();
+        assert!(!routes.complete);
+        let db = store::open(temp.path()).unwrap();
+        assert!(!crate::echo_store::routes_complete(&db, id).unwrap());
+        let saved: i64 = db
+            .query_row(
+                "SELECT COUNT(*) FROM app_output_routes WHERE meeting_id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(saved, 0);
+        // Once incomplete, later changes are not queued and nothing is sealed.
+        routes.push(
+            &service,
+            RouteObservation {
+                epoch: 0,
+                start_ns: 3_000,
+                route: Default::default(),
+            },
+        );
+        assert!(routes.queue.is_empty());
+        service.wait_for_shutdown();
+    }
+
     #[test]
     fn consecutive_unwritten_source_epochs_do_not_skip_manifest_epochs() {
         let temp = tempfile::TempDir::new().unwrap();
@@ -2235,6 +2477,7 @@ mod regression_tests {
                 &mut recording,
                 &service,
                 "epoch-regression",
+                &mut false,
             )
             .unwrap();
         track
@@ -2248,10 +2491,11 @@ mod regression_tests {
                 &mut recording,
                 &service,
                 "epoch-regression",
+                &mut false,
             )
             .unwrap();
         track
-            .flush(&mut recording, &service, "epoch-regression")
+            .flush(&mut recording, &service, "epoch-regression", &mut false)
             .unwrap();
         for (source_epoch, rate) in [(1, 16_000), (2, 48_000)] {
             track
@@ -2262,6 +2506,7 @@ mod regression_tests {
                     &mut recording,
                     &service,
                     "epoch-regression",
+                    &mut false,
                 )
                 .unwrap();
         }
@@ -2276,10 +2521,11 @@ mod regression_tests {
                 &mut recording,
                 &service,
                 "epoch-regression",
+                &mut false,
             )
             .unwrap();
         track
-            .flush(&mut recording, &service, "epoch-regression")
+            .flush(&mut recording, &service, "epoch-regression", &mut false)
             .unwrap();
         assert_eq!(
             recording

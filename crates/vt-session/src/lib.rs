@@ -185,6 +185,9 @@ struct Runtime {
     processing: bool,
     processing_view: Option<ProcessingView>,
     live_processing: LiveProcessing,
+    /// Database-lock waits of the current recording's chunk writer, copied
+    /// after each chunk or gap write.
+    recorder_lock_waits: vt_record::LockWaits,
 }
 
 pub struct AppService {
@@ -293,6 +296,26 @@ impl AppService {
     }
 
     pub(crate) fn refresh_health(&self, force: bool) -> Result<HealthSnapshot> {
+        // Periodic (unforced) checks run on the capture consumer loop, which
+        // must not wait seconds for a lock; it treats lock errors as skips.
+        let busy_timeout = if force {
+            std::time::Duration::from_secs(5)
+        } else {
+            store::LOOP_BUSY_TIMEOUT
+        };
+        let (snapshot, persisted) = self.refresh_health_with(force, busy_timeout)?;
+        persisted?;
+        Ok(snapshot)
+    }
+
+    /// Takes a fresh reading and applies it, then persists it when due. The
+    /// persistence outcome is returned separately so a caller can act on the
+    /// reading even when the database is busy.
+    fn refresh_health_with(
+        &self,
+        force: bool,
+        busy_timeout: std::time::Duration,
+    ) -> Result<(HealthSnapshot, Result<()>)> {
         let tick = self.resources.tick_ns();
         if !force
             && !self
@@ -301,12 +324,13 @@ impl AppService {
                 .map_err(|_| anyhow::anyhow!("resource state unavailable"))?
                 .due(tick)
         {
-            return Ok(self
+            let snapshot = self
                 .runtime
                 .lock()
                 .map_err(|_| anyhow::anyhow!("session state unavailable"))?
                 .health
-                .clone());
+                .clone();
+            return Ok((snapshot, Ok(())));
         }
         let mut snapshot = HealthSnapshot::from_free(self.resources.free_bytes(&self.root).ok());
         snapshot.checked_at = Some(chrono::Utc::now().to_rfc3339());
@@ -355,14 +379,7 @@ impl AppService {
                     .elapsed_ms,
             )
         };
-        if persist {
-            // Periodic (unforced) checks run on the capture consumer loop, which
-            // must not wait seconds for a lock; it treats lock errors as skips.
-            let busy_timeout = if force {
-                std::time::Duration::from_secs(5)
-            } else {
-                store::LOOP_BUSY_TIMEOUT
-            };
+        let persisted = if persist {
             health::persist(
                 &self.root,
                 meeting.as_deref(),
@@ -370,9 +387,11 @@ impl AppService {
                 &snapshot,
                 true,
                 busy_timeout,
-            )?;
-        }
-        Ok(snapshot)
+            )
+        } else {
+            Ok(())
+        };
+        Ok((snapshot, persisted))
     }
     fn ensure_not_maintenance(runtime: &Runtime) -> Result<()> {
         if runtime.processing
@@ -408,8 +427,11 @@ impl AppService {
         }
         Ok(())
     }
-    fn recording_budget(&self, encoded_upper_bound: u64) -> Result<()> {
-        let snapshot = self.refresh_health(true)?;
+    /// Decides from a fresh free-space reading. Persisting that reading runs on
+    /// the chunk flush path, so it uses the loop's short busy timeout and a
+    /// lock error is skipped with the once-per-recording housekeeping warning.
+    fn recording_budget(&self, encoded_upper_bound: u64, busy_warned: &mut bool) -> Result<()> {
+        let (snapshot, persisted) = self.refresh_health_with(true, store::LOOP_BUSY_TIMEOUT)?;
         if let Some(free) = snapshot.free_bytes
             && free < encoded_upper_bound.saturating_add(2_000_000)
         {
@@ -418,7 +440,7 @@ impl AppService {
                 "There is not enough available disk space to safely publish the buffered audio chunk."
             );
         }
-        Ok(())
+        session::tolerate_busy(self, busy_warned, persisted)
     }
 
     pub fn root(&self) -> &Path {

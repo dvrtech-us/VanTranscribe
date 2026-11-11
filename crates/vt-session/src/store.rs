@@ -536,14 +536,20 @@ pub(crate) fn set_summary_error(root: &Path, id: &str, error: Option<&str>) -> R
 }
 
 pub(crate) fn set_status(root: &Path, id: &str, status: &str, error: Option<&str>) -> Result<()> {
-    open(root)?.execute(
+    set_status_with(root, id, status, error, Duration::from_secs(5))
+}
+pub(crate) fn set_status_with(
+    root: &Path,
+    id: &str,
+    status: &str,
+    error: Option<&str>,
+    busy_timeout: Duration,
+) -> Result<()> {
+    open_with_timeout(root, busy_timeout)?.execute(
         "UPDATE app_meetings SET status=?2,error=?3 WHERE id=?1",
         params![id, status, error],
     )?;
     Ok(())
-}
-pub(crate) fn set_duration(root: &Path, id: &str, duration: u64) -> Result<()> {
-    set_duration_with(root, id, duration, Duration::from_secs(5))
 }
 pub(crate) fn set_duration_with(
     root: &Path,
@@ -779,6 +785,9 @@ pub(crate) fn rename(root: &Path, id: &str, title: &str) -> Result<()> {
     Ok(())
 }
 
+/// Called on the capture consumer loop for every chunk, so it takes the loop's
+/// short `busy_timeout`; the caller skips it on a lock error.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn save_clock(
     root: &Path,
     id: &str,
@@ -787,8 +796,9 @@ pub(crate) fn save_clock(
     source_epoch: u32,
     source_first_frame: u64,
     host_ns: u64,
+    busy_timeout: Duration,
 ) -> Result<()> {
-    open(root)?.execute("INSERT OR REPLACE INTO app_audio_clock(meeting_id,track,seq,source_epoch,source_first_frame,host_time_ns) VALUES (?1,?2,?3,?4,?5,?6)", params![id,track,seq as i64,source_epoch,source_first_frame as i64,host_ns.min(i64::MAX as u64) as i64])?;
+    open_with_timeout(root, busy_timeout)?.execute("INSERT OR REPLACE INTO app_audio_clock(meeting_id,track,seq,source_epoch,source_first_frame,host_time_ns) VALUES (?1,?2,?3,?4,?5,?6)", params![id,track,seq as i64,source_epoch,source_first_frame as i64,host_ns.min(i64::MAX as u64) as i64])?;
     Ok(())
 }
 
@@ -1168,8 +1178,16 @@ pub(crate) fn publish_run(root: &Path, meeting: &str, run: &str) -> Result<()> {
     tx.commit()?;
     Ok(())
 }
+#[cfg(test)]
 pub(crate) fn complete_live_run(root: &Path, meeting: &str) -> Result<()> {
-    let mut db = open(root)?;
+    complete_live_run_with(root, meeting, Duration::from_secs(5))
+}
+pub(crate) fn complete_live_run_with(
+    root: &Path,
+    meeting: &str,
+    busy_timeout: Duration,
+) -> Result<()> {
+    let mut db = open_with_timeout(root, busy_timeout)?;
     let tx = db.transaction()?;
     tx.execute("UPDATE app_processing_runs SET status='complete' WHERE id=(SELECT active_run_id FROM app_meeting_revision WHERE meeting_id=?1) AND kind='live' AND status='running'",[meeting])?;
     tx.commit()?;

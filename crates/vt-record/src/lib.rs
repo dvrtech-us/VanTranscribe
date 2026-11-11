@@ -27,6 +27,28 @@ mod verbatim;
 
 const DATABASE_LOCK_BUDGET: Duration = Duration::from_secs(5);
 
+/// Total time one manifest write (pending insert, ready update, gap insert,
+/// final status) may wait for SQLite's write lock before the writer is
+/// poisoned. While it waits, the capture consumer loop is blocked: the 128-slot
+/// capture channel (at most 2.56 s of 20 ms packets) fills first, then the
+/// helper's ~10 s ring, and the helper reports an overflow gap rather than
+/// stalling. 60 s therefore covers every lock long enough to only cost an
+/// explicit audio gap, while a stuck lock still ends the recording.
+pub const MANIFEST_LOCK_BUDGET: Duration = Duration::from_secs(60);
+/// Busy-handler allowance per attempt inside `MANIFEST_LOCK_BUDGET`. Short so a
+/// lock error that bypasses the busy handler (SQLITE_BUSY_SNAPSHOT) and a
+/// waiting attempt are both counted and retried with the same loop.
+const LOCK_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
+
+/// Lock waits observed by manifest writes of one writer. `max` is the longest
+/// single write (all of its attempts); `count` is the number of writes that hit
+/// at least one SQLITE_BUSY/SQLITE_LOCKED and were retried.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LockWaits {
+    pub count: u64,
+    pub max: Duration,
+}
+
 #[derive(Debug, Error)]
 pub enum RecordError {
     #[error(transparent)]
@@ -98,6 +120,8 @@ pub struct Recording {
     db: Connection,
     _lock: File,
     writable: bool,
+    lock_budget: Duration,
+    lock_waits: LockWaits,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,6 +167,8 @@ impl Recording {
             db,
             _lock,
             writable: true,
+            lock_budget: MANIFEST_LOCK_BUDGET,
+            lock_waits: LockWaits::default(),
         })
     }
 
@@ -151,6 +177,17 @@ impl Recording {
     }
     pub fn meeting_id(&self) -> &str {
         &self.meeting
+    }
+
+    /// Lock waits seen by this writer's manifest writes so far.
+    pub fn lock_waits(&self) -> LockWaits {
+        self.lock_waits
+    }
+
+    /// Overrides `MANIFEST_LOCK_BUDGET` (tests use a short budget).
+    #[doc(hidden)]
+    pub fn set_lock_budget(&mut self, budget: Duration) {
+        self.lock_budget = budget;
     }
 
     /// Publishes one bounded worker-side block, retaining native rate/channels.
@@ -229,10 +266,17 @@ impl Recording {
         fs::rename(&temp, &path)?;
         sync_directory(path.parent().expect("chunk has a parent"))?;
         observe(PublishStage::Renamed)?;
-        self.db.execute(
-            "UPDATE audio_chunks SET state='ready' WHERE meeting_id=?1 AND track=?2 AND seq=?3",
-            params![self.meeting, track.as_str(), to_sql(seq)?],
-        )?;
+        let meeting = self.meeting.clone();
+        let seq_sql = to_sql(seq)?;
+        // Idempotent: repeating the update after a lock error cannot change a
+        // row other than this chunk's, and the file is already in place.
+        self.retry_lock(|db, _| {
+            db.execute(
+                "UPDATE audio_chunks SET state='ready' WHERE meeting_id=?1 AND track=?2 AND seq=?3",
+                params![meeting, track.as_str(), seq_sql],
+            )?;
+            Ok(())
+        })?;
         observe(PublishStage::Committed)?;
         self.writable = true;
         Ok(Chunk {
@@ -280,10 +324,14 @@ impl Recording {
     /// `processing` means recording ended and audio is available for later jobs.
     pub fn finish(mut self) -> Result<()> {
         self.ensure_writable()?;
-        self.db.execute(
-            "UPDATE meetings SET status='processing' WHERE id=?1",
-            [&self.meeting],
-        )?;
+        let meeting = self.meeting.clone();
+        self.retry_lock(|db, _| {
+            db.execute(
+                "UPDATE meetings SET status='processing' WHERE id=?1",
+                [&meeting],
+            )?;
+            Ok(())
+        })?;
         self.writable = false;
         // A duplicated/inherited descriptor can outlive this consumed writer.
         // Release the shared flock after the final commit rather than waiting
@@ -318,6 +366,8 @@ impl Recording {
             db,
             _lock,
             writable: false,
+            lock_budget: MANIFEST_LOCK_BUDGET,
+            lock_waits: LockWaits::default(),
         };
         let mut report = RecoveryReport::default();
         for chunk in recording.chunks()? {
@@ -440,10 +490,54 @@ impl Recording {
         }
     }
 
-    fn insert(&self, c: &Chunk, kind: &str) -> Result<()> {
-        self.db.execute("INSERT INTO audio_chunks(meeting_id,track,seq,epoch,first_frame,frame_count,sample_rate,channels,start_ns,end_ns,kind,state,path,sha256,gap_reason,clipped_samples) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
-            params![self.meeting,c.track.as_str(),to_sql(c.seq)?,c.epoch,to_sql(c.first_frame)?,to_sql(c.frame_count)?,c.format.sample_rate,c.format.channels,to_sql(c.start_ns)?,to_sql(c.end_ns)?,kind,c.state,c.path,c.sha256,c.gap_reason,to_sql(c.clipped_samples)?])?;
-        Ok(())
+    /// Inserts the chunk's manifest row, retrying lock errors. A retry first
+    /// looks the row up by its key: an identical row means an earlier attempt
+    /// committed (accepted once, never inserted twice); a different row is an
+    /// error. The meeting file lock makes this writer the only one for the key.
+    fn insert(&mut self, c: &Chunk, kind: &str) -> Result<()> {
+        let meeting = self.meeting.clone();
+        self.retry_lock(|db, retry| insert_row(db, &meeting, c, kind, retry))
+    }
+
+    /// Runs one manifest write, retrying SQLITE_BUSY/SQLITE_LOCKED (including
+    /// extended codes such as 517 SQLITE_BUSY_SNAPSHOT) with backoff until
+    /// `lock_budget` is spent; then the last lock error is returned and the
+    /// caller poisons the writer as before. Other errors return at once. Each
+    /// attempt is one autocommit statement, so a failed attempt holds no lock.
+    fn retry_lock<T>(
+        &mut self,
+        mut write: impl FnMut(&Connection, bool) -> Result<T>,
+    ) -> Result<T> {
+        let started = Instant::now();
+        let deadline = started + self.lock_budget;
+        let mut backoff = Duration::from_millis(5);
+        let mut retried = false;
+        let result = loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if let Err(error) = self.db.busy_timeout(remaining.min(LOCK_ATTEMPT_TIMEOUT)) {
+                break Err(error.into());
+            }
+            match write(&self.db, retried) {
+                Err(error) if transient_database_lock(&error) => {
+                    retried = true;
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        break Err(error);
+                    }
+                    std::thread::sleep(backoff.min(remaining));
+                    backoff = (backoff * 2).min(Duration::from_millis(100));
+                }
+                other => break other,
+            }
+        };
+        let waited = started.elapsed();
+        if retried {
+            self.lock_waits.count += 1;
+        }
+        self.lock_waits.max = self.lock_waits.max.max(waited);
+        // Reads and recovery keep the connection's original busy wait.
+        self.db.busy_timeout(DATABASE_LOCK_BUDGET)?;
+        result
     }
 
     fn chunk_path(&self, chunk: &Chunk) -> Result<PathBuf> {
@@ -461,6 +555,29 @@ impl Recording {
         }
         Ok(self.root.join(expected))
     }
+}
+
+fn insert_row(db: &Connection, meeting: &str, c: &Chunk, kind: &str, retry: bool) -> Result<()> {
+    if retry
+        && let Some(existing) = db
+            .query_row(
+                "SELECT track,seq,epoch,first_frame,frame_count,sample_rate,channels,start_ns,end_ns,state,path,sha256,gap_reason,clipped_samples FROM audio_chunks WHERE meeting_id=?1 AND track=?2 AND seq=?3",
+                params![meeting, c.track.as_str(), to_sql(c.seq)?],
+                chunk_from_row,
+            )
+            .optional()?
+    {
+        return if existing == *c {
+            Ok(())
+        } else {
+            Err(RecordError::Invalid(
+                "manifest row changed during a lock retry".into(),
+            ))
+        };
+    }
+    db.execute("INSERT INTO audio_chunks(meeting_id,track,seq,epoch,first_frame,frame_count,sample_rate,channels,start_ns,end_ns,kind,state,path,sha256,gap_reason,clipped_samples) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
+        params![meeting,c.track.as_str(),to_sql(c.seq)?,c.epoch,to_sql(c.first_frame)?,to_sql(c.frame_count)?,c.format.sample_rate,c.format.channels,to_sql(c.start_ns)?,to_sql(c.end_ns)?,kind,c.state,c.path,c.sha256,c.gap_reason,to_sql(c.clipped_samples)?])?;
+    Ok(())
 }
 
 fn validate_meeting_id(id: &str) -> Result<()> {
@@ -563,8 +680,8 @@ fn open_database_attempt(root: &Path, deadline: Instant) -> Result<Connection> {
     }
     transaction.busy_timeout(remaining())?;
     transaction.commit()?;
-    // Normal recording/publication operations retain their original busy wait;
-    // they are deliberately not retried after an uncertain reservation outcome.
+    // Reads keep the original busy wait. Manifest writes go through
+    // `Recording::retry_lock`, which sets its own per-attempt allowance.
     db.busy_timeout(DATABASE_LOCK_BUDGET)?;
     Ok(db)
 }

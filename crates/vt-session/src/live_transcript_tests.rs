@@ -358,10 +358,11 @@ use rusqlite::params;
 // ---- Full recording sessions with a synthetic capture helper ----
 
 const SECOND: u64 = 1_000_000_000;
-struct Resources(AtomicU64);
+/// Monotonic tick and free bytes, both set by the test.
+struct Resources(AtomicU64, AtomicU64);
 impl crate::health::ResourceProbe for Resources {
     fn free_bytes(&self, _: &Path) -> Result<u64> {
-        Ok(4_000_000_000)
+        Ok(self.1.load(Ordering::Relaxed))
     }
     fn uptime_ns(&self) -> Option<u64> {
         None
@@ -380,10 +381,17 @@ folder=pathlib.Path(__file__).parent
 def emit(value): print(json.dumps(value),flush=True)
 for track in ['mic','system']:
     emit({'type':'format','track':track,'sample_rate':16000,'channels':1,'epoch':0,'start_ns':0})
+SPEAKERS={'kind':'built_in_speakers','transport':'built_in','default_output_known':True,'data_source_known':True,'speaker_terminal':True,'headphone_jack_connected':False,'active_output_processes':2,'process_devices_known':True,'all_processes_same_output':True,'global_tap':True,'reference_available':True,'reason':'eligible'}
 packets=0
+routed=False
 while True:
     if select.select([sys.stdin],[],[],0)[0]:
         if sys.stdin.readline().strip()=='stop': break
+    if not routed and (folder/'route').exists():
+        count=int((folder/'route').read_text() or '1')
+        for n in range(count):
+            emit({'type':'output_route','epoch':0,'start_ns':packets*20000000+n,'route':SPEAKERS})
+        routed=True
     try: target=int((folder/'target').read_text())
     except (FileNotFoundError,ValueError): target=0
     if packets<target:
@@ -406,7 +414,7 @@ struct Session {
 impl Session {
     fn start(stt: bool, emitted: Arc<Mutex<Vec<u64>>>) -> Self {
         let temp = TempDir::new().unwrap();
-        let resources = Arc::new(Resources(AtomicU64::new(0)));
+        let resources = Arc::new(Resources(AtomicU64::new(0), AtomicU64::new(4_000_000_000)));
         let app =
             AppService::with_resources(temp.path().join("data"), helper(&temp), resources.clone())
                 .unwrap();
@@ -453,6 +461,27 @@ impl Session {
             resources,
             id,
         }
+    }
+    /// Makes the helper emit `count` echo-eligible route changes at once.
+    fn route(&self, count: usize) {
+        let temp = self.temp.path().join("route.tmp");
+        fs::write(&temp, count.to_string()).unwrap();
+        fs::rename(temp, self.temp.path().join("route")).unwrap();
+    }
+    /// Saved route start times in insertion order.
+    fn saved_routes(&self) -> Vec<i64> {
+        let db = store::open(&self.app.root).unwrap();
+        let mut query = db
+            .prepare("SELECT start_ns FROM app_output_routes WHERE meeting_id=?1 ORDER BY rowid")
+            .unwrap();
+        query
+            .query_map([&self.id], |r| r.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    }
+    fn routes_sealed(&self) -> bool {
+        crate::echo_store::routes_complete(&store::open(&self.app.root).unwrap(), &self.id).unwrap()
     }
     fn feed(&self, packets: u64) {
         fs::write(self.temp.path().join("target"), packets.to_string()).unwrap();
@@ -587,8 +616,11 @@ fn stop_drains_every_final_into_the_live_run_before_it_is_sealed() {
 }
 
 /// Before: a lock held past the 5 s busy timeout failed `set_duration` and
-/// ended the recording. Now periodic duration and health writes use a short
-/// timeout and skip on lock contention, with one warning.
+/// ended the recording; so did a lock held past the recorder's 5 s budget
+/// across a chunk flush (its health persist, `save_clock` and chunk manifest
+/// writes were all fatal). Now loop writes (duration, health, chunk clock,
+/// output route) skip a lock with one warning, and the recorder waits the lock
+/// out without losing or duplicating a chunk.
 #[cfg(unix)]
 #[test]
 fn busy_duration_and_health_writes_do_not_end_the_recording() {
@@ -612,8 +644,15 @@ fn busy_duration_and_health_writes_do_not_end_the_recording() {
             .iter()
             .any(|w| w.starts_with(crate::session::HOUSEKEEPING_BUSY_WARNING))
     });
-    // Hold past the old 5 s busy timeout so the old code would have failed.
-    while held.elapsed() < Duration::from_millis(5_600) {
+    // A disk-state change is seen only by the chunk flush's forced reading
+    // (the periodic check is not due again), so its persist meets the lock.
+    // A route observation and the first 2 s chunk flush (health persist,
+    // chunk clock and manifest) all arrive while the lock is held.
+    session.resources.1.store(1_500_000_000, Ordering::Relaxed);
+    session.route(1);
+    session.feed(150);
+    // Hold past the old 5 s budgets so the old code would have failed.
+    while held.elapsed() < Duration::from_millis(7_000) {
         thread::sleep(Duration::from_millis(50));
     }
     let status = session
@@ -626,13 +665,53 @@ fn busy_duration_and_health_writes_do_not_end_the_recording() {
         .map(|c| c.view.status.clone());
     assert_eq!(status.as_deref(), Some("recording"));
     blocker.execute_batch("ROLLBACK").unwrap();
-    session.feed(150);
-    thread::sleep(Duration::from_millis(500));
+    session.feed(250);
+    wait(|| {
+        store::open(&session.app.root)
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM audio_chunks WHERE meeting_id=?1 AND state='ready'",
+                [&session.id],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap()
+            >= 4
+    });
     session.stop_and_wait();
     let meeting = store::detail(&session.app.root, &session.id)
         .unwrap()
         .meeting;
     assert_ne!(meeting.status, "failed", "{:?}", meeting.error);
+    let waits = session.app.runtime.lock().unwrap().recorder_lock_waits;
+    assert!(waits.max > Duration::from_secs(5), "{waits:?}");
+    assert!(waits.count >= 1, "{waits:?}");
+    // Every chunk row is contiguous, ready and present exactly once.
+    let db = store::open(&session.app.root).unwrap();
+    for track in ["mic", "system"] {
+        let mut query = db
+            .prepare("SELECT seq,first_frame,frame_count,state FROM audio_chunks WHERE meeting_id=?1 AND track=?2 ORDER BY seq")
+            .unwrap();
+        let rows = query
+            .query_map(params![session.id, track], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
+            })
+            .unwrap()
+            .map(Result::unwrap)
+            .collect::<Vec<_>>();
+        let mut frame = 0;
+        for (n, (seq, first, count, state)) in rows.iter().enumerate() {
+            assert_eq!(*seq, n as i64, "{track} {rows:?}");
+            assert_eq!(*first, frame, "{track} {rows:?}");
+            assert_eq!(state, "ready", "{track} {rows:?}");
+            frame += count;
+        }
+        assert_eq!(frame, 250 * 320, "{track} {rows:?}");
+    }
     let warnings = session.app.backlog.lock().unwrap().report().1.warnings;
     let busy = warnings
         .iter()
@@ -640,4 +719,172 @@ fn busy_duration_and_health_writes_do_not_end_the_recording() {
         .collect::<Vec<_>>();
     assert_eq!(busy.len(), 1, "{warnings:?}");
     assert!(busy[0].contains("SQLITE_BUSY"), "{}", busy[0]);
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w == crate::session::RECORDER_LOCK_WAIT_WARNING),
+        "{warnings:?}"
+    );
+    // The route change that met the lock was kept and saved after release.
+    assert_eq!(session.saved_routes().len(), 1);
+    assert!(crate::echo_store::routes_complete(&db, &session.id).unwrap());
+}
+
+/// Before: `complete_live_run` after stop waited 5 s, then marked the meeting
+/// failed. Now a lock shorter than the after-stop budget is waited out.
+#[test]
+fn a_lock_during_live_run_completion_is_retried_instead_of_failing_the_meeting() {
+    let temp = TempDir::new().unwrap();
+    let app = AppService::new(temp.path().join("data"), "missing-helper".into()).unwrap();
+    vt_record::Recording::create(&app.root, "completion")
+        .unwrap()
+        .finish()
+        .unwrap();
+    store::create_meeting(&app.root, "completion", "Synthetic completion", "remote").unwrap();
+    let (taken, ready) = mpsc::channel();
+    let path = app.root.clone();
+    let holder = thread::spawn(move || {
+        let db = store::open(&path).unwrap();
+        db.execute_batch("BEGIN IMMEDIATE").unwrap();
+        taken.send(()).unwrap();
+        thread::sleep(Duration::from_millis(6_000));
+        db.execute_batch("ROLLBACK").unwrap();
+    });
+    ready.recv().unwrap();
+    let started = Instant::now();
+    crate::session::finish_live_run(&app.root, "completion").unwrap();
+    assert!(started.elapsed() > Duration::from_secs(5));
+    holder.join().unwrap();
+    let detail = store::detail(&app.root, "completion").unwrap();
+    assert!(
+        detail.runs.iter().all(|r| r.status == "complete"),
+        "{:?}",
+        detail.runs
+    );
+    app.wait_for_shutdown();
+}
+
+/// Before: a route change that met a lock was skipped, so the history was never
+/// sealed and saved echo processing stayed off. Now it is kept in memory and
+/// saved with the stop-time retry, then sealed.
+#[cfg(unix)]
+#[test]
+fn a_route_change_during_a_lock_held_through_stop_is_saved_and_sealed() {
+    let session = Session::start(false, Arc::new(Mutex::new(Vec::new())));
+    session.feed(50);
+    wait(|| {
+        session
+            .app
+            .runtime
+            .lock()
+            .unwrap()
+            .live_processing
+            .output_route
+            .is_none()
+    });
+    thread::sleep(Duration::from_millis(700));
+    let blocker = store::open(&session.app.root).unwrap();
+    blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+    session.route(1);
+    wait(|| {
+        session
+            .app
+            .runtime
+            .lock()
+            .unwrap()
+            .live_processing
+            .output_route
+            .is_some()
+    });
+    thread::sleep(Duration::from_millis(500));
+    let stopper = {
+        let app = session.app.clone();
+        thread::spawn(move || {
+            let _ = app.stop();
+        })
+    };
+    thread::sleep(Duration::from_millis(2_000));
+    blocker.execute_batch("ROLLBACK").unwrap();
+    stopper.join().unwrap();
+    session.stop_and_wait();
+    let meeting = store::detail(&session.app.root, &session.id)
+        .unwrap()
+        .meeting;
+    assert_ne!(meeting.status, "failed", "{:?}", meeting.error);
+    assert_eq!(session.saved_routes(), [1_000_000_000]);
+    assert!(session.routes_sealed());
+    let db = store::open(&session.app.root).unwrap();
+    let saved = crate::echo_store::route_at(&db, &session.id, 1_500)
+        .unwrap()
+        .unwrap();
+    assert!(saved.route.aec_eligible());
+    let live = session
+        .app
+        .runtime
+        .lock()
+        .unwrap()
+        .live_processing
+        .output_route
+        .clone()
+        .unwrap();
+    assert!(live.aec_eligible());
+}
+
+#[cfg(unix)]
+#[test]
+fn two_route_changes_during_a_lock_are_saved_in_order_after_release() {
+    let session = Session::start(false, Arc::new(Mutex::new(Vec::new())));
+    session.feed(50);
+    thread::sleep(Duration::from_millis(700));
+    let blocker = store::open(&session.app.root).unwrap();
+    blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+    session.route(2);
+    thread::sleep(Duration::from_millis(1_000));
+    assert!(session.saved_routes().is_empty());
+    blocker.execute_batch("ROLLBACK").unwrap();
+    // Saved by the recording loop, before stop.
+    wait(|| session.saved_routes().len() == 2);
+    assert_eq!(session.saved_routes(), [1_000_000_000, 1_000_000_001]);
+    session.feed(100);
+    session.stop_and_wait();
+    assert!(session.routes_sealed());
+    let warnings = session.app.backlog.lock().unwrap().report().1.warnings;
+    assert_eq!(
+        warnings
+            .iter()
+            .filter(|w| w.starts_with(crate::session::HOUSEKEEPING_BUSY_WARNING))
+            .count(),
+        1,
+        "{warnings:?}"
+    );
+}
+
+/// More unsaved route changes than the in-memory bound: the history is
+/// incomplete, so it stays unsealed with a warning; the recording completes.
+#[cfg(unix)]
+#[test]
+fn route_changes_past_the_pending_bound_leave_the_history_unsealed() {
+    let session = Session::start(false, Arc::new(Mutex::new(Vec::new())));
+    session.feed(50);
+    thread::sleep(Duration::from_millis(700));
+    let blocker = store::open(&session.app.root).unwrap();
+    blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+    session.route(70);
+    thread::sleep(Duration::from_millis(1_500));
+    blocker.execute_batch("ROLLBACK").unwrap();
+    session.feed(100);
+    session.stop_and_wait();
+    let meeting = store::detail(&session.app.root, &session.id)
+        .unwrap()
+        .meeting;
+    assert_eq!(meeting.status, "ready", "{:?}", meeting.error);
+    assert!(!session.routes_sealed());
+    assert!(
+        meeting
+            .error
+            .as_deref()
+            .is_some_and(|e| e.contains("Output route history")),
+        "{:?}",
+        meeting.error
+    );
 }

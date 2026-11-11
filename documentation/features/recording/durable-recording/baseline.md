@@ -17,6 +17,10 @@
 - Concurrent first-open `DatabaseBusy`/`DatabaseLocked` may retry initialization only, using fresh connections and one shared five-second monotonic deadline including SQLite busy waits and retry sleeps.
 - A failed initialization drops its connection and rolls back any immediate schema transaction before retrying. Version inspection and schema creation are atomic; unsupported versions/data are not overwritten.
 - Non-lock errors are not retried. Audio reservations, file publication and writer-poisoning semantics retain their original failure behavior.
+- Manifest writes (pending/gap insert, `ready` update, `processing` update) retry SQLITE_BUSY/SQLITE_LOCKED, including extended codes such as 517, with a 250 ms per-attempt timeout and 5 ms doubling to 100 ms backoff until `MANIFEST_LOCK_BUDGET` (60 s) is spent; only then is the writer poisoned.
+- A retried insert accepts its own identical committed row exactly once and rejects a different row; the retry never inserts a second row.
+- Lock retries do not change `validate_next`, `recover`, `synchronous=FULL`, `fullfsync=ON` or the pending-row-before-file ordering.
+- `Recording::lock_waits()` reports the number of retried writes and the longest write; a retry runs on the caller's thread, so a capture caller is blocked for its duration.
 - No API in this increment is intended for a real-time audio callback.
 
 ## Flag and failure rules
@@ -29,6 +33,8 @@
 | Timestamp hole, overlap, unsupported epoch jump or frame discontinuity | Error | The submitted write; caller must describe the transition explicitly |
 | Finite sample outside `[-1,1]` | Counted conversion clipping | No; stored in `clipped_samples` |
 | Pending reservation or subsequent file/database/publication failure | Error; writer requires recovery | Further writes and finish |
+| Manifest write hits SQLITE_BUSY/SQLITE_LOCKED | Retried up to 60 s | The calling thread while it waits |
+| Manifest write lock outlasts 60 s | Last lock error; writer poisoned | Further writes and finish; recovery runs |
 | Pending file matches its expected hash | Recoverable publication | No; recovery adopts it |
 | Missing or hash-mismatched chunk | Explicit `missing_or_incomplete_chunk` gap | That audio range is unavailable |
 | Transient SQLite Busy/Locked during initialization | Bounded retry | Creation/opening after one shared five-second budget expires |
@@ -56,6 +62,7 @@
 | SQLite | WAL, `synchronous=FULL`, `fullfsync=ON`, foreign keys enabled |
 | SQLite busy timeout | Normal returned connections: 5 seconds |
 | Initialization lock budget | One five-second monotonic deadline across all attempts/phases, including busy waits and retry sleep |
+| Manifest write lock budget | `MANIFEST_LOCK_BUDGET` 60 s total; `LOCK_ATTEMPT_TIMEOUT` 250 ms per attempt; backoff 5 ms doubling to 100 ms |
 | Initialization retry | Only SQLite Busy/Locked; fresh connection; 1 ms exponential backoff capped at 25 ms and remaining budget |
 | Checked recovery file size | At most 64 MiB |
 | CLI synthetic duration | Optional value in 1–60 seconds; four seconds by default |

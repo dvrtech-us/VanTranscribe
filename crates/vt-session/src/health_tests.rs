@@ -198,7 +198,8 @@ fn active_pressure_sheds_partials_keeps_raw_and_stops_cleanly_with_buffered_fram
     resources.free.store(90_000_000, Ordering::Relaxed);
     // Even the largest two-second192kHz/eight-channel PCM24 chunk fits
     // the remaining90MB while requesting immediate clean shutdown.
-    app.recording_budget(2 * 192_000 * 8 * 3 + 4096).unwrap();
+    app.recording_budget(2 * 192_000 * 8 * 3 + 4096, &mut false)
+        .unwrap();
     resources.tick.store(60_000_000_000, Ordering::Relaxed);
     wait(|| temp.path().join("stopped").exists());
     wait(|| app.snapshot().unwrap().recording.is_none());

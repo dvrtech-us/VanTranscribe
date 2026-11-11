@@ -457,6 +457,257 @@ fn missing_and_corrupt_ready_files_are_explicit_gaps() {
     assert_eq!(status, "recovered");
 }
 
+/// Holds SQLite's write lock from another connection for `held`, returning once
+/// the lock is taken.
+fn hold_write_lock(root: &Path, held: Duration) -> thread::JoinHandle<()> {
+    let (taken, ready) = std::sync::mpsc::channel();
+    let path = root.join("vantranscribe.db");
+    let holder = thread::spawn(move || {
+        let db = Connection::open(path).unwrap();
+        db.execute_batch("BEGIN IMMEDIATE").unwrap();
+        taken.send(()).unwrap();
+        thread::sleep(held);
+        db.execute_batch("ROLLBACK").unwrap();
+    });
+    ready.recv().unwrap();
+    holder
+}
+
+fn busy(error: &RecordError) -> bool {
+    matches!(error, RecordError::Database(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::DatabaseBusy)
+}
+
+#[test]
+fn lock_errors_including_busy_snapshot_are_retryable_and_others_are_not() {
+    for code in [5, 6, 261, 517] {
+        let error = RecordError::Database(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(code),
+            None,
+        ));
+        assert!(transient_database_lock(&error), "{code}");
+    }
+    for code in [10, 11, 19] {
+        let error = RecordError::Database(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(code),
+            None,
+        ));
+        assert!(!transient_database_lock(&error), "{code}");
+    }
+}
+
+/// Before: the pending insert waited 5 s, then failed and poisoned the writer.
+#[test]
+fn pending_insert_retries_a_lock_without_duplicating_the_row() {
+    let root = TempDir::new().unwrap();
+    let mut r = Recording::create(root.path(), "insert-retry").unwrap();
+    let first = r
+        .write_chunk(TrackKind::Mic, &block(0, 0, 0, 8_000, 1, 80))
+        .unwrap();
+    // Longer than one 250 ms attempt, so the first INSERT fails and is retried.
+    let holder = hold_write_lock(root.path(), Duration::from_millis(700));
+    let second = r
+        .write_chunk(TrackKind::Mic, &block(0, 80, first.end_ns, 8_000, 1, 80))
+        .unwrap();
+    holder.join().unwrap();
+    assert_eq!(second.state, "ready");
+    let waits = r.lock_waits();
+    assert_eq!(waits.count, 1, "{waits:?}");
+    assert!(waits.max >= Duration::from_millis(400), "{waits:?}");
+    let rows = stored(root.path(), "insert-retry");
+    assert_eq!(
+        rows.iter()
+            .map(|c| (c.seq, c.state.as_str()))
+            .collect::<Vec<_>>(),
+        [(0, "ready"), (1, "ready")]
+    );
+    r.write_chunk(TrackKind::Mic, &block(0, 160, second.end_ns, 8_000, 1, 80))
+        .unwrap();
+    r.finish().unwrap();
+    assert_eq!(
+        Recording::recover(root.path(), "insert-retry")
+            .unwrap()
+            .verified_chunks,
+        3
+    );
+}
+
+/// A retry after an attempt whose outcome is unknown must accept the row an
+/// earlier attempt committed, once, and must refuse a different row.
+#[test]
+fn a_retried_insert_accepts_its_own_committed_row_and_rejects_another() {
+    let root = TempDir::new().unwrap();
+    let mut r = Recording::create(root.path(), "insert-idempotent").unwrap();
+    let chunk = r
+        .write_chunk(TrackKind::Mic, &block(0, 0, 0, 8_000, 1, 80))
+        .unwrap();
+    let pending = Chunk {
+        state: "pending".into(),
+        ..chunk.clone()
+    };
+    r.db.execute(
+        "UPDATE audio_chunks SET state='pending' WHERE meeting_id='insert-idempotent'",
+        [],
+    )
+    .unwrap();
+    insert_row(&r.db, "insert-idempotent", &pending, "audio", true).unwrap();
+    assert!(insert_row(&r.db, "insert-idempotent", &pending, "audio", false).is_err());
+    let other = Chunk {
+        sha256: Some("0".repeat(64)),
+        ..pending.clone()
+    };
+    assert!(matches!(
+        insert_row(&r.db, "insert-idempotent", &other, "audio", true),
+        Err(RecordError::Invalid(_))
+    ));
+    assert_eq!(stored(root.path(), "insert-idempotent").len(), 1);
+}
+
+/// Before: the ready update waited 5 s, then failed and poisoned the writer.
+#[test]
+fn ready_update_retries_a_lock_after_the_file_is_published() {
+    let root = TempDir::new().unwrap();
+    let mut r = Recording::create(root.path(), "ready-retry").unwrap();
+    let mut holder = None;
+    let path = root.path().to_owned();
+    let chunk = r
+        .write_observed(TrackKind::Mic, &block(0, 0, 0, 8_000, 1, 80), |stage| {
+            if stage == PublishStage::Renamed {
+                holder = Some(hold_write_lock(&path, Duration::from_millis(700)));
+            }
+            Ok(())
+        })
+        .unwrap();
+    holder.unwrap().join().unwrap();
+    assert_eq!(chunk.state, "ready");
+    assert_eq!(r.lock_waits().count, 1);
+    let rows = stored(root.path(), "ready-retry");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].state, "ready");
+    assert!(
+        !root
+            .path()
+            .join("meetings/ready-retry/audio/mic/0-0.flac.partial")
+            .exists()
+    );
+    r.write_gap(
+        TrackKind::Mic,
+        chunk.format,
+        Gap {
+            epoch: 0,
+            first_frame: 80,
+            frame_count: 0,
+            start_ns: chunk.end_ns,
+            end_ns: chunk.end_ns + 1_000,
+            reason: GapReason::Overflow,
+        },
+    )
+    .unwrap();
+    r.finish().unwrap();
+    assert_eq!(
+        Recording::recover(root.path(), "ready-retry").unwrap(),
+        RecoveryReport {
+            verified_chunks: 1,
+            adopted_chunks: 0,
+            gaps: 0
+        }
+    );
+}
+
+#[test]
+fn gap_and_finish_retry_a_lock() {
+    let root = TempDir::new().unwrap();
+    let mut r = Recording::create(root.path(), "gap-retry").unwrap();
+    let chunk = r
+        .write_chunk(TrackKind::System, &block(0, 0, 0, 8_000, 1, 80))
+        .unwrap();
+    let holder = hold_write_lock(root.path(), Duration::from_millis(600));
+    r.write_gap(
+        TrackKind::System,
+        chunk.format,
+        Gap {
+            epoch: 0,
+            first_frame: 80,
+            frame_count: 0,
+            start_ns: chunk.end_ns,
+            end_ns: chunk.end_ns + 1_000,
+            reason: GapReason::Overflow,
+        },
+    )
+    .unwrap();
+    holder.join().unwrap();
+    let holder = hold_write_lock(root.path(), Duration::from_millis(600));
+    r.finish().unwrap();
+    holder.join().unwrap();
+    let db = open_database(root.path()).unwrap();
+    let status: String = db
+        .query_row(
+            "SELECT status FROM meetings WHERE id='gap-retry'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(status, "processing");
+    assert_eq!(
+        stored(root.path(), "gap-retry")
+            .iter()
+            .map(|c| c.state.as_str())
+            .collect::<Vec<_>>(),
+        ["ready", "gap"]
+    );
+}
+
+/// A lock outlasting the total budget still poisons the writer with the lock
+/// error, and recovery adopts the published chunk left pending.
+#[test]
+fn a_lock_past_the_budget_poisons_the_writer_and_recovery_adopts_the_chunk() {
+    let root = TempDir::new().unwrap();
+    let mut r = Recording::create(root.path(), "budget").unwrap();
+    r.set_lock_budget(Duration::from_millis(300));
+    let blocker = Connection::open(root.path().join("vantranscribe.db")).unwrap();
+    let started = Instant::now();
+    let error = r
+        .write_observed(TrackKind::Mic, &block(0, 0, 0, 8_000, 1, 80), |stage| {
+            if stage == PublishStage::Renamed {
+                blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+            }
+            Ok(())
+        })
+        .unwrap_err();
+    assert!(busy(&error), "{error}");
+    assert!(started.elapsed() < Duration::from_secs(3));
+    assert!(r.lock_waits().max >= Duration::from_millis(300));
+    assert!(matches!(
+        r.write_chunk(TrackKind::System, &block(0, 0, 0, 8_000, 1, 80)),
+        Err(RecordError::Invalid(_))
+    ));
+    blocker.execute_batch("ROLLBACK").unwrap();
+    assert!(r.finish().is_err());
+    assert_eq!(stored(root.path(), "budget")[0].state, "pending");
+    assert_eq!(
+        Recording::recover(root.path(), "budget")
+            .unwrap()
+            .adopted_chunks,
+        1
+    );
+    assert_eq!(stored(root.path(), "budget")[0].state, "ready");
+
+    // A lock at the pending insert past the budget reserves nothing.
+    let mut r = Recording::create(root.path(), "budget-insert").unwrap();
+    r.set_lock_budget(Duration::from_millis(200));
+    blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let error = r
+        .write_chunk(TrackKind::Mic, &block(0, 0, 0, 8_000, 1, 80))
+        .unwrap_err();
+    blocker.execute_batch("ROLLBACK").unwrap();
+    assert!(busy(&error), "{error}");
+    assert!(
+        r.write_chunk(TrackKind::Mic, &block(0, 0, 0, 8_000, 1, 80))
+            .is_err()
+    );
+    drop(r);
+    assert!(stored(root.path(), "budget-insert").is_empty());
+}
+
 #[test]
 fn sql_integer_overflow_is_rejected_before_publication() {
     let root = TempDir::new().unwrap();

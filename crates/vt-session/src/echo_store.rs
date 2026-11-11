@@ -24,9 +24,19 @@ pub struct RouteObservation {
 #[path = "echo_store_tests.rs"]
 mod tests;
 
+#[cfg(test)]
 pub(super) fn record_route(root: &Path, id: &str, value: &RouteObservation) -> Result<()> {
+    record_route_with(root, id, value, std::time::Duration::from_secs(5))
+}
+/// The recording loop passes `store::LOOP_BUSY_TIMEOUT` and skips a lock error.
+pub(super) fn record_route_with(
+    root: &Path,
+    id: &str,
+    value: &RouteObservation,
+    busy_timeout: std::time::Duration,
+) -> Result<()> {
     let start = i64::try_from(value.start_ns)?;
-    let mut db = store::open(root)?;
+    let mut db = store::open_with_timeout(root, busy_timeout)?;
     let tx = db.transaction()?;
     let live: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM app_meeting_revision v JOIN app_processing_runs r ON r.id=v.active_run_id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running')",
@@ -80,8 +90,16 @@ pub(super) fn route_at(
     .transpose()
 }
 
+#[cfg(test)]
 pub(super) fn seal_routes(root: &Path, id: &str) -> Result<()> {
-    let db = store::open(root)?;
+    seal_routes_with(root, id, std::time::Duration::from_secs(5))
+}
+pub(super) fn seal_routes_with(
+    root: &Path,
+    id: &str,
+    busy_timeout: std::time::Duration,
+) -> Result<()> {
+    let db = store::open_with_timeout(root, busy_timeout)?;
     let running:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM app_meeting_revision v JOIN app_processing_runs r ON r.id=v.active_run_id WHERE v.meeting_id=?1 AND r.kind='live' AND r.status='running')",[id],|r|r.get(0))?;
     if !running {
         bail!("Only a running recording can seal its captured route history.");
