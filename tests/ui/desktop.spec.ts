@@ -194,7 +194,7 @@ test.beforeEach(async ({ page }) => {
         case 'meeting_detail': return structuredClone(args.run_id ? w.__testFixture.history[args.run_id] ?? detail : detail);
         case 'pause_recording': snapshot.recording.status = 'paused'; return structuredClone(snapshot);
         case 'resume_recording': snapshot.recording.status = 'recording'; return structuredClone(snapshot);
-        case 'stop_recording': snapshot.recording = null; detail.meeting.status = 'ready'; detail.runs[0].status = 'complete'; return structuredClone(snapshot);
+        case 'stop_recording': if (w.__testFixture.savingOnStop) { snapshot.recording = { ...snapshot.recording, status: 'stopping' }; snapshot.recorder = { queued_ms: 12000, max_queued_ms: 20000, dropped_ms: 0, saving_audio: true }; return structuredClone(snapshot); } snapshot.recording = null; detail.meeting.status = 'ready'; detail.runs[0].status = 'complete'; return structuredClone(snapshot);
         case 'save_note': detail.notes.push({ id: `note-${detail.notes.length}`, t_ms: 1500, text: args.text }); return;
         case 'rename_meeting': detail.meeting.title = args.title; if (snapshot.recording) snapshot.recording.title = args.title; return;
         case 'export_meeting': return '/tmp/vantranscribe-ui-fixture/Exports/fixture.md';
@@ -247,6 +247,7 @@ test.beforeEach(async ({ page }) => {
           return;
         }
         case 'rename_speaker': {
+          if (w.__testFixture.renameError) throw new Error(w.__testFixture.renameError);
           const speaker = detail.speakers.find((entry: any) => entry.id === args.speaker_id);
           if (!speaker) throw new Error('Speaker unavailable.');
           speaker.user_name = args.name.trim() || null; speaker.label = speaker.user_name ?? 'Speaker 1';
@@ -1664,4 +1665,158 @@ test('remember voice requires actual refined speaker context even after copied l
   await expect(remember).toBeDisabled();
   await expect(page.getByText('Refine with speaker models enabled before remembering this voice.', { exact: true }).first()).toBeVisible();
   expect(await page.evaluate(() => (window as any).__testCalls.filter((c: any) => c.command === 'enroll_voice').length)).toBe(0);
+});
+
+
+async function renameCalls(page: import('@playwright/test').Page) {
+  return page.evaluate(() => (window as any).__testCalls.filter((call: any) => call.command === 'rename_speaker').map((call: any) => call.args));
+}
+const transcriptLabel = (page: import('@playwright/test').Page, segment: string) => page.locator(`#segment-${segment} [data-speaker-label]`);
+
+async function openSpeakerTranscript(page: import('@playwright/test').Page) {
+  await seedSpeakerMeeting(page);
+  await page.getByRole('tab', { name: /^Transcript/ }).click();
+  await expect(transcriptLabel(page, 'current-segment')).toHaveText('Speaker 1');
+}
+
+test('clicking a transcript speaker label edits it in place and Enter renames that speaker everywhere', async ({ page }) => {
+  await openSpeakerTranscript(page);
+  await page.getByRole('button', { name: 'Speaker 1', exact: true }).first().click();
+  const field = page.getByRole('textbox', { name: 'Rename Speaker 1', exact: true });
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('Speaker 1');
+  expect(await field.evaluate((input: HTMLInputElement) => input.selectionStart === 0 && input.selectionEnd === input.value.length)).toBe(true);
+  await expect(page.getByRole('textbox', { name: /^Rename/ })).toHaveCount(1);
+  await field.fill('  Alice Morgan  ');
+  await field.press('Enter');
+  await expect.poll(() => renameCalls(page)).toEqual([{ id: 'saved-fixture', speaker_id: 'sp-a', name: 'Alice Morgan' }]);
+  await expect(transcriptLabel(page, 'current-segment')).toHaveText('Alice Morgan');
+  await expect(transcriptLabel(page, 'repeat-segment')).toHaveText('Alice Morgan');
+  await expect(transcriptLabel(page, 'other-segment')).toHaveText('Speaker 2');
+  await expect(page.getByRole('status').filter({ hasText: 'Speaker 1 renamed to Alice Morgan' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Speakers', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Name for Alice Morgan', exact: true })).toHaveValue('Alice Morgan');
+});
+
+test('Escape cancels a transcript speaker rename without calling the backend', async ({ page }) => {
+  await openSpeakerTranscript(page);
+  await transcriptLabel(page, 'current-segment').click();
+  await page.getByRole('textbox', { name: 'Rename Speaker 1', exact: true }).fill('Discarded');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('textbox', { name: /^Rename/ })).toHaveCount(0);
+  await expect(transcriptLabel(page, 'current-segment')).toHaveText('Speaker 1');
+  await expect(transcriptLabel(page, 'current-segment')).toBeFocused();
+  expect(await renameCalls(page)).toEqual([]);
+});
+
+test('leaving a transcript speaker field saves it while empty and unchanged names do nothing', async ({ page }) => {
+  await openSpeakerTranscript(page);
+  await transcriptLabel(page, 'current-segment').click();
+  await page.getByRole('textbox', { name: 'Rename Speaker 1', exact: true }).fill('   ');
+  await page.locator('.transcript-subbar').click();
+  await expect(page.getByRole('textbox', { name: /^Rename/ })).toHaveCount(0);
+  await transcriptLabel(page, 'current-segment').click();
+  await page.getByRole('textbox', { name: 'Rename Speaker 1', exact: true }).fill(' Speaker 1 ');
+  await page.getByRole('textbox', { name: 'Rename Speaker 1', exact: true }).press('Enter');
+  await expect(page.getByRole('textbox', { name: /^Rename/ })).toHaveCount(0);
+  expect(await renameCalls(page)).toEqual([]);
+  await transcriptLabel(page, 'other-segment').click();
+  await page.getByRole('textbox', { name: 'Rename Speaker 2', exact: true }).fill('Bob');
+  await page.locator('.transcript-subbar').click();
+  await expect.poll(() => renameCalls(page)).toEqual([{ id: 'saved-fixture', speaker_id: 'sp-b', name: 'Bob' }]);
+  await expect(transcriptLabel(page, 'other-segment')).toHaveText('Bob');
+});
+
+test('channel labels, overlap lines and historical transcripts are not rename buttons', async ({ page }) => {
+  await openSpeakerTranscript(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).__testFixture;
+    const line = (id: string, start: number, speaker: string) => ({ id, track: 'mic', start_ms: start, end_ms: start + 1000, speaker, text: `Line ${id}`, words: [] });
+    fixture.detail.segments.push(line('channel-segment', 9000, 'Me'), line('overlap-segment', 11000, 'Overlap'));
+    fixture.detail.speaker_assignments.push({ segment_id: 'overlap-segment', speaker_ids: ['sp-a', 'sp-b'], provenance: 'audio-derived', overlap: true, uncertain: false, words: [] });
+  });
+  const channel = page.locator('#segment-channel-segment .speaker-label-static');
+  await expect(channel).toHaveText('Me');
+  await expect(channel).toHaveAttribute('title', /channel label/);
+  await expect(page.locator('#segment-overlap-segment .speaker-label-static')).toHaveAttribute('title', /Overlapping/);
+  await expect(page.locator('#segment-channel-segment').getByRole('button', { name: 'Me', exact: true })).toHaveCount(0);
+  await expect(page.locator('#segment-overlap-segment').getByRole('button', { name: 'Overlap', exact: true })).toHaveCount(0);
+  await page.getByLabel('Transcript version').selectOption('live-run');
+  await expect(page.getByText('Historical transcript · read only')).toBeVisible();
+  await expect(page.locator('[data-speaker-label]')).toHaveCount(0);
+  expect(await renameCalls(page)).toEqual([]);
+});
+
+test('a refused transcript speaker rename shows the error and keeps the old label', async ({ page }) => {
+  await openSpeakerTranscript(page);
+  await page.evaluate(() => { (window as any).__testFixture.renameError = 'Wait for processing to finish before changing speakers.'; });
+  await transcriptLabel(page, 'current-segment').click();
+  const field = page.getByRole('textbox', { name: 'Rename Speaker 1', exact: true });
+  await field.fill('Alice');
+  await field.press('Enter');
+  await expect(page.getByRole('alert').filter({ hasText: 'Wait for processing to finish before changing speakers.' })).toBeVisible();
+  await expect(transcriptLabel(page, 'current-segment')).toHaveText('Speaker 1');
+  await expect(transcriptLabel(page, 'repeat-segment')).toHaveText('Speaker 1');
+  expect(await renameCalls(page)).toHaveLength(1);
+});
+
+test('transcript speaker rename works from the keyboard and returns focus to the label', async ({ page }) => {
+  await openSpeakerTranscript(page);
+  await transcriptLabel(page, 'other-segment').focus();
+  await page.keyboard.press('Enter');
+  const field = page.getByRole('textbox', { name: 'Rename Speaker 2', exact: true });
+  await expect(field).toBeFocused();
+  await page.keyboard.type('Carol');
+  await page.keyboard.press('Enter');
+  await expect(transcriptLabel(page, 'other-segment')).toHaveText('Carol');
+  await expect(transcriptLabel(page, 'other-segment')).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('textbox', { name: 'Rename Carol', exact: true })).toBeFocused();
+  expect(await renameCalls(page)).toEqual([{ id: 'saved-fixture', speaker_id: 'sp-b', name: 'Carol' }]);
+});
+
+test('long speaker names stay inside the transcript layout', async ({ page }) => {
+  await openSpeakerTranscript(page);
+  await transcriptLabel(page, 'current-segment').click();
+  const field = page.getByRole('textbox', { name: 'Rename Speaker 1', exact: true });
+  await field.fill('A'.repeat(110));
+  await field.press('Enter');
+  await expect(transcriptLabel(page, 'current-segment')).toHaveText('A'.repeat(110));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('saving-audio state follows the recorder after stop and the meeting is not announced as saved until it clears', async ({ page }) => {
+  await seedSavedMeeting(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).__testFixture;
+    fixture.savingOnStop = true;
+    fixture.detail.meeting.status = 'recording';
+    fixture.snapshot.recording = { id: 'saved-fixture', title: 'Design fixture', status: 'recording', elapsed_ms: 5000, mic_level: 0.4, system_level: 0.1, gaps: 0, transcription_configured: true, transcription_active: true };
+  });
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  const saving = page.getByRole('status', { name: 'Saving audio', exact: true });
+  await expect(saving).toContainText('00:12 of audio remaining');
+  await expect(page.getByText('Recording saved to your library.')).toHaveCount(0);
+  await page.evaluate(() => { const fixture = (window as any).__testFixture; fixture.snapshot.recording = null; fixture.snapshot.recorder = { queued_ms: 0, max_queued_ms: 20000, dropped_ms: 0, saving_audio: false }; });
+  await expect(saving).toHaveCount(0);
+  await expect(page.getByText('Recording saved to your library.')).toBeVisible();
+});
+
+test('recorder drops and backlog extend existing recording messages and absent recorder data is tolerated', async ({ page }) => {
+  await seedSavedMeeting(page);
+  await page.evaluate(() => {
+    const fixture = (window as any).__testFixture;
+    fixture.detail.meeting.status = 'recording';
+    fixture.snapshot.recording = { id: 'saved-fixture', title: 'Design fixture', status: 'recording', elapsed_ms: 5000, mic_level: 0.4, system_level: 0.1, gaps: 0, transcription_configured: true, transcription_active: true };
+  });
+  await expect(page.getByText('Live VAD:')).toBeVisible();
+  await expect(page.getByText('catching up')).toHaveCount(0);
+  await expect(page.getByText('could not be saved')).toHaveCount(0);
+  await page.evaluate(() => { (window as any).__testFixture.snapshot.recorder = { queued_ms: 6000, max_queued_ms: 20000, dropped_ms: 2000, saving_audio: false }; });
+  await expect(page.getByText('Audio saving is catching up (00:06 queued)')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'About 00:02 of audio could not be saved in this recording.' })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Saving audio' })).toHaveCount(0);
+  await page.evaluate(() => { const fixture = (window as any).__testFixture; fixture.snapshot.recorder = null; fixture.snapshot.recording.gaps = 2; });
+  await expect(page.getByText('2 audio gaps have been marked in this recording.', { exact: true })).toBeVisible();
+  await expect(page.getByText('could not be saved')).toHaveCount(0);
 });
