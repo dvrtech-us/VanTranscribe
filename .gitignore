@@ -13,3 +13,4 @@ core
 /test-results/
 /playwright-report/
 /dist/
+/.claude/worktrees
