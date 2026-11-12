@@ -10,6 +10,10 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -29,11 +33,10 @@ const DATABASE_LOCK_BUDGET: Duration = Duration::from_secs(5);
 
 /// Total time one manifest write (pending insert, ready update, gap insert,
 /// final status) may wait for SQLite's write lock before the writer is
-/// poisoned. While it waits, the capture consumer loop is blocked: the 128-slot
-/// capture channel (at most 2.56 s of 20 ms packets) fills first, then the
-/// helper's ~10 s ring, and the helper reports an overflow gap rather than
-/// stalling. 60 s therefore covers every lock long enough to only cost an
-/// explicit audio gap, while a stuck lock still ends the recording.
+/// poisoned. The app writes from its own recorder thread behind a bounded
+/// in-memory queue (vt-session `recorder_queue`, 60 s of audio per track), so
+/// a wait delays only that thread; past the queue bound the app records an
+/// explicit `recorder_backlog` gap. A stuck lock still ends the recording.
 pub const MANIFEST_LOCK_BUDGET: Duration = Duration::from_secs(60);
 /// Busy-handler allowance per attempt inside `MANIFEST_LOCK_BUDGET`. Short so a
 /// lock error that bypasses the busy handler (SQLITE_BUSY_SNAPSHOT) and a
@@ -122,6 +125,9 @@ pub struct Recording {
     writable: bool,
     lock_budget: Duration,
     lock_waits: LockWaits,
+    /// When set, a manifest lock wait gives up at its next retry (the caller
+    /// is abandoning this writer); the write fails as a lock error would.
+    abort: Option<Arc<AtomicBool>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -169,6 +175,7 @@ impl Recording {
             writable: true,
             lock_budget: MANIFEST_LOCK_BUDGET,
             lock_waits: LockWaits::default(),
+            abort: None,
         })
     }
 
@@ -182,6 +189,14 @@ impl Recording {
     /// Lock waits seen by this writer's manifest writes so far.
     pub fn lock_waits(&self) -> LockWaits {
         self.lock_waits
+    }
+
+    /// Installs a cancellation signal for manifest lock waits: once set, a
+    /// write waiting for SQLite's lock stops at its next retry (within about
+    /// 250 ms) and fails, poisoning this writer as an exhausted budget would.
+    /// File I/O already in progress is not interrupted.
+    pub fn set_abort_signal(&mut self, abort: Arc<AtomicBool>) {
+        self.abort = Some(abort);
     }
 
     /// Overrides `MANIFEST_LOCK_BUDGET` (tests use a short budget).
@@ -368,6 +383,7 @@ impl Recording {
             writable: false,
             lock_budget: MANIFEST_LOCK_BUDGET,
             lock_waits: LockWaits::default(),
+            abort: None,
         };
         let mut report = RecoveryReport::default();
         for chunk in recording.chunks()? {
@@ -415,6 +431,77 @@ impl Recording {
             )?;
         }
         Ok(report)
+    }
+
+    /// After `recover`: records `[last chunk end, end_ns)` of `track` as an
+    /// explicit gap when the app has evidence that audio up to `end_ns` was
+    /// captured but never saved. `start_ns` and `format` (the track's first
+    /// audio time and native format) are used only when the track has no row. Nothing is inferred beyond
+    /// that evidence and no audio is invented. Returns the gap's length in ns
+    /// (zero when the manifest already reaches `end_ns`). Requires the meeting
+    /// lock (no live writer) and no pending row on the track.
+    pub fn record_unsaved_tail(
+        root: impl AsRef<Path>,
+        meeting: &str,
+        track: TrackKind,
+        start_ns: u64,
+        format: StreamFormat,
+        end_ns: u64,
+        reason: GapReason,
+    ) -> Result<u64> {
+        ensure_supported()?;
+        validate_meeting_id(meeting)?;
+        let root = fs::canonicalize(root)?;
+        let _lock = acquire_lock(&root, meeting)?;
+        let db = open_database(&root)?;
+        let previous = db
+            .query_row(
+                "SELECT track,seq,epoch,first_frame,frame_count,sample_rate,channels,start_ns,end_ns,state,path,sha256,gap_reason,clipped_samples FROM audio_chunks WHERE meeting_id=?1 AND track=?2 ORDER BY seq DESC LIMIT 1",
+                params![meeting, track.as_str()],
+                chunk_from_row,
+            )
+            .optional()?;
+        let (seq, epoch, first_frame, format, start) = match previous {
+            Some(p) if p.state == "pending" => {
+                return Err(RecordError::Invalid(
+                    "pending publication requires recovery".into(),
+                ));
+            }
+            Some(p) => (
+                p.seq + 1,
+                p.epoch,
+                p.first_frame + p.frame_count,
+                p.format,
+                p.end_ns,
+            ),
+            None => (
+                0,
+                0,
+                0,
+                StreamFormat::new(format.sample_rate, format.channels)?,
+                start_ns,
+            ),
+        };
+        if end_ns <= start {
+            return Ok(0);
+        }
+        let gap = Chunk {
+            track,
+            seq,
+            epoch,
+            first_frame,
+            frame_count: 0,
+            format,
+            start_ns: start,
+            end_ns,
+            state: "gap".into(),
+            path: None,
+            sha256: None,
+            gap_reason: Some(reason.as_str().into()),
+            clipped_samples: 0,
+        };
+        insert_row(&db, meeting, &gap, "gap", false)?;
+        Ok(end_ns - start)
     }
 
     fn ensure_writable(&self) -> Result<()> {
@@ -521,7 +608,11 @@ impl Recording {
                 Err(error) if transient_database_lock(&error) => {
                     retried = true;
                     let remaining = deadline.saturating_duration_since(Instant::now());
-                    if remaining.is_zero() {
+                    let aborted = self
+                        .abort
+                        .as_ref()
+                        .is_some_and(|abort| abort.load(Ordering::SeqCst));
+                    if remaining.is_zero() || aborted {
                         break Err(error);
                     }
                     std::thread::sleep(backoff.min(remaining));

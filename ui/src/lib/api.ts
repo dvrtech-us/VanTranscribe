@@ -59,6 +59,8 @@ export interface Snapshot {
   health?: HealthSnapshot;
   source_timing?: SourceTiming | null;
   recording: ActiveRecording | null;
+  /** Audio recorder thread while a recording is current; `saving_audio` after stop while queued audio is written. */
+  recorder?: RecorderView | null;
   meetings: Meeting[];
   models: ModelStatus;
   refinement_models: ModelStatus;
@@ -70,6 +72,7 @@ export interface Snapshot {
   settings: { meeting_detection?: MeetingDetectionSettings; capture_mode: CaptureMode; data_dir: string; auto_refine: boolean; auto_summarize: boolean; summary_config: SummaryConfig; live_vad_enabled?: boolean; diarization_enabled?: boolean; echo_cancellation_enabled?: boolean };
 }
 
+export interface RecorderView { queued_ms: number; max_queued_ms: number; dropped_ms: number; saving_audio: boolean }
 export interface PlaybackSnapshot { meeting_id: string; status: string; position_ms: number; duration_ms: number; mic_volume: number; system_volume: number; error?: string | null }
 export interface AudioWaveform { meeting_id: string; duration_ms: number; mic: number[]; system: number[] }
 
@@ -230,5 +233,7 @@ export interface CaptureHealth {
   max_queued_packets: number;
   slow_iterations: number;
   max_iteration_ms: number;
+  /** Recorder backlog and write latency (absent in older reports). */
+  recorder?: { queued_ms: number; max_queued_ms: number; drops: number; dropped_ms: number; max_write_ms: number };
   truncated: boolean;
 }

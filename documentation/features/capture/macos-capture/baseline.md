@@ -80,7 +80,8 @@
 4. The callback publishes slots; the worker splits tracks, emits audio/levels and carries explicit gaps.
 5. A notification/poll compares capture-relevant values. An unchanged snapshot does nothing; stable material changes or confirmed device death initiate rebuilding. A rebuild stops and drains the old producer, emits its gap, increments the epoch and announces the new format.
 6. Stop/EOF/signals request teardown. Rust continues reading while the helper detaches the producer and emits its final packet, releases aggregate/tap/assertion, and exits.
-7. The caller flushes its downstream recorder only after event EOF, or records the implications of a forced stop.
+7. The caller hands its final blocks to the recorder thread only after event EOF (or records the implications of a forced stop); the recorder then drains its queue and finishes the manifest before the live run seals.
+8. The helper's `overflow` gap is a helper-side loss. A `recorder_backlog` gap is an app-side loss (the recorder thread fell more than 60 s per track behind); the two are distinct gap reasons, as is `recorder_interrupted` (audio captured but not saved before an exit, recorded by recovery).
 
 ## Defaults and configuration
 

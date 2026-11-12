@@ -55,7 +55,7 @@ Measurement, not a guarantee: the test `long_meeting_publish_and_search_rebuild_
 
 - While the writer waits on the recorder's SQLite lock, every other in-process writer queues behind it.
 - A write may still be made while `runtime` is held (recording start `create_meeting_with_engines`, enrollment's final write, `select_live_model`; none can run during capture); it waits at most 5 s, but that can hold up code needing `runtime`. The three meeting-detection settings commands hold the `meeting_detection` lock across a small write.
-- The recorder is still on the capture loop; moving it to its own thread with a bounded in-memory audio queue is the planned next step.
+- The recorder now runs on its own `audio-recorder` thread behind a bounded in-memory queue (2026-11-11, see [durable recording](../../recording/durable-recording/durable-recording.md#recorder-thread-and-bounded-queue)); the capture loop no longer waits for its SQLite lock. The recorder still keeps its own connection. Its chunk-clock row and the `app_recorder_progress` marker go through this shared writer (the clock row from the recorder thread, the marker from the capture loop and at stop).
 - The pattern follows the `sqlite-rwc` crate; it is not used because it is AGPL-3.0-only and this project is MIT.
 
 ## Key types and entry points

@@ -279,6 +279,7 @@ fn initialize_schema(tx: &Connection) -> Result<()> {
     tx.execute_batch(include_str!(
         "../../../documentation/features/app/desktop-session/sql/009-retention-delete-guards.sql"
     ))?;
+    tx.execute_batch(RECORDER_PROGRESS_SCHEMA)?;
     let speaker_state_has_context = {
         let mut query = tx.prepare("PRAGMA table_info(app_speaker_run_state)")?;
         query
@@ -340,6 +341,107 @@ fn initialize_schema(tx: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Durable evidence of audio handed to the recorder thread but possibly not yet
+/// saved: per track, the time span of everything the capture loop queued (or
+/// dropped as a gap). Written while a backlog exists (at most every 2 s) and
+/// once at stop; cleared after a successful drain. Recovery compares it with
+/// the manifest's last row to record an unsaved tail as an explicit gap.
+const RECORDER_PROGRESS_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS app_recorder_progress (
+    meeting_id TEXT NOT NULL,
+    track TEXT NOT NULL CHECK (track IN ('mic', 'system')),
+    start_ns INTEGER NOT NULL CHECK (start_ns >= 0),
+    end_ns INTEGER NOT NULL CHECK (end_ns >= start_ns),
+    sample_rate INTEGER NOT NULL,
+    channels INTEGER NOT NULL,
+    PRIMARY KEY (meeting_id, track)
+);";
+
+/// One track's queued span (see `RECORDER_PROGRESS_SCHEMA`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TrackProgress {
+    pub track: vt_core::TrackKind,
+    pub start_ns: u64,
+    pub end_ns: u64,
+    pub format: vt_core::StreamFormat,
+}
+
+pub(crate) fn save_recorder_progress(
+    root: &Path,
+    id: &str,
+    progress: &[TrackProgress],
+    wait: Duration,
+) -> Result<()> {
+    write_with(root, wait, |db| {
+        for p in progress {
+            db.execute("INSERT OR REPLACE INTO app_recorder_progress(meeting_id,track,start_ns,end_ns,sample_rate,channels) VALUES (?1,?2,?3,?4,?5,?6)",
+                params![id, p.track.as_str(), p.start_ns.min(i64::MAX as u64) as i64, p.end_ns.min(i64::MAX as u64) as i64, p.format.sample_rate, p.format.channels])?;
+        }
+        Ok(())
+    })
+}
+
+pub(crate) fn clear_recorder_progress(root: &Path, id: &str, wait: Duration) -> Result<()> {
+    write_with(root, wait, |db| {
+        db.execute(
+            "DELETE FROM app_recorder_progress WHERE meeting_id=?1",
+            [id],
+        )?;
+        Ok(())
+    })
+}
+
+/// Start of the warning recovery saves when audio at the end was not saved.
+pub(crate) const UNSAVED_TAIL_WARNING: &str = "Audio at the end of this recording was captured but not saved before the recorder stopped; it is marked as a recorder_interrupted gap in the saved audio.";
+
+pub(crate) fn unsaved_tail_warning(ns: u64) -> String {
+    let seconds = (ns + 500_000_000) / 1_000_000_000;
+    format!(
+        "{UNSAVED_TAIL_WARNING} About {} s is missing.",
+        seconds.max(1)
+    )
+}
+
+/// After `Recording::recover`: records each track's unsaved tail (queued
+/// span end beyond the manifest's last row) as a `recorder_interrupted` gap,
+/// then clears the evidence. Returns the longest tail in ns (0 when none).
+pub(crate) fn record_unsaved_tail(root: &Path, id: &str) -> Result<u64> {
+    let progress = read(root, |db| {
+        let mut query = db.prepare("SELECT track,start_ns,end_ns,sample_rate,channels FROM app_recorder_progress WHERE meeting_id=?1")?;
+        let rows = query
+            .query_map([id], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, u32>(3)?,
+                    r.get::<_, u16>(4)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })?;
+    let mut longest = 0;
+    for (track, start, end, rate, channels) in progress {
+        let track = if track == "mic" {
+            vt_core::TrackKind::Mic
+        } else {
+            vt_core::TrackKind::System
+        };
+        let gap = vt_record::Recording::record_unsaved_tail(
+            root,
+            id,
+            track,
+            u64::try_from(start).unwrap_or(0),
+            vt_core::StreamFormat::new(rate, channels)?,
+            u64::try_from(end).unwrap_or(0),
+            vt_core::GapReason::RecorderInterrupted,
+        )?;
+        longest = longest.max(gap);
+    }
+    clear_recorder_progress(root, id, crate::db::WRITE_WAIT)?;
+    Ok(longest)
+}
+
 pub(crate) fn recover_interrupted(root: &Path) -> Result<()> {
     // Each statement committed on its own before, as autocommit statements.
     // One transaction keeps the same end state and only reads after writing.
@@ -362,6 +464,26 @@ pub(crate) fn recover_interrupted(root: &Path) -> Result<()> {
         }
         Ok(ids)
     })?;
+    // A meeting that already failed while its recorder was stuck (the
+    // recorder still held its lock, so recovery could not run then) keeps its
+    // failure, but its manifest is reconciled and its unsaved tail recorded.
+    let stuck = read(root, |db| {
+        let mut query = db.prepare("SELECT a.id FROM app_meetings a JOIN meetings m ON m.id=a.id WHERE a.status='failed' AND m.status='recording'")?;
+        let ids = query
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(ids)
+    })?;
+    for id in stuck {
+        if crate::retention::has_pending(root, &id)?
+            || !crate::retention::audio_available(root, &id)?
+        {
+            continue;
+        }
+        if vt_record::Recording::recover(root, &id).is_ok() {
+            let _ = record_unsaved_tail(root, &id);
+        }
+    }
     // Recorder recovery touches files and the recorder's own connection, so
     // it runs outside any database closure; each status is its own write.
     for id in ids {
@@ -378,7 +500,18 @@ pub(crate) fn recover_interrupted(root: &Path) -> Result<()> {
             continue;
         }
         match vt_record::Recording::recover(root, &id) {
-            Ok(_) => set_status(root, &id, "recovered", None)?,
+            Ok(_) => {
+                // Audio queued for the recorder but never saved (the app quit
+                // or died mid-drain) becomes an explicit gap and a warning.
+                let warning = match record_unsaved_tail(root, &id) {
+                    Ok(0) => None,
+                    Ok(ns) => Some(unsaved_tail_warning(ns)),
+                    Err(error) => Some(format!(
+                        "{UNSAVED_TAIL_WARNING} Its length could not be recorded: {error}"
+                    )),
+                };
+                set_status(root, &id, "recovered", warning.as_deref())?
+            }
             Err(e) => set_status(root, &id, "failed", Some(&e.to_string()))?,
         }
     }
@@ -826,8 +959,9 @@ pub(crate) fn rename(root: &Path, id: &str, title: &str) -> Result<()> {
     })
 }
 
-/// Called on the capture consumer loop for every chunk, so it takes the loop's
-/// short `busy_timeout`; the caller skips it on a lock error.
+/// Called on the session's recorder thread just before each chunk is
+/// published, with the loop's short `busy_timeout`; the caller skips it on a
+/// lock error (reported once through the capture loop's housekeeping warning).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn save_clock(
     root: &Path,

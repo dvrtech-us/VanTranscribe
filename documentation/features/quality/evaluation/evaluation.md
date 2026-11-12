@@ -158,6 +158,18 @@ The `.cargo/config.toml` alias preserves the existing deployment environment con
 
 There are no HTTP routes, accounts, application DB migrations or SQL artifacts. This developer command reads only explicitly named local files and writes the requested report; it opens no microphone, output device or meeting database and performs no network requests. It emits counts/mappings and source fingerprints, not transcript text. Reports still contain corpus IDs, labels, provenance and measurement metadata and should be handled according to their source corpus permissions.
 
+## Test fixtures and evaluation data locations
+
+A machine restart on 2026-11-10 removed the public fixtures and model caches that tests and examples referenced under `/private/tmp`. They were restored on 2026-11-11 to `/Volumes/dev/vantranscribe-eval/test-fixtures`, which mirrors the old `/private/tmp` layout and carries a `manifest.json` (source, size, SHA-256 and licence for each of 20 files), a `README.txt` and `env.sh`. Public data only; nothing from private recordings.
+
+- **Path-based tests** (`crates/vt-session`, including the ignored public-fixture tests) resolve every fixture through `crates/vt-session/src/test_fixtures.rs` (`path`): `$VT_TEST_FIXTURES/<rel>` when the variable is set, otherwise `/private/tmp/<rel>` when it exists, otherwise `/Volumes/dev/vantranscribe-eval/test-fixtures/<rel>`. A missing fixture still resolves to a path, so the callers' "must exist" assertions fail as before. `link_or_copy` hard-links a fixture and falls back to a copy when the fixture volume differs.
+- **Environment-variable tests** (`vt-stt`, `vt-diarize`, `vt-speaker-frontend`, voice-memory and processing tests): `source /Volumes/dev/vantranscribe-eval/test-fixtures/env.sh`.
+- **AMI evaluation data** now lives under `/Volumes/dev/vantranscribe-eval` (`ami/`, `models/`, `split.json`, `frozen_thresholds.json`, `tables/`). Earlier notes that cite `/private/tmp/vantranscribe-ami-eval/...` or an `ami-room-v3` cache refer to locations that no longer exist; their measurement JSON files remain the record of those runs.
+- **Not restored:** `0-four-speakers-zh.wav` (the four-speaker Chinese diarization fixture, `VT_DIARIZE_FIXTURE_WAV`; no source or hash is recorded in the repository); the 507 MB standard zipformer archive (`VT_STT_STANDARD_ARCHIVE`; re-downloadable from the URL pinned in `crates/vt-stt/src/models.rs`); the hand-built WeSpeaker research model packs and the `ami-room-v3` research-run directories, which were hand-assembled under `/private/tmp` (only the reproduced CMN model and the official download asset exist, under `/Volumes/dev/vantranscribe-eval/models/`); and `real_call_replay` data (private, by design).
+- Not verified: this documentation pass did not re-hash the restored files or re-run the ignored tests against them.
+
+See the [trail entry](trail/2026-11-11-test-fixture-relocation.md).
+
 ## Primary references
 
 - [pyannote collar extrusion](https://github.com/pyannote/pyannote-metrics/blob/develop/src/pyannote/metrics/utils.py) explicitly constructs each exclusion as boundary ± half the `collar` argument.

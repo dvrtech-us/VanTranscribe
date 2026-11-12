@@ -1,4 +1,5 @@
 use super::*;
+use crate::recorder_queue::{Admission, RecorderQueue};
 use anyhow::Context;
 use std::{
     str::FromStr,
@@ -21,7 +22,10 @@ struct TrackBuffer {
     source_epoch: u32,
     source_next: Option<u64>,
     writer_epoch: u32,
-    persisted_epoch: Option<u32>,
+    /// Epoch of the last item handed to the recorder for this track.
+    queued_epoch: Option<u32>,
+    /// Time of the first block handed to the recorder for this track.
+    timeline_start: Option<u64>,
     writer_frame: u64,
     writer_end: Option<u64>,
     next_seq: u64,
@@ -39,7 +43,8 @@ impl TrackBuffer {
             source_epoch: 0,
             source_next: None,
             writer_epoch: 0,
-            persisted_epoch: None,
+            queued_epoch: None,
+            timeline_start: None,
             writer_frame: 0,
             writer_end: None,
             next_seq: 0,
@@ -50,23 +55,33 @@ impl TrackBuffer {
         }
     }
 
+    /// Hands the buffered block to the recorder thread (never waits for it).
+    /// Everything the loop needs afterwards (end time, sequence, epoch) is
+    /// computed here from the block itself, exactly as `vt_record` will.
     fn flush(
         &mut self,
-        recorder: &mut Recording,
+        recorder: &RecorderQueue,
         service: &AppService,
-        id: &str,
         busy_warned: &mut bool,
     ) -> Result<()> {
         if self.samples.is_empty() {
             return Ok(());
         }
-        service.recording_budget(self.samples.len() as u64 * 3 + 4096, busy_warned)?;
+        // Account for every byte still to be written, not only this block.
+        let pending = recorder.status().pending_bytes;
+        service.recording_budget(
+            pending
+                .saturating_add(self.samples.len() as u64 * 3)
+                .saturating_add(4096),
+            busy_warned,
+        )?;
         let format = self.format.context("capture format is missing")?;
         let source = self
             .first_source
             .take()
             .context("capture position is missing")?;
         let start = self.writer_end.unwrap_or(source.host_ns);
+        self.timeline_start.get_or_insert(start);
         let samples = std::mem::take(&mut self.samples);
         let block = AudioBlock::new(
             format,
@@ -77,82 +92,95 @@ impl TrackBuffer {
             },
             samples,
         )?;
-        // Persist the original hardware observation before publication. The
-        // worker's exact adjacency must not erase measured source-clock drift.
-        // `app_audio_clock` has no live reader, so a lock skips this row.
-        tolerate_busy(
-            service,
-            busy_warned,
-            store::save_clock(
-                &service.root,
-                id,
-                self.track.as_str(),
-                self.next_seq,
-                source.epoch,
-                source.frame,
-                source.host_ns,
-                store::LOOP_BUSY_TIMEOUT,
-            ),
-        )?;
-        let chunk = recorder.write_chunk(self.track, &block);
-        note_recorder_waits(service, recorder);
-        let chunk = chunk?;
-        self.writer_frame += block.frames();
-        self.writer_end = Some(chunk.end_ns);
-        self.next_seq = chunk.seq + 1;
-        self.persisted_epoch = Some(chunk.epoch);
+        let frames = block.frames();
+        let end = start
+            .checked_add(crate::recorder_queue::block_ns(frames, format.sample_rate))
+            .context("capture source time overflow")?;
+        // The original hardware observation is saved by the recorder thread
+        // just before publication; the worker's exact adjacency must not erase
+        // measured source-clock drift.
+        let clock = crate::recorder_queue::ClockObservation {
+            seq: self.next_seq,
+            source_epoch: source.epoch,
+            source_frame: source.frame,
+            host_ns: source.host_ns,
+        };
+        // A stopped recorder takes nothing: end with its error, unadvanced.
+        match recorder
+            .push_chunk(self.track, block, Some(clock))
+            .map_err(|error| anyhow::anyhow!(error))?
+        {
+            Admission::Queued => self.next_seq += 1,
+            Admission::Dropped { new_gap } => {
+                if new_gap {
+                    self.next_seq += 1;
+                    count_gap(service);
+                }
+            }
+        }
+        self.writer_frame += frames;
+        self.writer_end = Some(end);
+        self.queued_epoch = Some(self.writer_epoch);
         Ok(())
+    }
+
+    /// The span of everything handed to the recorder (written, queued or
+    /// dropped as a gap), for the durable unsaved-tail evidence.
+    fn progress(&self) -> Option<store::TrackProgress> {
+        Some(store::TrackProgress {
+            track: self.track,
+            start_ns: self.timeline_start?,
+            end_ns: self.writer_end?,
+            format: self.format?,
+        })
     }
 
     fn gap_until(
         &mut self,
         target: u64,
         reason: GapReason,
-        recorder: &mut Recording,
+        recorder: &RecorderQueue,
         service: &AppService,
-        id: &str,
         busy_warned: &mut bool,
     ) -> Result<()> {
-        self.flush(recorder, service, id, busy_warned)?;
+        self.flush(recorder, service, busy_warned)?;
         if let (Some(end), Some(format)) = (self.writer_end, self.format)
             && target > end
         {
-            let gap = recorder.write_gap(
-                self.track,
-                format,
-                Gap {
-                    epoch: self.writer_epoch,
-                    first_frame: self.writer_frame,
-                    frame_count: 0,
-                    start_ns: end,
-                    end_ns: target,
-                    reason,
-                },
-            );
-            note_recorder_waits(service, recorder);
-            let gap = gap?;
+            let admitted = recorder
+                .push_gap(
+                    self.track,
+                    format,
+                    Gap {
+                        epoch: self.writer_epoch,
+                        first_frame: self.writer_frame,
+                        frame_count: 0,
+                        start_ns: end,
+                        end_ns: target,
+                        reason,
+                    },
+                )
+                .map_err(|error| anyhow::anyhow!(error))?;
             self.writer_end = Some(target);
-            self.next_seq = gap.seq + 1;
-            self.persisted_epoch = Some(gap.epoch);
-            if let Ok(mut runtime) = service.runtime.lock()
-                && let Some(current) = &mut runtime.current
-            {
-                current.view.gaps += 1;
+            // A gap merged into the queued gap before it keeps that gap's row
+            // (and epoch); the next audio follows it in this epoch or the next.
+            self.queued_epoch = Some(admitted.epoch);
+            if !admitted.merged {
+                self.next_seq += 1;
+                count_gap(service);
             }
         }
         self.source_next = None;
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn set_format(
         &mut self,
         format: StreamFormat,
         epoch: u32,
         start: u64,
-        recorder: &mut Recording,
+        recorder: &RecorderQueue,
         service: &AppService,
-        id: &str,
         busy_warned: &mut bool,
     ) -> Result<()> {
         if self.format.is_some() && (self.format != Some(format) || self.source_epoch != epoch) {
@@ -161,10 +189,9 @@ impl TrackBuffer {
                 GapReason::DeviceChange,
                 recorder,
                 service,
-                id,
                 busy_warned,
             )?;
-            if let Some(last) = self.persisted_epoch {
+            if let Some(last) = self.queued_epoch {
                 self.writer_epoch = last.checked_add(1).context("capture epoch overflow")?;
                 self.writer_frame = 0;
             }
@@ -179,9 +206,8 @@ impl TrackBuffer {
         &mut self,
         position: SourcePosition,
         samples: Vec<f32>,
-        recorder: &mut Recording,
+        recorder: &RecorderQueue,
         service: &AppService,
-        id: &str,
         busy_warned: &mut bool,
     ) -> Result<(Vec<f32>, u32, u64)> {
         let SourcePosition {
@@ -198,7 +224,7 @@ impl TrackBuffer {
             bail!("Capture emitted invalid or oversized audio.");
         }
         if self.source_epoch != epoch {
-            self.set_format(format, epoch, host, recorder, service, id, busy_warned)?;
+            self.set_format(format, epoch, host, recorder, service, busy_warned)?;
         }
         if self.resume_pending || self.source_next.is_some_and(|next| next != first) {
             self.gap_until(
@@ -210,7 +236,6 @@ impl TrackBuffer {
                 },
                 recorder,
                 service,
-                id,
                 busy_warned,
             )?;
             self.resume_pending = false;
@@ -242,7 +267,7 @@ impl TrackBuffer {
                 .extend_from_slice(&samples[offset..offset + take]);
             offset += take;
             if self.samples.len() == capacity {
-                self.flush(recorder, service, id, busy_warned)?;
+                self.flush(recorder, service, busy_warned)?;
             }
         }
         self.source_next = Some(first + frames as u64);
@@ -338,23 +363,50 @@ fn relay_capture_event(
                     )));
                     return false;
                 };
-                if sender
-                    .send(Ok(CaptureEvent::Audio {
+                if !relay_send(
+                    sender,
+                    Ok(CaptureEvent::Audio {
                         track: track.clone(),
                         epoch,
                         first_frame: first,
                         host_time_ns: host,
                         samples: part.to_vec(),
-                    }))
-                    .is_err()
-                {
+                    }),
+                ) {
                     return false;
                 }
             }
             true
         }
-        event => sender.send(Ok(event)).is_ok(),
+        event => relay_send(sender, Ok(event)),
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Counts sends that found the capture channel full (tests only).
+    static RELAY_FULL: std::cell::RefCell<Option<Arc<std::sync::atomic::AtomicU64>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn relay_send(
+    sender: &mpsc::SyncSender<vt_capture::Result<CaptureEvent>>,
+    event: vt_capture::Result<CaptureEvent>,
+) -> bool {
+    #[cfg(test)]
+    let event = match sender.try_send(event) {
+        Ok(()) => return true,
+        Err(TrySendError::Disconnected(_)) => return false,
+        Err(TrySendError::Full(event)) => {
+            RELAY_FULL.with(|full| {
+                if let Some(full) = &*full.borrow() {
+                    full.fetch_add(1, Ordering::Relaxed);
+                }
+            });
+            event
+        }
+    };
+    sender.send(event).is_ok()
 }
 
 #[derive(Debug)]
@@ -1103,15 +1155,178 @@ impl PendingRoutes {
     }
 }
 
-/// Publishes the chunk writer's lock waits and warns once past 1 s.
-fn note_recorder_waits(service: &AppService, recorder: &Recording) {
-    let waits = recorder.lock_waits();
-    if waits.max > Duration::from_secs(1) {
+/// Counts one recorded gap for the live "audio gaps" banner, when queued.
+fn count_gap(service: &AppService) {
+    if let Ok(mut runtime) = service.runtime.lock()
+        && let Some(current) = &mut runtime.current
+    {
+        current.view.gaps += 1;
+    }
+}
+
+/// What the capture loop has already reported about the recorder thread.
+#[derive(Default)]
+struct RecorderNotes {
+    lock_warned: bool,
+    backlog_warned: bool,
+    drop_warned: bool,
+}
+
+/// Reads the recorder's progress without waiting for it: publishes its lock
+/// waits, backlog and write latency (runtime view and capture health), warns
+/// once each for a lock wait past 1 s, a backlog past 5 s and dropped audio,
+/// and returns the recorder's fatal error, if any.
+fn poll_recorder(
+    service: &AppService,
+    recorder: &RecorderQueue,
+    notes: &mut RecorderNotes,
+    busy_warned: &mut bool,
+) -> Result<()> {
+    let status = recorder.status();
+    if let Some(cause) = recorder.take_clock_busy()
+        && !*busy_warned
+    {
+        *busy_warned = true;
+        service.backlog_warn(&format!("{HOUSEKEEPING_BUSY_WARNING} Cause: {cause}"));
+    }
+    if !notes.lock_warned && status.lock_waits.max > Duration::from_secs(1) {
+        notes.lock_warned = true;
         service.backlog_warn(RECORDER_LOCK_WAIT_WARNING);
     }
-    if let Ok(mut runtime) = service.runtime.lock() {
-        runtime.recorder_lock_waits = waits;
+    let backlog_warn =
+        u64::try_from(crate::recorder_queue::RECORDER_BACKLOG_WARN.as_nanos()).unwrap_or(u64::MAX);
+    if !notes.backlog_warned && status.max_queued_ns >= backlog_warn {
+        notes.backlog_warned = true;
+        service.backlog_warn(crate::recorder_queue::RECORDER_BACKLOG_WARNING);
     }
+    if !notes.drop_warned && status.drops > 0 {
+        notes.drop_warned = true;
+        service.backlog_warn(crate::recorder_queue::RECORDER_DROP_WARNING);
+    }
+    publish_recorder(service, &status, false);
+    if let Some(error) = status.failed {
+        bail!(error);
+    }
+    Ok(())
+}
+
+/// Copies recorder progress into the runtime view and the capture health
+/// report. The report changes (and is persisted) only when a maximum or a
+/// drop count moves, or the current backlog crosses a whole second.
+fn publish_recorder(service: &AppService, status: &crate::recorder_queue::Status, saving: bool) {
+    let health = crate::capture_health::RecorderHealth {
+        queued_ms: status.queued_ns / 1_000_000,
+        max_queued_ms: status.max_queued_ns / 1_000_000,
+        drops: status.drops,
+        dropped_ms: status.dropped_ns / 1_000_000,
+        max_write_ms: u64::try_from(status.max_write.as_millis()).unwrap_or(u64::MAX),
+    };
+    service
+        .backlog
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .capture_health(|capture| {
+            let old = &capture.recorder;
+            let changed = old.queued_ms / 1000 != health.queued_ms / 1000
+                || old.max_queued_ms != health.max_queued_ms
+                || old.drops != health.drops
+                || old.dropped_ms != health.dropped_ms
+                || old.max_write_ms != health.max_write_ms;
+            capture.recorder = health.clone();
+            changed
+        });
+    if let Ok(mut runtime) = service.runtime.lock() {
+        runtime.recorder_lock_waits = status.lock_waits;
+        runtime.recorder = crate::RecorderView {
+            queued_ms: health.queued_ms,
+            max_queued_ms: health.max_queued_ms,
+            dropped_ms: health.dropped_ms,
+            saving_audio: saving,
+        };
+    }
+}
+
+/// Starts the session's recorder thread. Chunk-clock rows are saved by that
+/// thread just before each chunk is published.
+fn start_recorder(
+    service: &Arc<AppService>,
+    id: &str,
+    recording: Recording,
+) -> Result<RecorderQueue> {
+    let root = service.root.clone();
+    let meeting = id.to_owned();
+    #[allow(unused_mut)]
+    let mut config = crate::recorder_queue::Config::default();
+    #[cfg(test)]
+    if let Some(hook) = service.recorder_test.lock().unwrap().clone() {
+        if let Some(limit) = hook.queue_limit {
+            config.queue_limit = limit;
+        }
+        if let Some(deadline) = hook.drain_deadline {
+            config.drain_deadline = deadline;
+        }
+        if let Some(grace) = hook.abandon_grace {
+            config.abandon_grace = grace;
+        }
+        config.before = hook.before;
+    }
+    RecorderQueue::start(
+        recording,
+        Box::new(move |track, clock| {
+            store::save_clock(
+                &root,
+                &meeting,
+                track.as_str(),
+                clock.seq,
+                clock.source_epoch,
+                clock.source_frame,
+                clock.host_ns,
+                store::LOOP_BUSY_TIMEOUT,
+            )
+        }),
+        config,
+        late_recovery(service, id),
+    )
+}
+
+/// Run by a recorder thread the drain gave up on, once it has finally ended
+/// and released the meeting lock: the immediate `recover` at stop failed
+/// (lock busy), so reconcile the manifest and record its unsaved tail now.
+fn late_recovery(service: &Arc<AppService>, id: &str) -> Box<dyn FnOnce() + Send> {
+    let service = Arc::downgrade(service);
+    let id = id.to_owned();
+    Box::new(move || {
+        let Some(service) = service.upgrade() else {
+            return;
+        };
+        if service.ensure_saved_audio(&id).is_ok() && Recording::recover(&service.root, &id).is_ok()
+        {
+            let _ = store::record_unsaved_tail(&service.root, &id);
+        }
+    })
+}
+
+/// Stop: lets the recorder write everything still queued (the view shows
+/// "saving audio" meanwhile) and finish the manifest, within its deadline.
+fn drain_recorder(service: &AppService, id: &str, recorder: RecorderQueue) -> Result<(), String> {
+    // True until the recorder has written everything and finished the
+    // manifest (or failed): the meeting is not ready before that.
+    let result = recorder.finish(|status| publish_recorder(service, status, true));
+    service.recorder_active.store(false, Ordering::Relaxed);
+    if result.is_ok() {
+        let _ = store::clear_recorder_progress(&service.root, id, Duration::from_secs(1));
+    }
+    if let Ok(mut runtime) = service.runtime.lock() {
+        runtime.recorder.saving_audio = false;
+    }
+    if service
+        .runtime
+        .lock()
+        .is_ok_and(|runtime| runtime.recorder_lock_waits.max > Duration::from_secs(1))
+    {
+        service.backlog_warn(RECORDER_LOCK_WAIT_WARNING);
+    }
+    result
 }
 
 /// Housekeeping writes on the capture consumer loop must not end a recording
@@ -1159,17 +1374,30 @@ pub(super) fn run(
     id: String,
     mode: CaptureMode,
     input_device: Option<String>,
-    mut recorder: Recording,
+    recording: Recording,
     controls: Receiver<Control>,
 ) {
-    let result = record_session(
-        &service,
-        &id,
-        mode,
-        input_device.as_deref(),
-        &mut recorder,
-        controls,
-    );
+    // All file and manifest work runs on the recorder thread; the capture loop
+    // only queues it. A recorder that cannot start ends the recording at once
+    // (the dropped writer releases its lock; `recover` below reconciles it).
+    service.recorder_active.store(true, Ordering::Relaxed);
+    let (result, recorder) = match start_recorder(&service, &id, recording) {
+        Ok(recorder) => (
+            record_session(
+                &service,
+                &id,
+                mode,
+                input_device.as_deref(),
+                &recorder,
+                controls,
+            ),
+            Some(recorder),
+        ),
+        Err(error) => {
+            service.recorder_active.store(false, Ordering::Relaxed);
+            (Err(error), None)
+        }
+    };
     let finished = if let Ok(mut runtime) = service.runtime.lock() {
         runtime.source_timeline.finish();
         let timing = runtime
@@ -1186,12 +1414,11 @@ pub(super) fn run(
     } else {
         0
     };
-    // The recorder retries its final status update on lock errors itself.
-    let finish = recorder.finish();
-    let mut error = result
-        .err()
-        .map(|e| e.to_string())
-        .or_else(|| finish.err().map(|e| e.to_string()));
+    // Queued audio is written (and the manifest finished, with its own lock
+    // retry) before the live run is sealed below. A fatal recorder error or a
+    // drain past its deadline ends the meeting with that error.
+    let finish = recorder.map_or(Ok(()), |recorder| drain_recorder(&service, &id, recorder));
+    let mut error = result.err().map(|e| e.to_string()).or_else(|| finish.err());
     if error.is_none()
         && let Err(problem) = finish_live_run(&service.root, &id)
     {
@@ -1200,14 +1427,30 @@ pub(super) fn run(
     let _ = store::retry_busy(AFTER_STOP_BUDGET, |busy_timeout| {
         store::set_duration_with(&service.root, &id, elapsed, busy_timeout)
     });
-    if let Some(error) = error {
+    if let Some(mut error) = error {
         if let Ok(detail) = store::detail(&service.root, &id)
             && let Some(run) = detail.active_run_id
         {
             let _ = store::abandon_run(&service.root, &run);
         }
+        // Fails (busy) only if the recorder thread is still stuck; it then
+        // recovers itself when it ends (`late_recovery`), or startup does.
         if service.ensure_saved_audio(&id).is_ok() {
-            let _ = Recording::recover(&service.root, &id);
+            match Recording::recover(&service.root, &id) {
+                Ok(_) => {
+                    let _ = store::record_unsaved_tail(&service.root, &id);
+                }
+                // Never silent: the meeting says recovery is still pending.
+                Err(problem)
+                    if !error.contains(crate::recorder_queue::RECORDER_RECOVERY_PENDING) =>
+                {
+                    error = format!(
+                        "{error} {} ({problem})",
+                        crate::recorder_queue::RECORDER_RECOVERY_PENDING
+                    );
+                }
+                Err(_) => (),
+            }
         }
         // The live run was not sealed, so its catch-up search rebuild did not
         // run; do it here for edits deferred during the recording.
@@ -1279,7 +1522,7 @@ fn record_session(
     id: &str,
     mode: CaptureMode,
     input_device: Option<&str>,
-    recorder: &mut Recording,
+    recorder: &RecorderQueue,
     controls: Receiver<Control>,
 ) -> Result<()> {
     let mut process = CaptureProcess::spawn_with_device(
@@ -1290,9 +1533,18 @@ fn record_session(
     )?;
     let events = process.take_events()?;
     let (capture_tx, capture_rx) = mpsc::sync_channel(128);
+    #[cfg(test)]
+    let channel_full = service
+        .recorder_test
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|hook| hook.channel_full.clone());
     let reader = std::thread::Builder::new()
         .name("capture-reader".into())
         .spawn(move || {
+            #[cfg(test)]
+            RELAY_FULL.with(|full| *full.borrow_mut() = channel_full);
             let mut formats = BTreeMap::new();
             for event in events {
                 if !relay_capture_event(event, &mut formats, &capture_tx) {
@@ -1464,6 +1716,7 @@ fn record_session(
     let mut last_duration = Instant::now();
     let mut audio_received = false;
     let mut housekeeping_warned = false;
+    let mut recorder_notes = RecorderNotes::default();
     let mut capture = crate::capture_health::CaptureMonitor::default();
     let outcome = (|| -> Result<()> {
         // Housekeeping writes on this loop give up the in-process writer
@@ -1490,6 +1743,13 @@ fn record_session(
                     publish_capture(service, &capture);
                 }
             }
+            // Never waits for the recorder; a fatal recorder error ends here.
+            poll_recorder(
+                service,
+                recorder,
+                &mut recorder_notes,
+                &mut housekeeping_warned,
+            )?;
             tolerate_busy(
                 service,
                 &mut housekeeping_warned,
@@ -1523,7 +1783,7 @@ fn record_session(
                     }
                     Control::Pause => {
                         for track in tracks.values_mut() {
-                            track.flush(recorder, service, id, &mut housekeeping_warned)?;
+                            track.flush(recorder, service, &mut housekeeping_warned)?;
                             track.resume_pending = true;
                         }
                         paused = true;
@@ -1591,6 +1851,24 @@ fn record_session(
                     &mut housekeeping_warned,
                     store::set_duration_with(&service.root, id, elapsed, store::LOOP_BUSY_TIMEOUT),
                 )?;
+                // While audio waits for the recorder, keep durable evidence of
+                // how far capture got, so an exit mid-backlog is a visible gap.
+                if recorder.status().queued_ns > 0 {
+                    let progress = tracks
+                        .values()
+                        .filter_map(TrackBuffer::progress)
+                        .collect::<Vec<_>>();
+                    tolerate_busy(
+                        service,
+                        &mut housekeeping_warned,
+                        store::save_recorder_progress(
+                            &service.root,
+                            id,
+                            &progress,
+                            store::LOOP_BUSY_TIMEOUT,
+                        ),
+                    )?;
+                }
             }
             let event = match capture_rx.recv_timeout(Duration::from_millis(50)) {
                 Ok(event) => event?,
@@ -1693,7 +1971,6 @@ fn record_session(
                         start_ns,
                         recorder,
                         service,
-                        id,
                         &mut housekeeping_warned,
                     )?;
                 }
@@ -1732,7 +2009,6 @@ fn record_session(
                             samples,
                             recorder,
                             service,
-                            id,
                             &mut housekeeping_warned,
                         )?;
                     let end_ms =
@@ -1800,7 +2076,6 @@ fn record_session(
                         helper_gap_reason(&reason),
                         recorder,
                         service,
-                        id,
                         &mut housekeeping_warned,
                     )?;
                     service
@@ -1894,15 +2169,23 @@ fn record_session(
                 GapReason::Pause,
                 recorder,
                 service,
-                id,
                 &mut housekeeping_warned,
             )
         {
             flush_error = Some(error);
         }
-        if let Err(error) = track.flush(recorder, service, id, &mut housekeeping_warned) {
+        if let Err(error) = track.flush(recorder, service, &mut housekeeping_warned) {
             flush_error = Some(error);
         }
+    }
+    // Everything is handed over: record its full span before the drain, so a
+    // quit or crash before the recorder catches up leaves visible evidence.
+    if recorder.status().queued_ns > 0 {
+        let progress = tracks
+            .values()
+            .filter_map(TrackBuffer::progress)
+            .collect::<Vec<_>>();
+        let _ = store::save_recorder_progress(&service.root, id, &progress, Duration::from_secs(1));
     }
     if outcome.is_ok() {
         routes.seal(service, id, AFTER_STOP_BUDGET);
@@ -2165,6 +2448,10 @@ mod live_speaker_persistence_tests;
 mod live_recovery_tests;
 
 #[cfg(test)]
+#[path = "recorder_session_tests.rs"]
+mod recorder_session_tests;
+
+#[cfg(test)]
 mod regression_tests {
     use super::*;
 
@@ -2322,7 +2609,7 @@ mod regression_tests {
         let service =
             AppService::new(temp.path().to_path_buf(), temp.path().join("unused-helper")).unwrap();
         let id = "inference-clock";
-        let mut recording = Recording::create(temp.path(), id).unwrap();
+        let recording = Recording::create(temp.path(), id).unwrap();
         store::create_meeting(
             temp.path(),
             id,
@@ -2330,15 +2617,15 @@ mod regression_tests {
             "remote",
         )
         .unwrap();
+        let recorder = start_recorder(&service, id, recording).unwrap();
         let mut track = TrackBuffer::new(TrackKind::Mic);
         track
             .set_format(
                 StreamFormat::new(16_000, 1).unwrap(),
                 0,
                 0,
-                &mut recording,
+                &recorder,
                 &service,
-                id,
                 &mut false,
             )
             .unwrap();
@@ -2352,9 +2639,8 @@ mod regression_tests {
                         host_ns: packet * 20_000_000,
                     },
                     samples.clone(),
-                    &mut recording,
+                    &recorder,
                     &service,
-                    id,
                     &mut false,
                 )
                 .unwrap();
@@ -2366,10 +2652,8 @@ mod regression_tests {
                 "inference timestamp for packet {packet}"
             );
         }
-        track
-            .flush(&mut recording, &service, id, &mut false)
-            .unwrap();
-        recording.finish().unwrap();
+        track.flush(&recorder, &service, &mut false).unwrap();
+        recorder.finish(|_| ()).unwrap();
         let chunks = Recording::recover(temp.path(), id).unwrap();
         assert_eq!(chunks.verified_chunks, 2);
     }
@@ -2475,17 +2759,17 @@ mod regression_tests {
         let temp = tempfile::TempDir::new().unwrap();
         let service =
             AppService::new(temp.path().to_path_buf(), temp.path().join("unused-helper")).unwrap();
-        let mut recording = Recording::create(temp.path(), "epoch-regression").unwrap();
+        let recording = Recording::create(temp.path(), "epoch-regression").unwrap();
         store::create_meeting(temp.path(), "epoch-regression", "Epoch fixture", "remote").unwrap();
+        let recorder = start_recorder(&service, "epoch-regression", recording).unwrap();
         let mut track = TrackBuffer::new(TrackKind::Mic);
         track
             .set_format(
                 StreamFormat::new(8_000, 1).unwrap(),
                 0,
                 0,
-                &mut recording,
+                &recorder,
                 &service,
-                "epoch-regression",
                 &mut false,
             )
             .unwrap();
@@ -2497,24 +2781,20 @@ mod regression_tests {
                     host_ns: 0,
                 },
                 vec![0.0; 80],
-                &mut recording,
+                &recorder,
                 &service,
-                "epoch-regression",
                 &mut false,
             )
             .unwrap();
-        track
-            .flush(&mut recording, &service, "epoch-regression", &mut false)
-            .unwrap();
+        track.flush(&recorder, &service, &mut false).unwrap();
         for (source_epoch, rate) in [(1, 16_000), (2, 48_000)] {
             track
                 .set_format(
                     StreamFormat::new(rate, 1).unwrap(),
                     source_epoch,
                     10_000_000,
-                    &mut recording,
+                    &recorder,
                     &service,
-                    "epoch-regression",
                     &mut false,
                 )
                 .unwrap();
@@ -2527,21 +2807,22 @@ mod regression_tests {
                     host_ns: 10_000_000,
                 },
                 vec![0.0; 80],
-                &mut recording,
+                &recorder,
                 &service,
-                "epoch-regression",
                 &mut false,
             )
             .unwrap();
-        track
-            .flush(&mut recording, &service, "epoch-regression", &mut false)
+        track.flush(&recorder, &service, &mut false).unwrap();
+        recorder.finish(|_| ()).unwrap();
+        let db = store::open(temp.path()).unwrap();
+        let mut query = db
+            .prepare("SELECT epoch FROM audio_chunks WHERE meeting_id='epoch-regression' AND kind='audio' ORDER BY seq")
             .unwrap();
         assert_eq!(
-            recording
-                .chunks()
+            query
+                .query_map([], |r| r.get::<_, u32>(0))
                 .unwrap()
-                .iter()
-                .map(|chunk| chunk.epoch)
+                .map(Result::unwrap)
                 .collect::<Vec<_>>(),
             vec![0, 1]
         );

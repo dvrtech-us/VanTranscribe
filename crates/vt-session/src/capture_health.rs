@@ -99,6 +99,21 @@ pub struct StallRecord {
     pub duration_ms: Option<u64>,
 }
 
+/// The recorder thread's backlog (audio waiting to be written) and write
+/// latency for one recording. See `recorder_queue`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RecorderHealth {
+    /// Backlog when last reported (whole seconds are tracked live).
+    pub queued_ms: u64,
+    pub max_queued_ms: u64,
+    /// Blocks not saved because the backlog was full, and their duration.
+    pub drops: u64,
+    pub dropped_ms: u64,
+    /// Longest single chunk write (manifest rows, encode, fsyncs, rename).
+    pub max_write_ms: u64,
+}
+
 /// Bounded capture evidence for one recording, persisted with the live run's
 /// inference health report.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,6 +133,8 @@ pub struct CaptureHealth {
     /// Session-loop iterations of at least 500 ms, and the longest one.
     pub slow_iterations: u64,
     pub max_iteration_ms: u64,
+    /// Recorder backlog and write latency (absent in older reports).
+    pub recorder: RecorderHealth,
     /// Some records were not kept because a list reached [`MAX_RECORDS`].
     pub truncated: bool,
 }

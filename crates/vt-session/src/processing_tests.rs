@@ -380,7 +380,7 @@ fn public_refinement_pipeline_publishes_real_words_and_retains_original_run() {
         .map(|entry| entry.0)
         .chain(std::iter::once("manifest.json"))
     {
-        fs::hard_link(model.join(name), destination.join(name)).unwrap();
+        crate::test_fixtures::link_or_copy(&model.join(name), &destination.join(name));
     }
     assert!(RefinementModelManager::new(service.root().join("models")).installed());
     service.runtime.lock().unwrap().refinement_model.installed = true;

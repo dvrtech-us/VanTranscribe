@@ -20,7 +20,7 @@ fn hardlink_public_tree(source: &Path, destination: &Path) {
                 kind.is_file(),
                 "public model cache may contain only regular files/directories"
             );
-            fs::hard_link(entry.path(), destination).unwrap();
+            crate::test_fixtures::link_or_copy(&entry.path(), &destination);
         }
     }
 }
@@ -72,23 +72,23 @@ fn real_public_standard_live_workers_vad_speakers_and_words_seal_without_capture
 }
 
 fn public_live_workers(model: vt_stt::LiveModel) {
-    let fixture = Path::new("/private/tmp/vantranscribe-stt-fixture.wav");
+    let fixture = crate::test_fixtures::path("vantranscribe-stt-fixture.wav");
     let streaming_root = match model {
-        vt_stt::LiveModel::EnglishSmall => Path::new("/private/tmp/vantranscribe-stt-models"),
+        vt_stt::LiveModel::EnglishSmall => crate::test_fixtures::path("vantranscribe-stt-models"),
         vt_stt::LiveModel::EnglishStandard => {
-            Path::new("/private/tmp/vantranscribe-ami-eval/verified-live-models")
+            crate::test_fixtures::path("vantranscribe-ami-eval/verified-live-models")
         }
     };
     let streaming = streaming_root.join(model.id());
     let diarization =
-        Path::new("/private/tmp/vt-diarization-models/verified").join(vt_diarize::MODEL_ID);
-    let refinement =
-        Path::new("/private/tmp/vantranscribe-refinement-models").join(vt_stt::REFINEMENT_MODEL_ID);
+        crate::test_fixtures::path("vt-diarization-models/verified").join(vt_diarize::MODEL_ID);
+    let refinement = crate::test_fixtures::path("vantranscribe-refinement-models")
+        .join(vt_stt::REFINEMENT_MODEL_ID);
     assert!(
         fixture.is_file() && streaming.is_dir() && diarization.is_dir() && refinement.is_dir(),
         "the explicitly selected public fixture and verified caches must exist; this test never downloads them"
     );
-    let public_before = fs::read(fixture).unwrap();
+    let public_before = fs::read(&fixture).unwrap();
     let wave = sherpa_onnx::Wave::read(fixture.to_str().unwrap()).unwrap();
     assert_eq!(
         wave.sample_rate(),
@@ -104,7 +104,7 @@ fn public_live_workers(model: vt_stt::LiveModel) {
     // The verified refinement manifest makes its pinned Silero available for
     // reuse. Parakeet inference/automatic refinement remain disabled below.
     hardlink_public_tree(&refinement, &models.join(vt_stt::REFINEMENT_MODEL_ID));
-    fs::hard_link(fixture, temp.path().join("public-fixture.wav")).unwrap();
+    crate::test_fixtures::link_or_copy(&fixture, &temp.path().join("public-fixture.wav"));
     let helper = temp.path().join("capture-public-live-fixture");
     fs::write(&helper,r#"#!/usr/bin/env python3
 import json, pathlib, select, struct, sys, time, wave
@@ -459,7 +459,7 @@ while not stopped():
         "this paced no-gap fixture should archive every emitted frame"
     );
     assert!(
-        fs::read(fixture).unwrap() == public_before,
+        fs::read(&fixture).unwrap() == public_before,
         "the original public fixture must remain unchanged"
     );
     assert!(service.snapshot().unwrap().playback.is_none());

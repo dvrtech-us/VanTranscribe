@@ -27,6 +27,7 @@ pub use meeting_detection::{
     DetectionSettings, DetectionSnapshot, DetectionStatus,
 };
 mod processing;
+mod recorder_queue;
 mod retention;
 mod session;
 mod source_timing;
@@ -103,6 +104,18 @@ pub struct RecordingView {
     pub error: Option<String>,
 }
 
+/// The recording's audio recorder thread, for the runtime view. `saving_audio`
+/// is true after stop while queued audio is still being written.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct RecorderView {
+    /// Audio waiting to be written (the larger of the two tracks).
+    pub queued_ms: u64,
+    pub max_queued_ms: u64,
+    /// Audio not saved because the recorder fell too far behind.
+    pub dropped_ms: u64,
+    pub saving_audio: bool,
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ModelStatus {
     pub installed: bool,
@@ -149,6 +162,8 @@ pub struct Snapshot {
     pub source_timing: Option<SourceTiming>,
     pub health: HealthSnapshot,
     pub recording: Option<RecordingView>,
+    /// Present while a recording is current.
+    pub recorder: Option<RecorderView>,
     pub meetings: Vec<Meeting>,
     pub models: ModelStatus,
     pub refinement_models: ModelStatus,
@@ -187,8 +202,9 @@ struct Runtime {
     processing_view: Option<ProcessingView>,
     live_processing: LiveProcessing,
     /// Database-lock waits of the current recording's chunk writer, copied
-    /// after each chunk or gap write.
+    /// from the recorder thread on every capture-loop iteration.
     recorder_lock_waits: vt_record::LockWaits,
+    recorder: RecorderView,
 }
 
 pub struct AppService {
@@ -196,11 +212,16 @@ pub struct AppService {
     detection_worker: Mutex<Option<meeting_detection::DetectionWorker>>,
     #[cfg(test)]
     test_workers: Mutex<Option<Arc<backlog::TestWorkers>>>,
+    /// Recorder-thread overrides for the next recording (tests only).
+    #[cfg(test)]
+    recorder_test: Mutex<Option<recorder_queue::TestHook>>,
     backlog: db::OrderedMutex<backlog::Controller>,
     resources: Arc<dyn health::ResourceProbe>,
     health_monitor: Mutex<health::HealthMonitor>,
     inference_suspended: AtomicBool,
     resource_stop: AtomicBool,
+    /// A recording's recorder thread is running or still saving queued audio.
+    recorder_active: AtomicBool,
     root: PathBuf,
     helper: PathBuf,
     runtime: db::OrderedMutex<Runtime>,
@@ -260,11 +281,14 @@ impl AppService {
             detection_worker: Mutex::new(None),
             #[cfg(test)]
             test_workers: Mutex::new(None),
+            #[cfg(test)]
+            recorder_test: Mutex::new(None),
             backlog: db::OrderedMutex::new("backlog", backlog::Controller::default()),
             resources,
             health_monitor: Mutex::new(health::HealthMonitor::default()),
             inference_suspended: AtomicBool::new(false),
             resource_stop: AtomicBool::new(false),
+            recorder_active: AtomicBool::new(false),
             root,
             helper,
             runtime: db::OrderedMutex::new(
@@ -438,7 +462,9 @@ impl AppService {
         }
         Ok(())
     }
-    /// Decides from a fresh free-space reading. Persisting that reading runs on
+    /// Decides from a fresh free-space reading whether `encoded_upper_bound`
+    /// bytes (everything still queued for the recorder thread plus the block
+    /// being handed over) can be published. Persisting that reading runs on
     /// the chunk flush path, so it uses the loop's short busy timeout and a
     /// lock error is skipped with the once-per-recording housekeeping warning.
     fn recording_budget(&self, encoded_upper_bound: u64, busy_warned: &mut bool) -> Result<()> {
@@ -463,6 +489,7 @@ impl AppService {
             .runtime
             .lock()
             .map_err(|_| anyhow::anyhow!("session state unavailable"))?;
+        let recorder = runtime.current.as_ref().map(|_| runtime.recorder.clone());
         let recording = runtime.current.as_ref().map(|current| {
             let mut view = current.view.clone();
             if matches!(view.status.as_str(), "recording" | "paused" | "processing") {
@@ -529,6 +556,7 @@ impl AppService {
             source_timing,
             health,
             recording,
+            recorder,
             meetings: store::meetings(&self.root)?,
             models: model,
             refinement_models: refinement_model,
@@ -661,6 +689,8 @@ impl AppService {
         runtime.health = preflight;
         runtime.partials.clear();
         runtime.live_processing = LiveProcessing::default();
+        runtime.recorder = RecorderView::default();
+        runtime.recorder_lock_waits = Default::default();
         let transcription_configured = runtime.model.installed;
         runtime.current = Some(Current {
             view: RecordingView {
@@ -757,8 +787,34 @@ impl AppService {
     pub fn wait_for_shutdown(&self) {
         self.shutdown();
         self.join_detection();
-        let deadline = Instant::now() + std::time::Duration::from_secs(35);
-        while Instant::now() < deadline {
+        let started = Instant::now();
+        #[allow(unused_mut)]
+        let mut base = std::time::Duration::from_secs(35);
+        #[cfg(test)]
+        if let Some(wait) = self
+            .recorder_test
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|hook| hook.shutdown_wait)
+        {
+            base = wait;
+        }
+        // While the recorder is still saving queued audio, quitting would lose
+        // it: keep waiting for its drain (deadline, grace and abort wait), then
+        // the usual bound again for the after-stop writes. Everything else
+        // keeps the usual bound. Audio still unsaved if the process exits is
+        // recorded as a gap by the next startup's recovery.
+        let cap = started + base + recorder_queue::RECORDER_STOP_BOUND;
+        let mut until = started + base;
+        loop {
+            let now = Instant::now();
+            if self.recorder_active.load(Ordering::Relaxed) {
+                until = until.max(now + base).min(cap);
+            }
+            if now >= until {
+                break;
+            }
             let active = self
                 .runtime
                 .lock()
@@ -1346,5 +1402,7 @@ mod maintenance_integration_tests;
 mod real_call_replay_tests;
 #[cfg(test)]
 mod summary_tests;
+#[cfg(test)]
+mod test_fixtures;
 #[cfg(test)]
 mod tests;

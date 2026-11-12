@@ -112,7 +112,7 @@
 - Stop drains the writer before the live run is sealed. Unsaved finals are shown from the runtime view, de-duplicated by segment ID against saved rows.
 - A speech recognizer error is recovered in place (gap `recognizer_error`, failure entry, track reset; engine rebuilt only for an engine error or failed reset). The same cause twice in a row is terminal; at most 20 recoveries per recording. The speaker worker is never restarted; backlog shedding of live STT is sticky.
 - A hypothesis returned by a source-gap reset or by finish is saved at most once and never past the audio already fed.
-- The recorder's chunk writer retries a database lock for up to `MANIFEST_LOCK_BUDGET` (60 s) before ending the recording; `save_clock` on flush is skipped on a lock (single `HOUSEKEEPING_BUSY_WARNING`). A recorder wait blocks the capture consumer loop (see [durable recording](../../recording/durable-recording/durable-recording.md#manifest-write-lock-tolerance)).
+- The recorder's chunk writer retries a database lock for up to `MANIFEST_LOCK_BUDGET` (60 s) before ending the recording; `save_clock` on flush is skipped on a lock (single `HOUSEKEEPING_BUSY_WARNING`). A recorder wait delays only the `audio-recorder` thread, not the capture consumer loop (see [durable recording](../../recording/durable-recording/durable-recording.md#recorder-thread-and-bounded-queue)).
 
 ## Desktop policy
 

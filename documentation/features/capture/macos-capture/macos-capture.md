@@ -11,7 +11,7 @@ M0 remains incomplete. The packaged app has captured both tracks with matching s
 3. If the default input is Bluetooth, select that input explicitly or choose a non-Bluetooth microphone. The helper never implicitly opens the default Bluetooth microphone.
 4. On first capture, allow microphone access when macOS requests it. The app bundle supplies `NSMicrophoneUsageDescription` and `NSAudioCaptureUsageDescription`. Device enumeration alone does not start recording or request access.
 5. The helper publishes format, audio, level and lifecycle events while the session worker records and transcribes. If system tap creation fails, remote mode reports a nonfatal error and continues with microphone audio.
-6. Stop recording. The caller sends `stop` on stdin and keeps reading events until EOF so the helper can publish its final partial packet before the session flushes its recorder. Forced termination is a timeout fallback.
+6. Stop recording. The caller sends `stop` on stdin and keeps reading events until EOF so the helper can publish its final partial packet before the session hands its last blocks to the recorder thread, which then drains its queue and finishes the manifest (see [durable recording](../../recording/durable-recording/durable-recording.md#recorder-thread-and-bounded-queue)). Forced termination is a timeout fallback.
 
 For direct development commands and native build instructions, see [native/macos/README.md](../../../../native/macos/README.md). Direct capture commands also require the appropriate app privacy context and user permission; a successful build is not a capture test.
 

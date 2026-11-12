@@ -45,4 +45,4 @@
 
 ## Known limits
 
-While the writer waits for the recorder's SQLite lock, other in-process writers queue behind it. Recording start, enrollment's final write and `select_live_model` still write under `runtime` (5 s cap; none can run during capture). The recorder keeps its own connection and the capture loop; no real recording has exercised the shared writer.
+While the writer waits for the recorder's SQLite lock, other in-process writers queue behind it. Recording start, enrollment's final write and `select_live_model` still write under `runtime` (5 s cap; none can run during capture). The recorder keeps its own connection but runs on its own `audio-recorder` thread, not the capture loop (see [durable recording](../../recording/durable-recording/durable-recording.md#recorder-thread-and-bounded-queue)); no real recording has exercised the shared writer or the recorder thread.

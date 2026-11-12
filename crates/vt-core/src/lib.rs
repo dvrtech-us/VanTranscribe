@@ -180,6 +180,12 @@ pub enum GapReason {
     DeviceChange,
     Overflow,
     Unavailable,
+    /// The app's recorder thread fell further behind capture than its bounded
+    /// in-memory queue allows, so the app (not the helper) dropped this audio.
+    RecorderBacklog,
+    /// Audio the app captured and queued for its recorder, but the app or its
+    /// recorder stopped before saving it (found by recovery afterwards).
+    RecorderInterrupted,
 }
 
 impl GapReason {
@@ -189,6 +195,8 @@ impl GapReason {
             Self::DeviceChange => "device_change",
             Self::Overflow => "overflow",
             Self::Unavailable => "unavailable",
+            Self::RecorderBacklog => "recorder_backlog",
+            Self::RecorderInterrupted => "recorder_interrupted",
         }
     }
 }

@@ -228,7 +228,7 @@ fn hardlink_models(source: &Path, destination: &Path) {
                 kind.is_file(),
                 "cached public model tree must contain only regular files"
             );
-            fs::hard_link(entry.path(), target).unwrap();
+            crate::test_fixtures::link_or_copy(&entry.path(), &target);
         }
     }
 }
@@ -273,16 +273,16 @@ fn real_public_refinement_with_unresolved_constraint_publishes_unknown_speech_an
 
 fn public_refinement_case(with_pending_constraint: bool) {
     use vt_core::{AudioBlock, FramePosition, StreamFormat};
-    let fixture = Path::new("/private/tmp/vantranscribe-stt-fixture.wav");
-    let refinement =
-        Path::new("/private/tmp/vantranscribe-refinement-models").join(vt_stt::REFINEMENT_MODEL_ID);
+    let fixture = crate::test_fixtures::path("vantranscribe-stt-fixture.wav");
+    let refinement = crate::test_fixtures::path("vantranscribe-refinement-models")
+        .join(vt_stt::REFINEMENT_MODEL_ID);
     let diarization =
-        Path::new("/private/tmp/vt-diarization-models/verified").join(vt_diarize::MODEL_ID);
+        crate::test_fixtures::path("vt-diarization-models/verified").join(vt_diarize::MODEL_ID);
     assert!(
         fixture.is_file() && refinement.is_dir() && diarization.is_dir(),
         "explicit public fixture/model caches must exist before this ignored test is selected"
     );
-    let original_wave = fs::read(fixture).unwrap();
+    let original_wave = fs::read(&fixture).unwrap();
     let temp = tempfile::TempDir::new_in("/private/tmp").unwrap();
     let root = temp.path().join("data");
     let models = root.join("models");
@@ -608,7 +608,7 @@ fn public_refinement_case(with_pending_constraint: bool) {
         "refinement must not rewrite source FLAC bytes or manifest audio paths/hashes"
     );
     assert!(
-        fs::read(fixture).unwrap() == original_wave,
+        fs::read(&fixture).unwrap() == original_wave,
         "the public source fixture must remain unchanged"
     );
     assert!(
@@ -663,11 +663,11 @@ fn refinement_publication_uses_speaker_turns_only_when_separation_is_configured(
 fn publish_refined_recording(speakers: bool) {
     use std::time::{Duration, Instant};
     use vt_core::{AudioBlock, FramePosition, StreamFormat};
-    let fixture = Path::new("/private/tmp/vantranscribe-stt-fixture.wav");
-    let refinement =
-        Path::new("/private/tmp/vantranscribe-refinement-models").join(vt_stt::REFINEMENT_MODEL_ID);
+    let fixture = crate::test_fixtures::path("vantranscribe-stt-fixture.wav");
+    let refinement = crate::test_fixtures::path("vantranscribe-refinement-models")
+        .join(vt_stt::REFINEMENT_MODEL_ID);
     let diarization =
-        Path::new("/private/tmp/vt-diarization-models/verified").join(vt_diarize::MODEL_ID);
+        crate::test_fixtures::path("vt-diarization-models/verified").join(vt_diarize::MODEL_ID);
     assert!(
         fixture.is_file() && refinement.is_dir() && (!speakers || diarization.is_dir()),
         "explicit public fixture and pinned model caches must exist"
